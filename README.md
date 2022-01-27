@@ -13,7 +13,7 @@ Add the tweening plugin to your app:
 
 ```rust
 App::default()
-    .add_default_plugins()
+    .add_plugins(DefaultPlugins)
     .add_plugin(TweeningPlugin)
     .run();
 ```
