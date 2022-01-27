@@ -1,4 +1,4 @@
-# Bevy Tweening
+# 🍃 Bevy Tweening
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Doc](https://docs.rs/bevy_tweening/badge.svg)](https://docs.rs/bevy_tweening) [![Crate](https://img.shields.io/crates/v/bevy_tweening.svg)](https://crates.io/crates/bevy_tweening)
 
