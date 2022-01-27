@@ -200,7 +200,7 @@ Compatibility of `bevy_tweening` versions:
 
 ## Comparison with `bevy_easings`
 
-The `bevy_tweening` library started as a fork of [the `bevy_easings` library by François Mocker](https://github.com/mockersf/bevy_extra/blob/master/bevy_easings), with the goals to:
+The `bevy_tweening` library started as a fork of [the `bevy_easings` library by François Mocker](https://github.com/vleue/bevy_easings), with the goals to:
 
 - explore an alternative design based on lenses instead of generic types for each easer/animator. This reduces both the number of generic types needed, and hopefully the code size, as well as the number of systems needed to perform the interpolation.
 - improve the interpolation of assets to avoid creating many copies like `bevy_easings` does, and instead mutate the assets (and, by similarity, the components too) in-place without making a copy. The in-place mutation also allows a more optimal interpolation limited to modifying the fields of interest only, instead of creating a new copy of the entire component each tick.
