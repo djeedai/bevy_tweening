@@ -1,0 +1,30 @@
+[package]
+name = "bevy_tweening_bench"
+version = "0.2.0"
+authors = ["Jerome Humbert <djeedai@gmail.com>"]
+edition = "2021"
+description = "Tweening plugin for Bevy -- Benchmarks"
+repository = "https://github.com/djeedai/bevy_tweening"
+homepage = "https://github.com/djeedai/bevy_tweening/tree/master"
+documentation = "https://docs.rs/bevy_tweening"
+keywords = ["bevy", "animation", "easing", "tweening"]
+license = "MIT"
+readme = "README.md"
+exclude = ["examples/*.gif"]
+
+[dependencies]
+criterion = { version = "0.3", features = ["html_reports"] }
+bevy_tweening = { path = "../" }
+
+[dependencies.bevy]
+version = "0.6"
+default-features = false
+features = [ "render" ]
+
+[lib]
+bench = false
+
+[[bench]]
+name = "lens"
+path = "benches/lens.rs"
+harness = false

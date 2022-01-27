@@ -1,0 +1,28 @@
+# Changelog
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [Unreleased]
+
+### Added
+
+- Add `Animator<T>::is_paused()` and `AssetAnimator<T>::is_paused()` to query when a tweening animation is in its pause phase, if any.
+- Add `Animator<T>::direction()` and `AssetAnimator<T>::direction()` to query the playback direction of a tweening animation (forward or backward).
+- Add `Animator<T>::progress()` and `AssetAnimator<T>::progress()` to query the progres ratio in [0:1] of a tweening animation.
+
+## [0.2.0] - 2022-01-09
+
+### Changed
+
+- Update to Bevy 0.6
+- Update to rust edition 2021
+- Force Cargo resolver v2
+
+### Added
+
+- Added built-in lens `SpriteColorLens`, since the color of a `Sprite` is now an intrinsic property of the component in Bevy 0.6, and does not use `ColorMaterial` anymore.
+
+## [0.1.0] - 2021-12-24
+
+Initial version for Bevy 0.5
