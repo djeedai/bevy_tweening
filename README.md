@@ -1,8 +1,9 @@
 # 🍃 Bevy Tweening
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT) [![Doc](https://docs.rs/bevy_tweening/badge.svg)](https://docs.rs/bevy_tweening) [![Crate](https://img.shields.io/crates/v/bevy_tweening.svg)](https://crates.io/crates/bevy_tweening)
+[![License: MIT/Apache](https://img.shields.io/badge/License-MIT%20or%20Apache2-blue.svg)](https://opensource.org/licenses/MIT) [![Doc](https://docs.rs/bevy_tweening/badge.svg)](https://docs.rs/bevy_tweening) [![Crate](https://img.shields.io/crates/v/bevy_tweening.svg)](https://crates.io/crates/bevy_tweening)
+[![Bevy tracking](https://img.shields.io/badge/Bevy%20tracking-v0.6-lightblue)](https://github.com/bevyengine/bevy/blob/main/docs/plugins_guidelines.md#main-branch-tracking)
 
-Tweening animation plugin for Bevy.
+Tweening animation plugin for the Bevy game engine.
 
 ## Usage
 
