@@ -40,6 +40,10 @@ required-features = [ "bevy/bevy_winit" ]
 name = "ui_position"
 required-features = [ "bevy/bevy_winit" ]
 
+[[example]]
+name = "sequence"
+required-features = [ "bevy/bevy_winit" ]
+
 [workspace]
 resolver = "2"
 members = [".", "benchmarks/"]
