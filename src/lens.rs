@@ -90,8 +90,7 @@ pub struct TransformRotationLens {
 
 impl Lens<Transform> for TransformRotationLens {
     fn lerp(&mut self, target: &mut Transform, ratio: f32) {
-        let value = self.start + (self.end - self.start) * ratio;
-        target.rotation = value;
+        target.rotation = self.start.slerp(self.end, ratio); // FIXME - This slerps the shortest path only! https://docs.rs/bevy/latest/bevy/math/struct.Quat.html#method.slerp
     }
 }
 

@@ -5,6 +5,12 @@
 
 Tweening animation plugin for the Bevy game engine.
 
+## Features
+
+- [x] Versatile customizable lens system to animate any field of any component or asset.
+- [x] Sequence of tweening animations chained together, running one after the other, to create complex animations.
+- [x] Multiple tweening animations per component, running in parallel, to animate different fields with different parameters.
+
 ## Usage
 
 ### System setup
@@ -33,12 +39,13 @@ commands
         },
         ..Default::default()
     })
-    // Add an Animator component to perform the animation
+    // Add an Animator component to perform the animation. This is a shortcut to
+    // create both an Animator and a Tween, and assign the Tween to the Animator.
     .insert(Animator::new(
         // Use a quadratic easing on both endpoints
         EaseFunction::QuadraticInOut,
         // Loop animation back and forth over 1 second, with a 0.5 second
-        // pause after each cycle (start -> end -> start).
+        // pause after each cycle (start -> end -> start -> pause -> ...).
         TweeningType::PingPong {
             duration: Duration::from_secs(1),
             pause: Some(Duration::from_millis(500)),
@@ -55,7 +62,9 @@ commands
 
 ## Predefined Lenses
 
-The naming scheme for predefined lenses is `"<TargetName><FieldName>Lens"`, where `<TargetName>` is the name of the target component or asset which is queried, and `<FieldName>` is the field which is mutated in place.
+A small number of predefined lenses are available for the most common use cases, which also serve as examples. Users are encouraged to write their own lens to tailor the animation to their use case.
+
+The naming scheme for predefined lenses is `"<TargetName><FieldName>Lens"`, where `<TargetName>` is the name of the target Bevy component or asset type which is queried by the internal animation system to be modified, and `<FieldName>` is the field which is mutated in place by the lens. All predefined lenses modify a single field. Custom lenses can be written which modify multiple fields at once.
 
 ### Bevy Components
 
@@ -74,27 +83,26 @@ The naming scheme for predefined lenses is `"<TargetName><FieldName>Lens"`, wher
 |---|---|---|
 | [`ColorMaterial`](https://docs.rs/bevy/0.6.0/bevy/sprite/struct.ColorMaterial.html) | [`color`](https://docs.rs/bevy/0.6.0/bevy/sprite/struct.ColorMaterial.html#structfield.color) | [`ColorMaterialColorLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/struct.ColorMaterialColorLens.html) |
 
-### Custom component support
+### Custom lens
 
-To be able to animate some fields of a custom component, a custom lens need to be implemented for that component, which **linearly** interpolates the field(s) of that component.
+A custom lens allows animating any field or group of fields of a Bevy component or asset. A custom lens is a type implementing the `Lens` trait, which is generic over the type of component or asset.
 
 ```rust
-#[derive(Component)]
-struct CustomComponent(f32);
-
-struct CustomLens {
+struct MyXAxisLens {
     start: f32,
     end: f32,
 }
 
-impl Lens<CustomComponent> for CustomLens {
-    fn lerp(&self, target: &mut CustomComponent, ratio: f32) -> f32 {
-        target.0 = self.start + (self.end - self.start) * ratio;
+impl Lens<Tranform> for MyXAxisLens {
+    fn lerp(&self, target: &mut Tranform, ratio: f32) -> f32 {
+        let start = Vec3::new(self.start, 0., 0.);
+        let end = Vec3::new(self.end, 0., 0.);
+        target.translation = start + (end - start) * ratio;
     }
 }
 ```
 
-This process can also be used to interpolate fields of existing Bevy built-in components for which a predfined lens is not provided.
+Note that the lens always **linearly** interpolates the field(s) of the component or asset. The type of easing applied modifies the rate at which the `ratio` parameter evolves, and is applied before the `lerp()` function is invoked.
 
 The basic formula for lerp (linear interpolation) is either of:
 
@@ -103,7 +111,27 @@ The basic formula for lerp (linear interpolation) is either of:
 
 The two formulations are mathematically equivalent, but one may be more suited than the other depending on the type interpolated and the operations available, and the potential floating-point precision errors.
 
-Then, the system `component_animator_system::<CustomComponent>` needs to be added to the application.
+### Custom component support
+
+Custom components are animated like built-in Bevy ones, via a lens.
+
+```rust
+#[derive(Component)]
+struct MyCustomComponent(f32);
+
+struct MyCustomLens {
+    start: f32,
+    end: f32,
+}
+
+impl Lens<MyCustomComponent> for MyCustomLens {
+    fn lerp(&self, target: &mut MyCustomComponent, ratio: f32) -> f32 {
+        target.0 = self.start + (self.end - self.start) * ratio;
+    }
+}
+```
+
+Then, in addition, the system `component_animator_system::<CustomComponent>` needs to be added to the application. This system will extract each frame all `CustomComponent` instances with an `Animator<CustomComponent>` on the same entity, and animate the component via its animator.
 
 ## Custom asset support
 
@@ -152,6 +180,14 @@ cargo run --example ui_position --features="bevy/bevy_winit"
 ```
 
 ![ui_position](https://raw.githubusercontent.com/djeedai/bevy_tweening/main/examples/ui_position.gif)
+
+### [`sequence`](examples/sequence.rs)
+
+```rust
+cargo run --example sequence --features="bevy/bevy_winit"
+```
+
+![sequence](https://raw.githubusercontent.com/djeedai/bevy_tweening/main/examples/sequence.gif)
 
 ## Ease Functions
 

@@ -226,30 +226,18 @@ impl std::ops::Not for TweeningDirection {
     }
 }
 
-/// Component to control the animation of another component.
-#[derive(Component)]
-pub struct Animator<T> {
+/// Single tweening animation instance.
+pub struct Tween<T> {
     ease_function: EaseMethod,
     timer: Timer,
-    /// Control if this animation is played or not.
-    pub state: AnimatorState,
     paused: bool,
     tweening_type: TweeningType,
     direction: TweeningDirection,
     lens: Box<dyn Lens<T> + Send + Sync + 'static>,
 }
 
-impl<T: std::fmt::Debug> std::fmt::Debug for Animator<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Animator")
-            .field("state", &self.state)
-            .finish()
-    }
-}
-
-impl<T> Animator<T> {
-    /// Create a new animator component from an easing function, tweening type, and a lens.
-    /// The type `T` of the component to animate can generally be deducted from the lens type itself.
+impl<T> Tween<T> {
+    /// Create a new tween animation.
     pub fn new<L>(
         ease_function: impl Into<EaseMethod>,
         tweening_type: TweeningType,
@@ -258,14 +246,13 @@ impl<T> Animator<T> {
     where
         L: Lens<T> + Send + Sync + 'static,
     {
-        Animator {
+        Tween {
             ease_function: ease_function.into(),
             timer: match tweening_type {
                 TweeningType::Once { duration } => Timer::new(duration, false),
                 TweeningType::Loop { duration, .. } => Timer::new(duration, false),
                 TweeningType::PingPong { duration, .. } => Timer::new(duration, false),
             },
-            state: AnimatorState::Playing,
             paused: false,
             tweening_type,
             direction: TweeningDirection::Forward,
@@ -302,23 +289,175 @@ impl<T> Animator<T> {
         }
     }
 
+    fn tick(&mut self, delta: Duration, target: &mut T) {
+        self.timer.tick(delta);
+        if self.paused {
+            if self.timer.just_finished() {
+                match self.tweening_type {
+                    TweeningType::Once { duration } => {
+                        self.timer.set_duration(duration);
+                    }
+                    TweeningType::Loop { duration, .. } => {
+                        self.timer.set_duration(duration);
+                    }
+                    TweeningType::PingPong { duration, .. } => {
+                        self.timer.set_duration(duration);
+                    }
+                }
+                self.timer.reset();
+                self.paused = false;
+            }
+        } else {
+            if self.timer.duration().as_secs_f32() != 0. {
+                let progress = self.progress();
+                let factor = self.ease_function.sample(progress);
+                self.apply(target, factor);
+            }
+            if self.timer.finished() {
+                match self.tweening_type {
+                    TweeningType::Once { .. } => {
+                        //commands.entity(entity).remove::<Animator>();
+                    }
+                    TweeningType::Loop { pause, .. } => {
+                        if let Some(pause) = pause {
+                            self.timer.set_duration(pause);
+                            self.paused = true;
+                        }
+                        self.timer.reset();
+                    }
+                    TweeningType::PingPong { pause, .. } => {
+                        if let Some(pause) = pause {
+                            self.timer.set_duration(pause);
+                            self.paused = true;
+                        }
+                        self.timer.reset();
+                        self.direction = !self.direction;
+                    }
+                }
+            }
+        }
+    }
+
     #[inline(always)]
     fn apply(&mut self, target: &mut T, ratio: f32) {
         self.lens.lerp(target, ratio);
     }
 }
 
+struct Sequence<T> {
+    tweens: Vec<Tween<T>>,
+    index: usize,
+}
+
+impl<T> Sequence<T> {
+    pub fn new<I>(tweens: I) -> Self
+    where
+        I: IntoIterator<Item = Tween<T>>,
+    {
+        Sequence {
+            tweens: tweens.into_iter().collect(),
+            index: 0,
+        }
+    }
+
+    pub fn from_single(tween: Tween<T>) -> Self {
+        Sequence {
+            tweens: vec![tween],
+            index: 0,
+        }
+    }
+    fn tick(&mut self, delta: Duration, target: &mut T) {
+        if self.index < self.tweens.len() {
+            let tween = &mut self.tweens[self.index];
+            tween.tick(delta, target);
+            if tween.progress() >= 1.0 {
+                self.index += 1;
+            }
+        }
+    }
+}
+
+struct Tracks<T> {
+    tracks: Vec<Sequence<T>>,
+}
+
+/// Component to control the animation of another component.
+#[derive(Component)]
+pub struct Animator<T: Component> {
+    /// Control if this animation is played or not.
+    pub state: AnimatorState,
+    tracks: Tracks<T>,
+}
+
+impl<T: Component + std::fmt::Debug> std::fmt::Debug for Animator<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Animator")
+            .field("state", &self.state)
+            .finish()
+    }
+}
+
+impl<T: Component> Animator<T> {
+    /// Create a new animator component from an easing function, tweening type, and a lens.
+    /// The type `T` of the component to animate can generally be deducted from the lens type itself.
+    /// This creates a new [`Tween`] instance then assign it to a newly created animator.
+    pub fn new<L>(
+        ease_function: impl Into<EaseMethod>,
+        tweening_type: TweeningType,
+        lens: L,
+    ) -> Self
+    where
+        L: Lens<T> + Send + Sync + 'static,
+    {
+        let tween = Tween::new(ease_function, tweening_type, lens);
+        Animator {
+            state: AnimatorState::Playing,
+            tracks: Tracks {
+                tracks: vec![Sequence::from_single(tween)],
+            },
+        }
+    }
+
+    /// Create a new animator component from a single tween instance.
+    pub fn new_single(tween: Tween<T>) -> Self {
+        Animator {
+            state: AnimatorState::Playing,
+            tracks: Tracks {
+                tracks: vec![Sequence::from_single(tween)],
+            },
+        }
+    }
+
+    /// Create a new animator component from a sequence of tween instances.
+    /// The tweens are played in order, one after the other. They all must be non-looping.
+    pub fn new_seq(tweens: Vec<Tween<T>>) -> Self {
+        for t in &tweens {
+            assert!(matches!(t.tweening_type, TweeningType::Once { .. }));
+        }
+        Animator {
+            state: AnimatorState::Playing,
+            tracks: Tracks {
+                tracks: vec![Sequence::new(tweens)],
+            },
+        }
+    }
+
+    #[allow(dead_code)]
+    fn tracks(&self) -> &Tracks<T> {
+        &self.tracks
+    }
+
+    fn tracks_mut(&mut self) -> &mut Tracks<T> {
+        &mut self.tracks
+    }
+}
+
 /// Component to control the animation of an asset.
 #[derive(Component)]
 pub struct AssetAnimator<T: Asset> {
-    ease_function: EaseMethod,
-    timer: Timer,
     /// Control if this animation is played or not.
     pub state: AnimatorState,
-    paused: bool,
-    tweening_type: TweeningType,
-    direction: TweeningDirection,
-    lens: Box<dyn Lens<T> + Send + Sync + 'static>,
+    tracks: Tracks<T>,
     handle: Handle<T>,
 }
 
@@ -343,48 +482,39 @@ impl<T: Asset> AssetAnimator<T> {
     where
         L: Lens<T> + Send + Sync + 'static,
     {
+        let tween = Tween::new(ease_function, tweening_type, lens);
         AssetAnimator {
-            ease_function: ease_function.into(),
-            timer: match tweening_type {
-                TweeningType::Once { duration } => Timer::new(duration, false),
-                TweeningType::Loop { duration, .. } => Timer::new(duration, false),
-                TweeningType::PingPong { duration, .. } => Timer::new(duration, false),
-            },
             state: AnimatorState::Playing,
-            paused: false,
-            tweening_type,
-            direction: TweeningDirection::Forward,
-            lens: Box::new(lens),
+            tracks: Tracks {
+                tracks: vec![Sequence::from_single(tween)],
+            },
             handle,
         }
     }
 
-    /// A boolean indicating whether the animation is currently in the pause phase of a loop.
-    ///
-    /// The [`TweeningType::Loop`] and [`TweeningType::PingPong`] tweening types are looping over
-    /// infinitely, with an optional pause between each loop. This function returns `true` if the
-    /// animation is currently under such pause. For [`TweeningType::Once`], which has no pause,
-    /// this always returns `false`.
-    pub fn is_paused(&self) -> bool {
-        self.paused
+    /// Create a new animator component from a single tween instance.
+    pub fn new_single(handle: Handle<T>, tween: Tween<T>) -> Self {
+        AssetAnimator {
+            state: AnimatorState::Playing,
+            tracks: Tracks {
+                tracks: vec![Sequence::from_single(tween)],
+            },
+            handle,
+        }
     }
 
-    /// The current animation direction.
-    ///
-    /// See [`TweeningDirection`] for details.
-    pub fn direction(&self) -> TweeningDirection {
-        self.direction
-    }
-
-    /// Current animation progress ratio between 0 and 1.
-    ///
-    /// For reversed playback ([`TweeningDirection::Backward`]), the ratio goes from 0 at the
-    /// end point (beginning of backward playback) to 1 at the start point (end of backward
-    /// playback).
-    pub fn progress(&self) -> f32 {
-        match self.direction {
-            TweeningDirection::Forward => self.timer.percent(),
-            TweeningDirection::Backward => self.timer.percent_left(),
+    /// Create a new animator component from a sequence of tween instances.
+    /// The tweens are played in order, one after the other. They all must be non-looping.
+    pub fn new_seq(handle: Handle<T>, tweens: Vec<Tween<T>>) -> Self {
+        for t in &tweens {
+            assert!(matches!(t.tweening_type, TweeningType::Once { .. }));
+        }
+        AssetAnimator {
+            state: AnimatorState::Playing,
+            tracks: Tracks {
+                tracks: vec![Sequence::new(tweens)],
+            },
+            handle,
         }
     }
 
@@ -392,15 +522,106 @@ impl<T: Asset> AssetAnimator<T> {
         self.handle.clone()
     }
 
-    #[inline(always)]
-    fn apply(&mut self, target: &mut T, ratio: f32) {
-        self.lens.lerp(target, ratio);
+    #[allow(dead_code)]
+    fn tracks(&self) -> &Tracks<T> {
+        &self.tracks
+    }
+
+    fn tracks_mut(&mut self) -> &mut Tracks<T> {
+        &mut self.tracks
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn tween_tick() {
+        let mut tween = Tween {
+            ease_function: EaseMethod::Linear,
+            timer: Timer::from_seconds(1.0, false),
+            paused: false,
+            tweening_type: TweeningType::Once {
+                duration: Duration::from_secs_f32(1.0),
+            },
+            direction: TweeningDirection::Forward,
+            lens: Box::new(TransformPositionLens {
+                start: Vec3::ZERO,
+                end: Vec3::ONE,
+            }),
+        };
+        let mut transform = Transform::default();
+        tween.tick(Duration::from_secs_f32(0.2), &mut transform);
+        assert_eq!(transform, Transform::from_translation(Vec3::splat(0.2)));
+        tween.tick(Duration::from_secs_f32(0.2), &mut transform);
+        assert_eq!(transform, Transform::from_translation(Vec3::splat(0.4)));
+        tween.tick(Duration::from_secs_f32(0.2), &mut transform);
+        assert_eq!(transform, Transform::from_translation(Vec3::splat(0.6)));
+        tween.tick(Duration::from_secs_f32(0.2), &mut transform);
+        assert_eq!(transform, Transform::from_translation(Vec3::splat(0.8)));
+        tween.tick(Duration::from_secs_f32(0.2), &mut transform);
+        assert_eq!(transform, Transform::from_translation(Vec3::splat(1.0)));
+        tween.tick(Duration::from_secs_f32(0.2), &mut transform);
+        assert_eq!(transform, Transform::from_translation(Vec3::splat(1.0)));
+    }
+
+    #[test]
+    fn seq_tick() {
+        let tween1 = Tween {
+            ease_function: EaseMethod::Linear,
+            timer: Timer::from_seconds(1.0, false),
+            paused: false,
+            tweening_type: TweeningType::Once {
+                duration: Duration::from_secs_f32(1.0),
+            },
+            direction: TweeningDirection::Forward,
+            lens: Box::new(TransformPositionLens {
+                start: Vec3::ZERO,
+                end: Vec3::ONE,
+            }),
+        };
+        let tween2 = Tween {
+            ease_function: EaseMethod::Linear,
+            timer: Timer::from_seconds(1.0, false),
+            paused: false,
+            tweening_type: TweeningType::Once {
+                duration: Duration::from_secs_f32(1.0),
+            },
+            direction: TweeningDirection::Forward,
+            lens: Box::new(TransformRotationLens {
+                start: Quat::IDENTITY,
+                end: Quat::from_rotation_x(180_f32.to_radians()),
+            }),
+        };
+        let mut seq = Sequence::new([tween1, tween2]);
+        let mut transform = Transform::default();
+        // First, translation alone (0->1)
+        seq.tick(Duration::from_secs_f32(0.2), &mut transform);
+        assert_eq!(transform, Transform::from_translation(Vec3::splat(0.2)));
+        seq.tick(Duration::from_secs_f32(0.8), &mut transform);
+        assert_eq!(transform, Transform::from_translation(Vec3::splat(1.0)));
+        // Then, rotation alone, on top of final translation (1->2)
+        seq.tick(Duration::from_secs_f32(0.2), &mut transform);
+        assert_eq!(transform.translation, Vec3::splat(1.0));
+        assert!(transform
+            .rotation
+            .abs_diff_eq(Quat::from_rotation_x(36_f32.to_radians()), 1e-5));
+        seq.tick(Duration::from_secs_f32(0.2), &mut transform);
+        assert_eq!(transform.translation, Vec3::splat(1.0));
+        assert!(transform
+            .rotation
+            .abs_diff_eq(Quat::from_rotation_x(72_f32.to_radians()), 1e-5));
+        seq.tick(Duration::from_secs_f32(0.6), &mut transform);
+        assert_eq!(transform.translation, Vec3::splat(1.0));
+        assert!(transform
+            .rotation
+            .abs_diff_eq(Quat::from_rotation_x(180_f32.to_radians()), 1e-5));
+        seq.tick(Duration::from_secs_f32(0.2), &mut transform);
+        assert_eq!(transform.translation, Vec3::splat(1.0));
+        assert!(transform
+            .rotation
+            .abs_diff_eq(Quat::from_rotation_x(180_f32.to_radians()), 1e-5));
+    }
 
     #[test]
     fn animator_new() {
@@ -415,9 +636,14 @@ mod tests {
                 end: Quat::from_axis_angle(Vec3::Z, std::f32::consts::PI / 2.),
             },
         );
-        assert_eq!(animator.is_paused(), false);
-        assert_eq!(animator.direction(), TweeningDirection::Forward);
-        assert_eq!(animator.progress(), 0.);
+        let tracks = animator.tracks();
+        assert_eq!(tracks.tracks.len(), 1);
+        let seq = &tracks.tracks[0];
+        assert_eq!(seq.tweens.len(), 1);
+        let tween = &seq.tweens[0];
+        assert_eq!(tween.is_paused(), false);
+        assert_eq!(tween.direction(), TweeningDirection::Forward);
+        assert_eq!(tween.progress(), 0.);
     }
 
     #[test]
@@ -434,8 +660,13 @@ mod tests {
                 end: Color::BLUE,
             },
         );
-        assert_eq!(animator.is_paused(), false);
-        assert_eq!(animator.direction(), TweeningDirection::Forward);
-        assert_eq!(animator.progress(), 0.);
+        let tracks = animator.tracks();
+        assert_eq!(tracks.tracks.len(), 1);
+        let seq = &tracks.tracks[0];
+        assert_eq!(seq.tweens.len(), 1);
+        let tween = &seq.tweens[0];
+        assert_eq!(tween.is_paused(), false);
+        assert_eq!(tween.direction(), TweeningDirection::Forward);
+        assert_eq!(tween.progress(), 0.);
     }
 }

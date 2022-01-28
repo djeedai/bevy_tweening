@@ -7,9 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add `Animator<T>::is_paused()` and `AssetAnimator<T>::is_paused()` to query when a tweening animation is in its pause phase, if any.
-- Add `Animator<T>::direction()` and `AssetAnimator<T>::direction()` to query the playback direction of a tweening animation (forward or backward).
-- Add `Animator<T>::progress()` and `AssetAnimator<T>::progress()` to query the progres ratio in [0:1] of a tweening animation.
+- Add `Tween<T>` describing a single tween animation, independently of its target (asset or component).
+- Add `Tween<T>::is_paused()` to query when a tweening animation is in its pause phase, if any.
+- Add `Tween<T>::direction()` to query the playback direction of a tweening animation (forward or backward).
+- Add `Tween<T>::progress()` to query the progres ratio in [0:1] of a tweening animation.
+- Enable multiple lenses per animator via "tracks", the ability to add multiple tween animations running in parallel on the same component.
+- Enable sequences of tween animations running serially, one after the other, for each track of an animator, allowing to create more complex animations.
+
+### Fixed
+
+- Perform spherical linear interpolation (slerp) for `Quat` rotation of `Transform` animation via `TransformRotationLens`, instead of mere linear interpolation leaving the quaternion non-normalized.
 
 ## [0.2.0] - 2022-01-09
 
