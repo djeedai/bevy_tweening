@@ -83,7 +83,7 @@ The naming scheme for predefined lenses is `"<TargetName><FieldName>Lens"`, wher
 |---|---|---|
 | [`ColorMaterial`](https://docs.rs/bevy/0.6.0/bevy/sprite/struct.ColorMaterial.html) | [`color`](https://docs.rs/bevy/0.6.0/bevy/sprite/struct.ColorMaterial.html#structfield.color) | [`ColorMaterialColorLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/struct.ColorMaterialColorLens.html) |
 
-### Custom lens
+## Custom lens
 
 A custom lens allows animating any field or group of fields of a Bevy component or asset. A custom lens is a type implementing the `Lens` trait, which is generic over the type of component or asset.
 
@@ -111,7 +111,7 @@ The basic formula for lerp (linear interpolation) is either of:
 
 The two formulations are mathematically equivalent, but one may be more suited than the other depending on the type interpolated and the operations available, and the potential floating-point precision errors.
 
-### Custom component support
+## Custom component support
 
 Custom components are animated like built-in Bevy ones, via a lens.
 
