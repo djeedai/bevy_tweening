@@ -15,7 +15,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .add_plugin(TweeningPlugin)
         .add_startup_system(setup)
         .add_system(update_text)
-        .add_system(update_anim)
         .run();
 
     Ok(())
@@ -123,13 +122,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             },
             ..Default::default()
         })
-        .insert(Animator::new_seq(tweens).with_state(AnimatorState::Paused));
-}
-
-fn update_anim(time: Res<Time>, mut q: Query<&mut Animator<Transform>>) {
-    if time.seconds_since_startup() >= 10. {
-        q.single_mut().state = AnimatorState::Playing;
-    }
+        .insert(Animator::new_seq(tweens));
 }
 
 fn update_text(
