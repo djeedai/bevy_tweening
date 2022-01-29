@@ -350,13 +350,15 @@ impl<T> Tween<T> {
     }
 }
 
-struct Sequence<T> {
+/// A sequence of tweens played back in order one after the other.
+pub struct Sequence<T> {
     tweens: Vec<Tween<T>>,
     index: usize,
     state: TweenState,
 }
 
 impl<T> Sequence<T> {
+    /// Create a new sequence of tweens.
     pub fn new<I>(tweens: I) -> Self
     where
         I: IntoIterator<Item = Tween<T>>,
@@ -368,12 +370,23 @@ impl<T> Sequence<T> {
         }
     }
 
+    /// Create a new sequence containing a single tween.
     pub fn from_single(tween: Tween<T>) -> Self {
         Sequence {
             tweens: vec![tween],
             index: 0,
             state: TweenState::Stopped,
         }
+    }
+
+    /// Index of the current active tween in the sequence.
+    pub fn index(&self) -> usize {
+        self.index.min(self.tweens.len() - 1)
+    }
+
+    /// Get the current active tween in the sequence.
+    pub fn current(&self) -> &Tween<T> {
+        &self.tweens[self.index()]
     }
 
     fn tick(&mut self, delta: Duration, target: &mut T) {
@@ -474,13 +487,14 @@ impl<T: Component> Animator<T> {
         self
     }
 
-    #[allow(dead_code)]
-    fn tracks(&self) -> &Tracks<T> {
-        &self.tracks
+    /// Get the collection of sequences forming the parallel tracks of animation.
+    pub fn tracks(&self) -> &[Sequence<T>] {
+        &self.tracks.tracks
     }
 
-    fn tracks_mut(&mut self) -> &mut Tracks<T> {
-        &mut self.tracks
+    /// Get the mutable collection of sequences forming the parallel tracks of animation.
+    pub fn tracks_mut(&mut self) -> &mut [Sequence<T>] {
+        &mut self.tracks.tracks
     }
 }
 
@@ -566,13 +580,14 @@ impl<T: Asset> AssetAnimator<T> {
         self.handle.clone()
     }
 
-    #[allow(dead_code)]
-    fn tracks(&self) -> &Tracks<T> {
-        &self.tracks
+    /// Get the collection of sequences forming the parallel tracks of animation.
+    pub fn tracks(&self) -> &[Sequence<T>] {
+        &self.tracks.tracks
     }
 
-    fn tracks_mut(&mut self) -> &mut Tracks<T> {
-        &mut self.tracks
+    /// Get the mutable collection of sequences forming the parallel tracks of animation.
+    pub fn tracks_mut(&mut self) -> &mut [Sequence<T>] {
+        &mut self.tracks.tracks
     }
 }
 
@@ -725,8 +740,8 @@ mod tests {
         );
         assert_eq!(animator.state, AnimatorState::default());
         let tracks = animator.tracks();
-        assert_eq!(tracks.tracks.len(), 1);
-        let seq = &tracks.tracks[0];
+        assert_eq!(tracks.len(), 1);
+        let seq = &tracks[0];
         assert_eq!(seq.tweens.len(), 1);
         let tween = &seq.tweens[0];
         assert_eq!(tween.direction(), TweeningDirection::Forward);
@@ -748,8 +763,8 @@ mod tests {
         );
         assert_eq!(animator.state, AnimatorState::default());
         let tracks = animator.tracks();
-        assert_eq!(tracks.tracks.len(), 1);
-        let seq = &tracks.tracks[0];
+        assert_eq!(tracks.len(), 1);
+        let seq = &tracks[0];
         assert_eq!(seq.tweens.len(), 1);
         let tween = &seq.tweens[0];
         assert_eq!(tween.direction(), TweeningDirection::Forward);

@@ -11,10 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement `Default` for `AnimatorState` as `AnimatorState::Playing`.
 - Added `Animator::with_state()` and `AssetAnimator::with_state()`, builder-like functions to override the default `AnimatorState`.
 - Added `Tween::is_looping()` returning true for all but `TweeningType::Once`.
+- Publicly exposed `Sequence<T>`, a sequence of tweens running one after the other.
+- Publicly exposed `Animator<T>::tracks()` and `Animator<T>::tracks_mut()` to access the animation sequences running in parallel on multiple animation tracks.
 
 ### Changed
 
 - Moved tween duration out of the `TweeningType` enum, which combined with the removal of the "pause" feature in loops makes it a C-like enum.
+- Updated the `sequence` example to add some text showing the current sequence active tween index and its progress.
 
 ### Removed
 

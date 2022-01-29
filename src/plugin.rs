@@ -54,13 +54,13 @@ pub fn component_animator_system<T: Component>(
         animator.prev_state = animator.state;
         if animator.state == AnimatorState::Paused {
             if state_changed {
-                for seq in &mut animator.tracks_mut().tracks {
+                for seq in animator.tracks_mut() {
                     seq.stop();
                 }
             }
         } else {
             // Play all tracks in parallel
-            for seq in &mut animator.tracks_mut().tracks {
+            for seq in animator.tracks_mut() {
                 seq.tick(time.delta(), target);
             }
         }
@@ -80,13 +80,13 @@ pub fn asset_animator_system<T: Asset>(
         animator.prev_state = animator.state;
         if animator.state == AnimatorState::Paused {
             if state_changed {
-                for seq in &mut animator.tracks_mut().tracks {
+                for seq in animator.tracks_mut() {
                     seq.stop();
                 }
             }
         } else if let Some(target) = assets.get_mut(animator.handle()) {
             // Play all tracks in parallel
-            for seq in &mut animator.tracks_mut().tracks {
+            for seq in animator.tracks_mut() {
                 seq.tick(time.delta(), target);
             }
         }

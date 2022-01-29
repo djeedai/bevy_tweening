@@ -10,6 +10,7 @@ documentation = "https://docs.rs/bevy_tweening"
 keywords = ["bevy", "animation", "easing", "tweening"]
 license = "MIT"
 readme = "README.md"
+include = ["assets", "thirdparty"]
 exclude = ["examples/*.gif"]
 
 [dependencies]
