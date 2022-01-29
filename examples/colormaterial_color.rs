@@ -86,10 +86,8 @@ fn setup(
             .insert(bevy_tweening::AssetAnimator::new(
                 unique_material.clone(),
                 *ease_function,
-                bevy_tweening::TweeningType::PingPong {
-                    duration: std::time::Duration::from_secs(1),
-                    pause: Some(std::time::Duration::from_millis(500)),
-                },
+                bevy_tweening::TweeningType::PingPong,
+                std::time::Duration::from_secs(1),
                 bevy_tweening::ColorMaterialColorLens {
                     start: Color::RED,
                     end: Color::BLUE,

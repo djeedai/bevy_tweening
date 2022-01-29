@@ -77,10 +77,8 @@ fn setup(mut commands: Commands) {
                     })
                     .insert(bevy_tweening::Animator::new(
                         *ease_function,
-                        bevy_tweening::TweeningType::PingPong {
-                            duration: std::time::Duration::from_secs(1),
-                            pause: Some(std::time::Duration::from_millis(500)),
-                        },
+                        bevy_tweening::TweeningType::PingPong,
+                        std::time::Duration::from_secs(1),
                         bevy_tweening::TransformRotationLens {
                             start: Quat::IDENTITY,
                             end: Quat::from_axis_angle(Vec3::Z, std::f32::consts::PI / 2.),
