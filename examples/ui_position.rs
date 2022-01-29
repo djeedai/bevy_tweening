@@ -59,46 +59,47 @@ fn setup(mut commands: Commands) {
         bevy_tweening::EaseFunction::BounceOut,
         bevy_tweening::EaseFunction::BounceInOut,
     ] {
-        commands.spawn_bundle(NodeBundle {
-            style: Style {
-                size: Size::new(Val::Px(size), Val::Px(size)),
-                position: Rect {
-                    left: Val::Px(x),
-                    top: Val::Px(10.),
-                    right: Val::Auto,
-                    bottom: Val::Auto,
+        commands
+            .spawn_bundle(NodeBundle {
+                style: Style {
+                    size: Size::new(Val::Px(size), Val::Px(size)),
+                    position: Rect {
+                        left: Val::Px(x),
+                        top: Val::Px(10.),
+                        right: Val::Auto,
+                        bottom: Val::Auto,
+                    },
+                    position_type: PositionType::Absolute,
+                    align_content: AlignContent::Center,
+                    align_items: AlignItems::Center,
+                    align_self: AlignSelf::Center,
+                    justify_content: JustifyContent::Center,
+                    ..Default::default()
                 },
-                position_type: PositionType::Absolute,
-                align_content: AlignContent::Center,
-                align_items: AlignItems::Center,
-                align_self: AlignSelf::Center,
-                justify_content: JustifyContent::Center,
+                color: UiColor(Color::RED),
                 ..Default::default()
-            },
-            color: UiColor(Color::RED),
-            ..Default::default()
-        })
-        .insert(bevy_tweening::Animator::new(
-            *ease_function,
-            bevy_tweening::TweeningType::PingPong {
-                duration: std::time::Duration::from_secs(1),
-                pause: Some(std::time::Duration::from_millis(500)),
-            },
-            bevy_tweening::UiPositionLens {
-                start: Rect {
-                    left: Val::Px(x),
-                    top: Val::Px(10.),
-                    right: Val::Auto,
-                    bottom: Val::Auto,
+            })
+            .insert(bevy_tweening::Animator::new(
+                *ease_function,
+                bevy_tweening::TweeningType::PingPong {
+                    duration: std::time::Duration::from_secs(1),
+                    pause: Some(std::time::Duration::from_millis(500)),
                 },
-                end: Rect {
-                    left: Val::Px(x),
-                    top: Val::Px(screen_y - 10. - size),
-                    right: Val::Auto,
-                    bottom: Val::Auto,
+                bevy_tweening::UiPositionLens {
+                    start: Rect {
+                        left: Val::Px(x),
+                        top: Val::Px(10.),
+                        right: Val::Auto,
+                        bottom: Val::Auto,
+                    },
+                    end: Rect {
+                        left: Val::Px(x),
+                        top: Val::Px(screen_y - 10. - size),
+                        right: Val::Auto,
+                        bottom: Val::Auto,
+                    },
                 },
-            },
-        ));
+            ));
         x += offset_x;
     }
 }
