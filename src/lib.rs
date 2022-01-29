@@ -20,7 +20,7 @@
 //!
 //! Add the tweening plugin to your app:
 //!
-//! ```rust
+//! ```rust,no_run
 //! # use bevy::prelude::*;
 //! # use bevy_tweening::*;
 //! App::default()
