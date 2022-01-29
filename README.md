@@ -10,9 +10,9 @@ Tweening animation plugin for the Bevy game engine.
 
 ## Features
 
-- [x] Versatile customizable lens system to animate any field of any component or asset.
-- [x] Sequence of tweening animations chained together, running one after the other, to create complex animations.
-- [x] Multiple tweening animations per component, running in parallel, to animate different fields with different parameters.
+- [x] Animate any field of any component or asset, including custom ones.
+- [x] Run multiple tweens (animations) per component/asset in parallel.
+- [x] Chain multiple tweens (animations) one after the other for complex animations.
 
 ## Usage
 

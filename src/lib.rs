@@ -119,7 +119,7 @@ pub use lens::{
     ColorMaterialColorLens, Lens, SpriteColorLens, TextColorLens, TransformPositionLens,
     TransformRotationLens, TransformScaleLens, UiPositionLens,
 };
-pub use plugin::TweeningPlugin;
+pub use plugin::{asset_animator_system, component_animator_system, TweeningPlugin};
 
 /// How should this easing loop repeat
 #[derive(Clone, Copy)]

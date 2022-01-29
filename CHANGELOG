@@ -3,6 +3,12 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Fix missing public export of `component_animator_system()` and `asset_animator_system()` preventing the animation of all but the built-in items.
+
 ## [0.3.0] - 2022-01-28
 
 ### Added
