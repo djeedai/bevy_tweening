@@ -19,7 +19,7 @@ use crate::{Animator, AnimatorState, AssetAnimator};
 /// added manually by the application:
 /// - For components, add [`component_animator_system::<T>`] where `T: Component`
 /// - For assets, add [`asset_animator_system::<T>`] where `T: Asset`
-/// 
+///
 /// This plugin is entirely optional. If you want more control, you can instead add manually
 /// the relevant systems for the exact set of components and assets actually animated.
 ///
@@ -50,12 +50,19 @@ pub fn component_animator_system<T: Component>(
     mut query: Query<(&mut T, &mut Animator<T>)>,
 ) {
     for (ref mut target, ref mut animator) in query.iter_mut() {
+        let state_changed = animator.state != animator.prev_state;
+        animator.prev_state = animator.state;
         if animator.state == AnimatorState::Paused {
-            continue;
-        }
-        // Play all tracks in parallel
-        for seq in &mut animator.tracks_mut().tracks {
-            seq.tick(time.delta(), target);
+            if state_changed {
+                for seq in &mut animator.tracks_mut().tracks {
+                    seq.stop();
+                }
+            }
+        } else {
+            // Play all tracks in parallel
+            for seq in &mut animator.tracks_mut().tracks {
+                seq.tick(time.delta(), target);
+            }
         }
     }
 }
@@ -69,10 +76,15 @@ pub fn asset_animator_system<T: Asset>(
     mut query: Query<&mut AssetAnimator<T>>,
 ) {
     for ref mut animator in query.iter_mut() {
+        let state_changed = animator.state != animator.prev_state;
+        animator.prev_state = animator.state;
         if animator.state == AnimatorState::Paused {
-            continue;
-        }
-        if let Some(target) = assets.get_mut(animator.handle()) {
+            if state_changed {
+                for seq in &mut animator.tracks_mut().tracks {
+                    seq.stop();
+                }
+            }
+        } else if let Some(target) = assets.get_mut(animator.handle()) {
             // Play all tracks in parallel
             for seq in &mut animator.tracks_mut().tracks {
                 seq.tick(time.delta(), target);

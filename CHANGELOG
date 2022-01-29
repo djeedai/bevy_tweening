@@ -5,6 +5,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add user callbacks on tween started (`Tween::set_started`) and ended (`Tween::set_ended`).
+- Implement `Default` for `AnimatorState` as `AnimatorState::Playing`.
+- Added `Animator::with_state()` and `AssetAnimator::with_state()`, builder-like functions to override the default `AnimatorState`.
+- Added `Tween::is_looping()` returning true for all but `TweeningType::Once`.
+
+### Changed
+
+- Moved tween duration out of the `TweeningType` enum, which combined with the removal of the "pause" feature in loops makes it a C-like enum.
+
+### Removed
+
+- Removed the "pause" feature in-between loops of `TweeningType::Loop` and `TweeningType::PingPong`, which can be replaced if needed with a sequence including a no-op tween of the desired duration. Removed `Tween::is_paused()`.
+
 ### Fixed
 
 - Fix missing public export of `component_animator_system()` and `asset_animator_system()` preventing the animation of all but the built-in items.
