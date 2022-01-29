@@ -235,7 +235,7 @@ Compatibility of `bevy_tweening` versions:
 
 | `bevy_tweening` | `bevy` |
 | :--             | :--    |
-| `0.2`           | `0.6`  |
+| `0.2`-`0.3`     | `0.6`  |
 | `0.1`           | `0.5`  |
 
 ## Comparison with `bevy_easings`
