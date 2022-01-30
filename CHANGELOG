@@ -11,17 +11,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implement `Default` for `AnimatorState` as `AnimatorState::Playing`.
 - Added `Animator::with_state()` and `AssetAnimator::with_state()`, builder-like functions to override the default `AnimatorState`.
 - Added `Tween::is_looping()` returning true for all but `TweeningType::Once`.
-- Publicly exposed `Sequence<T>`, a sequence of tweens running one after the other.
-- Publicly exposed `Animator<T>::tracks()` and `Animator<T>::tracks_mut()` to access the animation sequences running in parallel on multiple animation tracks.
+- Added the `Tweenable<T>` trait, implemented by the `Tween<T>` animation and the `Tracks<T>` and `Sequence<T>` animation collections.
+- Added `IntoBoxDynTweenable<T>`, a trait to convert a `Tweenable<T>` trait object into a boxed variant.
+- Publicly exposed `Sequence<T>`, a sequence of `Tweenable<T>` running one after the other.
+- Publicly exposed `Tracks<T>`, a collection of `Tweenable<T>` running in parallel.
+- Publicly exposed `TweenState`, the playback state of a single `Tweenable<T>` item.
+- Added `Tween<T>::then()` and `Sequence<T>::then()` to append a `Tweenable<T>` to a sequence (creating a new sequence in the case of `Tween<T>::then()`).
+- Added `tweenable()` and `tweenable_mut()` on the `Animator<T>` and `AssetAnimator<T>` to access their top-level `Tweenable<T>`.
+- Implemented `Default` for `Animator<T>` and `AssetAnimator<T>`, creating an animator without any tweenable item (no-op).
 
 ### Changed
 
 - Moved tween duration out of the `TweeningType` enum, which combined with the removal of the "pause" feature in loops makes it a C-like enum.
-- Updated the `sequence` example to add some text showing the current sequence active tween index and its progress.
+- Updated the `sequence` example to add some text showing the current sequence progress.
+- Modified the signature of `new()` for `Animator<T>` and `AssetAnimator<T>` to take a single `Tweenable<T>` instead of trying to build a `Tween<T>` internally. This allows passing any `Tweenable<T>` as the top-level animatable item of an animator, and avoids the overhead of maintaining a `Tracks<T>` internally in each animator when the most common use case is likely to use a single `Tween<T>` or a `Sequence<T>` without parallelism.
 
 ### Removed
 
-- Removed the "pause" feature in-between loops of `TweeningType::Loop` and `TweeningType::PingPong`, which can be replaced if needed with a sequence including a no-op tween of the desired duration. Removed `Tween::is_paused()`.
+- Removed the "pause" feature in-between loops of `TweeningType::Loop` and `TweeningType::PingPong`, which can be replaced if needed by a sequence including a no-op tween of the desired duration. Removed `Tween::is_paused()`.
+- Removed `new_single()` and `new_seq()` on the `Animator<T>` and `AssetAnimator<T>`. Users should explicitly create a `Tween<T>` or `Sequence<T>` instead, and use `new()`.
 
 ### Fixed
 

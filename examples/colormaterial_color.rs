@@ -2,6 +2,8 @@ use bevy::{
     prelude::*,
     sprite::{MaterialMesh2dBundle, Mesh2dHandle},
 };
+use bevy_tweening::*;
+use std::time::Duration;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     App::default()
@@ -13,7 +15,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ..Default::default()
         })
         .add_plugins(DefaultPlugins)
-        .add_plugin(bevy_tweening::TweeningPlugin)
+        .add_plugin(TweeningPlugin)
         .add_startup_system(setup)
         .run();
 
@@ -38,42 +40,52 @@ fn setup(
     let quad_mesh: Mesh2dHandle = meshes.add(Mesh::from(shape::Quad::default())).into();
 
     for ease_function in &[
-        bevy_tweening::EaseFunction::QuadraticIn,
-        bevy_tweening::EaseFunction::QuadraticOut,
-        bevy_tweening::EaseFunction::QuadraticInOut,
-        bevy_tweening::EaseFunction::CubicIn,
-        bevy_tweening::EaseFunction::CubicOut,
-        bevy_tweening::EaseFunction::CubicInOut,
-        bevy_tweening::EaseFunction::QuarticIn,
-        bevy_tweening::EaseFunction::QuarticOut,
-        bevy_tweening::EaseFunction::QuarticInOut,
-        bevy_tweening::EaseFunction::QuinticIn,
-        bevy_tweening::EaseFunction::QuinticOut,
-        bevy_tweening::EaseFunction::QuinticInOut,
-        bevy_tweening::EaseFunction::SineIn,
-        bevy_tweening::EaseFunction::SineOut,
-        bevy_tweening::EaseFunction::SineInOut,
-        bevy_tweening::EaseFunction::CircularIn,
-        bevy_tweening::EaseFunction::CircularOut,
-        bevy_tweening::EaseFunction::CircularInOut,
-        bevy_tweening::EaseFunction::ExponentialIn,
-        bevy_tweening::EaseFunction::ExponentialOut,
-        bevy_tweening::EaseFunction::ExponentialInOut,
-        bevy_tweening::EaseFunction::ElasticIn,
-        bevy_tweening::EaseFunction::ElasticOut,
-        bevy_tweening::EaseFunction::ElasticInOut,
-        bevy_tweening::EaseFunction::BackIn,
-        bevy_tweening::EaseFunction::BackOut,
-        bevy_tweening::EaseFunction::BackInOut,
-        bevy_tweening::EaseFunction::BounceIn,
-        bevy_tweening::EaseFunction::BounceOut,
-        bevy_tweening::EaseFunction::BounceInOut,
+        EaseFunction::QuadraticIn,
+        EaseFunction::QuadraticOut,
+        EaseFunction::QuadraticInOut,
+        EaseFunction::CubicIn,
+        EaseFunction::CubicOut,
+        EaseFunction::CubicInOut,
+        EaseFunction::QuarticIn,
+        EaseFunction::QuarticOut,
+        EaseFunction::QuarticInOut,
+        EaseFunction::QuinticIn,
+        EaseFunction::QuinticOut,
+        EaseFunction::QuinticInOut,
+        EaseFunction::SineIn,
+        EaseFunction::SineOut,
+        EaseFunction::SineInOut,
+        EaseFunction::CircularIn,
+        EaseFunction::CircularOut,
+        EaseFunction::CircularInOut,
+        EaseFunction::ExponentialIn,
+        EaseFunction::ExponentialOut,
+        EaseFunction::ExponentialInOut,
+        EaseFunction::ElasticIn,
+        EaseFunction::ElasticOut,
+        EaseFunction::ElasticInOut,
+        EaseFunction::BackIn,
+        EaseFunction::BackOut,
+        EaseFunction::BackInOut,
+        EaseFunction::BounceIn,
+        EaseFunction::BounceOut,
+        EaseFunction::BounceInOut,
     ] {
         // Create a unique material per entity, so that it can be animated
         // without affecting the other entities. Note that we could share
         // that material among multiple entities, and animating the material
         // asset would change the color of all entities using that material.
         let unique_material = materials.add(Color::BLACK.into());
+
+        let tween = Tween::new(
+            *ease_function,
+            TweeningType::PingPong,
+            Duration::from_secs(1),
+            ColorMaterialColorLens {
+                start: Color::RED,
+                end: Color::BLUE,
+            },
+        );
 
         commands
             .spawn_bundle(MaterialMesh2dBundle {
@@ -83,16 +95,7 @@ fn setup(
                 material: unique_material.clone(),
                 ..Default::default()
             })
-            .insert(bevy_tweening::AssetAnimator::new(
-                unique_material.clone(),
-                *ease_function,
-                bevy_tweening::TweeningType::PingPong,
-                std::time::Duration::from_secs(1),
-                bevy_tweening::ColorMaterialColorLens {
-                    start: Color::RED,
-                    end: Color::BLUE,
-                },
-            ));
+            .insert(AssetAnimator::new(unique_material.clone(), tween));
         y -= size * spacing;
         if y < -screen_y {
             x += size * spacing;

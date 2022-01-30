@@ -1,4 +1,5 @@
 use bevy::prelude::*;
+use bevy_tweening::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     App::default()
@@ -10,7 +11,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             ..Default::default()
         })
         .add_plugins(DefaultPlugins)
-        .add_plugin(bevy_tweening::TweeningPlugin)
+        .add_plugin(TweeningPlugin)
         .add_startup_system(setup)
         .run();
 
@@ -29,37 +30,47 @@ fn setup(mut commands: Commands) {
     let mut y = screen_y;
 
     for ease_function in &[
-        bevy_tweening::EaseFunction::QuadraticIn,
-        bevy_tweening::EaseFunction::QuadraticOut,
-        bevy_tweening::EaseFunction::QuadraticInOut,
-        bevy_tweening::EaseFunction::CubicIn,
-        bevy_tweening::EaseFunction::CubicOut,
-        bevy_tweening::EaseFunction::CubicInOut,
-        bevy_tweening::EaseFunction::QuarticIn,
-        bevy_tweening::EaseFunction::QuarticOut,
-        bevy_tweening::EaseFunction::QuarticInOut,
-        bevy_tweening::EaseFunction::QuinticIn,
-        bevy_tweening::EaseFunction::QuinticOut,
-        bevy_tweening::EaseFunction::QuinticInOut,
-        bevy_tweening::EaseFunction::SineIn,
-        bevy_tweening::EaseFunction::SineOut,
-        bevy_tweening::EaseFunction::SineInOut,
-        bevy_tweening::EaseFunction::CircularIn,
-        bevy_tweening::EaseFunction::CircularOut,
-        bevy_tweening::EaseFunction::CircularInOut,
-        bevy_tweening::EaseFunction::ExponentialIn,
-        bevy_tweening::EaseFunction::ExponentialOut,
-        bevy_tweening::EaseFunction::ExponentialInOut,
-        bevy_tweening::EaseFunction::ElasticIn,
-        bevy_tweening::EaseFunction::ElasticOut,
-        bevy_tweening::EaseFunction::ElasticInOut,
-        bevy_tweening::EaseFunction::BackIn,
-        bevy_tweening::EaseFunction::BackOut,
-        bevy_tweening::EaseFunction::BackInOut,
-        bevy_tweening::EaseFunction::BounceIn,
-        bevy_tweening::EaseFunction::BounceOut,
-        bevy_tweening::EaseFunction::BounceInOut,
+        EaseFunction::QuadraticIn,
+        EaseFunction::QuadraticOut,
+        EaseFunction::QuadraticInOut,
+        EaseFunction::CubicIn,
+        EaseFunction::CubicOut,
+        EaseFunction::CubicInOut,
+        EaseFunction::QuarticIn,
+        EaseFunction::QuarticOut,
+        EaseFunction::QuarticInOut,
+        EaseFunction::QuinticIn,
+        EaseFunction::QuinticOut,
+        EaseFunction::QuinticInOut,
+        EaseFunction::SineIn,
+        EaseFunction::SineOut,
+        EaseFunction::SineInOut,
+        EaseFunction::CircularIn,
+        EaseFunction::CircularOut,
+        EaseFunction::CircularInOut,
+        EaseFunction::ExponentialIn,
+        EaseFunction::ExponentialOut,
+        EaseFunction::ExponentialInOut,
+        EaseFunction::ElasticIn,
+        EaseFunction::ElasticOut,
+        EaseFunction::ElasticInOut,
+        EaseFunction::BackIn,
+        EaseFunction::BackOut,
+        EaseFunction::BackInOut,
+        EaseFunction::BounceIn,
+        EaseFunction::BounceOut,
+        EaseFunction::BounceInOut,
     ] {
+        let tween = Tween::new(
+            *ease_function,
+            TweeningType::PingPong,
+            std::time::Duration::from_secs(1),
+            SpriteColorLens {
+                start: Color::RED,
+                end: Color::BLUE,
+            },
+        );
+
         commands
             .spawn_bundle(SpriteBundle {
                 transform: Transform::from_translation(Vec3::new(x, y, 0.)),
@@ -70,15 +81,8 @@ fn setup(mut commands: Commands) {
                 },
                 ..Default::default()
             })
-            .insert(bevy_tweening::Animator::new(
-                *ease_function,
-                bevy_tweening::TweeningType::PingPong,
-                std::time::Duration::from_secs(1),
-                bevy_tweening::SpriteColorLens {
-                    start: Color::RED,
-                    end: Color::BLUE,
-                },
-            ));
+            .insert(Animator::new(tween));
+
         y -= size * spacing;
         if y < -screen_y {
             x += size * spacing;
