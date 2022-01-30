@@ -21,19 +21,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[derive(Component)]
-struct IndexText;
+struct RedProgress;
 
 #[derive(Component)]
-struct ProgressText;
+struct BlueProgress;
+
+#[derive(Component)]
+struct RedSprite;
+
+#[derive(Component)]
+struct BlueSprite;
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn_bundle(OrthographicCameraBundle::new_2d());
 
     let font = asset_server.load("fonts/FiraMono-Regular.ttf");
-    let text_style = TextStyle {
-        font,
+    let text_style_red = TextStyle {
+        font: font.clone(),
         font_size: 50.0,
-        color: Color::WHITE,
+        color: Color::RED,
+    };
+    let text_style_blue = TextStyle {
+        font: font.clone(),
+        font_size: 50.0,
+        color: Color::BLUE,
     };
 
     let text_alignment = TextAlignment {
@@ -47,12 +58,12 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             text: Text {
                 sections: vec![
                     TextSection {
-                        value: "index: ".to_owned(),
-                        style: text_style.clone(),
+                        value: "progress: ".to_owned(),
+                        style: text_style_red.clone(),
                     },
                     TextSection {
-                        value: "0".to_owned(),
-                        style: text_style.clone(),
+                        value: "0%".to_owned(),
+                        style: text_style_red.clone(),
                     },
                 ],
                 alignment: text_alignment,
@@ -60,7 +71,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             transform: Transform::from_translation(Vec3::new(0., 40., 0.)),
             ..Default::default()
         })
-        .insert(IndexText);
+        .insert(RedProgress);
 
     // Text with progress of the active tween in the sequence
     commands
@@ -69,11 +80,11 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 sections: vec![
                     TextSection {
                         value: "progress: ".to_owned(),
-                        style: text_style.clone(),
+                        style: text_style_blue.clone(),
                     },
                     TextSection {
                         value: "0%".to_owned(),
-                        style: text_style.clone(),
+                        style: text_style_blue.clone(),
                     },
                 ],
                 alignment: text_alignment,
@@ -81,7 +92,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             transform: Transform::from_translation(Vec3::new(0., -40., 0.)),
             ..Default::default()
         })
-        .insert(ProgressText);
+        .insert(BlueProgress);
 
     let size = 25.;
 
@@ -98,20 +109,18 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         Vec3::new(margin, screen_y - margin, 0.),
         Vec3::new(margin, margin, 0.),
     ];
-    let tweens = dests
-        .windows(2)
-        .map(|pair| {
-            Tween::new(
-                EaseFunction::QuadraticInOut,
-                TweeningType::Once,
-                Duration::from_secs(1),
-                TransformPositionLens {
-                    start: pair[0] - center,
-                    end: pair[1] - center,
-                },
-            )
-        })
-        .collect();
+    // Build a sequence from an iterator over a Tweenable (here, a Tween<Transform>)
+    let seq = Sequence::new(dests.windows(2).map(|pair| {
+        Tween::new(
+            EaseFunction::QuadraticInOut,
+            TweeningType::Once,
+            Duration::from_secs(1),
+            TransformPositionLens {
+                start: pair[0] - center,
+                end: pair[1] - center,
+            },
+        )
+    }));
 
     commands
         .spawn_bundle(SpriteBundle {
@@ -122,32 +131,86 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             },
             ..Default::default()
         })
-        .insert(Animator::new_seq(tweens));
+        .insert(RedSprite)
+        .insert(Animator::new(seq));
+
+    // First move from left to right, then rotate around self 180 degrees while scaling
+    // size at the same time.
+    let tween_move = Tween::new(
+        EaseFunction::QuadraticInOut,
+        TweeningType::Once,
+        Duration::from_secs(1),
+        TransformPositionLens {
+            start: Vec3::new(-200., 100., 0.),
+            end: Vec3::new(200., 100., 0.),
+        },
+    );
+    let tween_rotate = Tween::new(
+        EaseFunction::QuadraticInOut,
+        TweeningType::Once,
+        Duration::from_secs(1),
+        TransformRotationLens {
+            start: Quat::IDENTITY,
+            end: Quat::from_rotation_z(180_f32.to_radians()),
+        },
+    );
+    let tween_scale = Tween::new(
+        EaseFunction::QuadraticInOut,
+        TweeningType::Once,
+        Duration::from_secs(1),
+        TransformScaleLens {
+            start: Vec3::ONE,
+            end: Vec3::splat(2.0),
+        },
+    );
+    // Build parallel tracks executing two tweens at the same time : rotate and scale.
+    let tracks = Tracks::new([tween_rotate, tween_scale]);
+    // Build a sequence from an heterogeneous list of tweenables by casting them manually
+    // to a boxed Tweenable<Transform> : first move, then { rotate + scale }.
+    let seq2 = Sequence::new([
+        Box::new(tween_move) as Box<dyn Tweenable<Transform> + Send + Sync + 'static>,
+        Box::new(tracks) as Box<dyn Tweenable<Transform> + Send + Sync + 'static>,
+    ]);
+
+    commands
+        .spawn_bundle(SpriteBundle {
+            sprite: Sprite {
+                color: Color::BLUE,
+                custom_size: Some(Vec2::new(size * 3., size)),
+                ..Default::default()
+            },
+            ..Default::default()
+        })
+        .insert(BlueSprite)
+        .insert(Animator::new(seq2));
 }
 
 fn update_text(
     // Note: need a QuerySet<> due to the "&mut Text" in both queries
     mut query_text: QuerySet<(
-        QueryState<&mut Text, With<IndexText>>,
-        QueryState<&mut Text, With<ProgressText>>,
+        QueryState<&mut Text, With<RedProgress>>,
+        QueryState<&mut Text, With<BlueProgress>>,
     )>,
-    query_anim: Query<&Animator<Transform>>,
+    query_anim_red: Query<&Animator<Transform>, With<RedSprite>>,
+    query_anim_blue: Query<&Animator<Transform>, With<BlueSprite>>,
 ) {
-    let anim = query_anim.single();
-    let seq = &anim.tracks()[0];
-    let index = seq.index();
-    let tween = seq.current();
-    let progress = tween.progress();
+    let anim_red = query_anim_red.single();
+    let tween_red = anim_red.tweenable().unwrap();
+    let progress_red = tween_red.progress();
+
+    let anim_blue = query_anim_blue.single();
+    let tween_blue = anim_blue.tweenable().unwrap();
+    let progress_blue = tween_blue.progress();
 
     // Use scopes to force-drop the mutable context before opening the next one
     {
         let mut q0 = query_text.q0();
-        let mut index_text = q0.single_mut();
-        index_text.sections[1].value = format!("{:1}", index).to_string();
+        let mut red_text = q0.single_mut();
+        red_text.sections[1].value = format!("{:5.1}%", progress_red * 100.).to_string();
     }
     {
         let mut q1 = query_text.q1();
-        let mut progress_text = q1.single_mut();
-        progress_text.sections[1].value = format!("{:5.1}%", progress * 100.).to_string();
+        let mut blue_text = q1.single_mut();
+        blue_text.sections[1].value = format!("{:5.1}%", progress_blue * 100.).to_string();
     }
 }

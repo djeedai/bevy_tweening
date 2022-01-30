@@ -37,8 +37,26 @@
 //! # use std::time::Duration;
 //! # fn system(mut commands: Commands) {
 //! # let size = 16.;
+//! // Create a single animation (tween) to move an entity.
+//! let tween = Tween::new(
+//!     // Use a quadratic easing on both endpoints.
+//!     EaseFunction::QuadraticInOut,
+//!     // Loop animation back and forth.
+//!     TweeningType::PingPong,
+//!     // Animation time (one way only; for ping-pong it takes 2 seconds
+//!     // to come back to start).
+//!     Duration::from_secs(1),
+//!     // The lens gives access to the Transform component of the Sprite,
+//!     // for the Animator to animate it. It also contains the start and
+//!     // end values associated with the animation ratios 0. and 1.
+//!     TransformPositionLens {
+//!         start: Vec3::new(0., 0., 0.),
+//!         end: Vec3::new(1., 2., -4.),
+//!     },
+//! );
+//! 
 //! commands
-//!     // Spawn a Sprite entity to animate the position of
+//!     // Spawn a Sprite entity to animate the position of.
 //!     .spawn_bundle(SpriteBundle {
 //!         sprite: Sprite {
 //!             color: Color::RED,
@@ -47,23 +65,8 @@
 //!         },
 //!         ..Default::default()
 //!     })
-//!     // Add an Animator component to perform the animation
-//!     .insert(Animator::new(
-//!         // Use a quadratic easing on both endpoints
-//!         EaseFunction::QuadraticInOut,
-//!         // Loop animation back and forth
-//!         TweeningType::PingPong,
-//!         // Animation time (one way only; for ping-pong it takes 2 seconds
-//!         // to come back to start)
-//!         Duration::from_secs(1),
-//!         // The lens gives access to the Transform component of the Sprite,
-//!         // for the Animator to animate it. It also contains the start and
-//!         // end values associated with the animation ratios 0. and 1.
-//!         TransformPositionLens {
-//!             start: Vec3::new(0., 0., 0.),
-//!             end: Vec3::new(1., 2., -4.),
-//!         },
-//!     ));
+//!     // Add an Animator component to control and execute the animation.
+//!     .insert(Animator::new(tween));
 //! # }
 //! ```
 //!
@@ -218,12 +221,58 @@ impl std::ops::Not for TweeningDirection {
     }
 }
 
+/// Playback state of a [`Tweenable`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum TweenState {
+pub enum TweenState {
     /// Not animated.
     Stopped,
     /// Animating.
     Running,
+    /// Animation ended (but stop not called).
+    Ended,
+}
+
+/// An animatable entity, either a single [`Tween`] or a collection of them.
+pub trait Tweenable<T>: Send + Sync {
+    /// Get the total duration of the animation.
+    fn duration(&self) -> Duration;
+
+    /// Get the current progress in \[0:1\] of the animation.
+    fn progress(&self) -> f32;
+
+    /// Tick the animation, advancing it by the given delta time and mutating the
+    /// given target component or asset.
+    fn tick(&mut self, delta: Duration, target: &mut T) -> TweenState;
+
+    /// Stop the animation.
+    fn stop(&mut self);
+}
+
+impl<T> Tweenable<T> for Box<dyn Tweenable<T> + Send + Sync + 'static> {
+    fn duration(&self) -> Duration {
+        self.as_ref().duration()
+    }
+    fn progress(&self) -> f32 {
+        self.as_ref().progress()
+    }
+    fn tick(&mut self, delta: Duration, target: &mut T) -> TweenState {
+        self.as_mut().tick(delta, target)
+    }
+    fn stop(&mut self) {
+        self.as_mut().stop()
+    }
+}
+
+/// Trait for boxing a [`Tweenable`] trait object.
+pub trait IntoBoxDynTweenable<T> {
+    /// Convert the current object into a boxed [`Tweenable`].
+    fn into_box_dyn(this: Self) -> Box<dyn Tweenable<T> + Send + Sync + 'static>;
+}
+
+impl<T, U: Tweenable<T> + Send + Sync + 'static> IntoBoxDynTweenable<T> for U {
+    fn into_box_dyn(this: U) -> Box<dyn Tweenable<T> + Send + Sync + 'static> {
+        Box::new(this)
+    }
 }
 
 /// Single tweening animation instance.
@@ -236,6 +285,13 @@ pub struct Tween<T> {
     lens: Box<dyn Lens<T> + Send + Sync + 'static>,
     on_started: Option<Box<dyn FnMut() + Send + Sync + 'static>>,
     on_ended: Option<Box<dyn FnMut() + Send + Sync + 'static>>,
+}
+
+impl<T: 'static> Tween<T> {
+    /// Chain another [`Tweenable`] after this tween, making a sequence with the two.
+    pub fn then(self, tween: impl Tweenable<T> + Send + Sync + 'static) -> Sequence<T> {
+        Sequence::from_single(self).then(tween)
+    }
 }
 
 impl<T> Tween<T> {
@@ -268,18 +324,6 @@ impl<T> Tween<T> {
         self.direction
     }
 
-    /// Current animation progress ratio between 0 and 1.
-    ///
-    /// For reversed playback ([`TweeningDirection::Backward`]), the ratio goes from 0 at the
-    /// end point (beginning of backward playback) to 1 at the start point (end of backward
-    /// playback).
-    pub fn progress(&self) -> f32 {
-        match self.direction {
-            TweeningDirection::Forward => self.timer.percent(),
-            TweeningDirection::Backward => self.timer.percent_left(),
-        }
-    }
-
     /// Set a callback invoked when the animation starts.
     pub fn set_started<C>(&mut self, callback: C)
     where
@@ -310,8 +354,26 @@ impl<T> Tween<T> {
     pub fn is_looping(&self) -> bool {
         self.tweening_type != TweeningType::Once
     }
+}
 
-    fn tick(&mut self, delta: Duration, target: &mut T) {
+impl<T> Tweenable<T> for Tween<T> {
+    fn duration(&self) -> Duration {
+        self.timer.duration()
+    }
+
+    /// Current animation progress ratio between 0 and 1.
+    ///
+    /// For reversed playback ([`TweeningDirection::Backward`]), the ratio goes from 0 at the
+    /// end point (beginning of backward playback) to 1 at the start point (end of backward
+    /// playback).
+    fn progress(&self) -> f32 {
+        match self.direction {
+            TweeningDirection::Forward => self.timer.percent(),
+            TweeningDirection::Backward => self.timer.percent_left(),
+        }
+    }
+
+    fn tick(&mut self, delta: Duration, target: &mut T) -> TweenState {
         let old_state = self.state;
         if old_state == TweenState::Stopped {
             self.state = TweenState::Running;
@@ -332,6 +394,7 @@ impl<T> Tween<T> {
         self.lens.lerp(target, factor);
 
         if self.timer.just_finished() {
+            self.state = TweenState::Ended;
             // This is always true for non ping-pong, and is true for ping-pong when
             // coming back to start after a full cycle start -> end -> start.
             if self.direction == TweeningDirection::Forward {
@@ -340,43 +403,59 @@ impl<T> Tween<T> {
                 }
             }
         }
+
+        self.state
     }
 
     fn stop(&mut self) {
-        if self.state == TweenState::Running {
-            self.state = TweenState::Stopped;
-            self.timer.reset();
-        }
+        self.state = TweenState::Stopped;
+        self.timer.reset();
     }
 }
 
 /// A sequence of tweens played back in order one after the other.
 pub struct Sequence<T> {
-    tweens: Vec<Tween<T>>,
+    tweens: Vec<Box<dyn Tweenable<T> + Send + Sync + 'static>>,
     index: usize,
     state: TweenState,
+    duration: Duration,
+    time: Duration,
 }
 
 impl<T> Sequence<T> {
     /// Create a new sequence of tweens.
-    pub fn new<I>(tweens: I) -> Self
-    where
-        I: IntoIterator<Item = Tween<T>>,
-    {
+    pub fn new(items: impl IntoIterator<Item = impl IntoBoxDynTweenable<T>>) -> Self {
+        let tweens: Vec<_> = items
+            .into_iter()
+            .map(IntoBoxDynTweenable::into_box_dyn)
+            .collect();
+        let duration = tweens.iter().map(|t| t.duration()).sum();
         Sequence {
-            tweens: tweens.into_iter().collect(),
+            tweens,
             index: 0,
             state: TweenState::Stopped,
+            duration,
+            time: Duration::from_secs(0),
         }
     }
 
     /// Create a new sequence containing a single tween.
-    pub fn from_single(tween: Tween<T>) -> Self {
+    pub fn from_single(tween: impl Tweenable<T> + Send + Sync + 'static) -> Self {
+        let duration = tween.duration();
         Sequence {
-            tweens: vec![tween],
+            tweens: vec![Box::new(tween)],
             index: 0,
             state: TweenState::Stopped,
+            duration,
+            time: Duration::from_secs(0),
         }
+    }
+
+    /// Append a [`Tweenable`] to this sequence.
+    pub fn then(mut self, tween: impl Tweenable<T> + Send + Sync + 'static) -> Self {
+        self.duration += tween.duration();
+        self.tweens.push(Box::new(tween));
+        self
     }
 
     /// Index of the current active tween in the sequence.
@@ -385,22 +464,38 @@ impl<T> Sequence<T> {
     }
 
     /// Get the current active tween in the sequence.
-    pub fn current(&self) -> &Tween<T> {
-        &self.tweens[self.index()]
+    pub fn current(&self) -> &dyn Tweenable<T> {
+        self.tweens[self.index()].as_ref()
+    }
+}
+
+impl<T> Tweenable<T> for Sequence<T> {
+    fn duration(&self) -> Duration {
+        self.duration
     }
 
-    fn tick(&mut self, delta: Duration, target: &mut T) {
+    fn progress(&self) -> f32 {
+        self.time.as_secs_f32() / self.duration.as_secs_f32()
+    }
+
+    fn tick(&mut self, delta: Duration, target: &mut T) -> TweenState {
         if self.index < self.tweens.len() {
+            self.time = (self.time + delta).min(self.duration);
             let tween = &mut self.tweens[self.index];
-            tween.tick(delta, target);
-            if tween.progress() >= 1.0 {
+            let state = tween.tick(delta, target);
+            if state == TweenState::Ended {
+                tween.stop();
                 self.index += 1;
+                if self.index >= self.tweens.len() {
+                    self.state = TweenState::Ended;
+                }
             }
         }
+        self.state
     }
 
     fn stop(&mut self) {
-        if self.state == TweenState::Running {
+        if self.state != TweenState::Stopped {
             self.state = TweenState::Stopped;
             if self.index < self.tweens.len() {
                 let tween = &mut self.tweens[self.index];
@@ -410,8 +505,56 @@ impl<T> Sequence<T> {
     }
 }
 
-struct Tracks<T> {
-    tracks: Vec<Sequence<T>>,
+/// A collection of [`Tweenable`] executing in parallel.
+pub struct Tracks<T> {
+    tracks: Vec<Box<dyn Tweenable<T> + Send + Sync + 'static>>,
+    duration: Duration,
+    time: Duration,
+}
+
+impl<T> Tracks<T> {
+    /// Create a new [`Tracks`] from an iterator over a collection of [`Tweenable`].
+    pub fn new(items: impl IntoIterator<Item = impl IntoBoxDynTweenable<T>>) -> Self {
+        let tracks: Vec<_> = items
+            .into_iter()
+            .map(IntoBoxDynTweenable::into_box_dyn)
+            .collect();
+        let duration = tracks.iter().map(|t| t.duration()).max().unwrap();
+        Tracks {
+            tracks,
+            duration,
+            time: Duration::from_secs(0),
+        }
+    }
+}
+
+impl<T> Tweenable<T> for Tracks<T> {
+    fn duration(&self) -> Duration {
+        self.duration
+    }
+
+    fn progress(&self) -> f32 {
+        self.time.as_secs_f32() / self.duration.as_secs_f32()
+    }
+
+    fn tick(&mut self, delta: Duration, target: &mut T) -> TweenState {
+        let mut any_running = true;
+        for tweenable in &mut self.tracks {
+            any_running = any_running && (tweenable.tick(delta, target) == TweenState::Running);
+        }
+        if any_running {
+            self.time = (self.time + delta).min(self.duration);
+            TweenState::Running
+        } else {
+            TweenState::Ended
+        }
+    }
+
+    fn stop(&mut self) {
+        for seq in &mut self.tracks {
+            seq.stop();
+        }
+    }
 }
 
 /// Component to control the animation of another component.
@@ -420,7 +563,7 @@ pub struct Animator<T: Component> {
     /// Control if this animation is played or not.
     pub state: AnimatorState,
     prev_state: AnimatorState,
-    tracks: Tracks<T>,
+    tweenable: Option<Box<dyn Tweenable<T> + Send + Sync + 'static>>,
 }
 
 impl<T: Component + std::fmt::Debug> std::fmt::Debug for Animator<T> {
@@ -431,52 +574,22 @@ impl<T: Component + std::fmt::Debug> std::fmt::Debug for Animator<T> {
     }
 }
 
+impl<T: Component> Default for Animator<T> {
+    fn default() -> Self {
+        Animator {
+            state: Default::default(),
+            prev_state: Default::default(),
+            tweenable: None,
+        }
+    }
+}
+
 impl<T: Component> Animator<T> {
-    /// Create a new animator component from an easing function, tweening type, and a lens.
-    /// The type `T` of the component to animate can generally be deducted from the lens type itself.
-    /// This creates a new [`Tween`] instance then assign it to a newly created animator.
-    pub fn new<L>(
-        ease_function: impl Into<EaseMethod>,
-        tweening_type: TweeningType,
-        duration: Duration,
-        lens: L,
-    ) -> Self
-    where
-        L: Lens<T> + Send + Sync + 'static,
-    {
-        let tween = Tween::new(ease_function, tweening_type, duration, lens);
+    /// Create a new animator component from a single [`Tween`] or [`Sequence`].
+    pub fn new(tween: impl Tweenable<T> + Send + Sync + 'static) -> Self {
         Animator {
-            state: AnimatorState::default(),
-            prev_state: AnimatorState::default(),
-            tracks: Tracks {
-                tracks: vec![Sequence::from_single(tween)],
-            },
-        }
-    }
-
-    /// Create a new animator component from a single tween instance.
-    pub fn new_single(tween: Tween<T>) -> Self {
-        Animator {
-            state: AnimatorState::default(),
-            prev_state: AnimatorState::default(),
-            tracks: Tracks {
-                tracks: vec![Sequence::from_single(tween)],
-            },
-        }
-    }
-
-    /// Create a new animator component from a sequence of tween instances.
-    /// The tweens are played in order, one after the other. They all must be non-looping.
-    pub fn new_seq(tweens: Vec<Tween<T>>) -> Self {
-        for t in &tweens {
-            assert!(matches!(t.tweening_type, TweeningType::Once { .. }));
-        }
-        Animator {
-            state: AnimatorState::Playing,
-            prev_state: AnimatorState::Playing,
-            tracks: Tracks {
-                tracks: vec![Sequence::new(tweens)],
-            },
+            tweenable: Some(Box::new(tween)),
+            ..Default::default()
         }
     }
 
@@ -487,14 +600,27 @@ impl<T: Component> Animator<T> {
         self
     }
 
+    /// Set the top-level tweenable item this animator controls.
+    pub fn set_tweenable(&mut self, tween: impl Tweenable<T> + Send + Sync + 'static) {
+        self.tweenable = Some(Box::new(tween));
+    }
+
     /// Get the collection of sequences forming the parallel tracks of animation.
-    pub fn tracks(&self) -> &[Sequence<T>] {
-        &self.tracks.tracks
+    pub fn tweenable(&self) -> Option<&(dyn Tweenable<T> + Send + Sync + 'static)> {
+        if let Some(tweenable) = &self.tweenable {
+            Some(tweenable.as_ref())
+        } else {
+            None
+        }
     }
 
     /// Get the mutable collection of sequences forming the parallel tracks of animation.
-    pub fn tracks_mut(&mut self) -> &mut [Sequence<T>] {
-        &mut self.tracks.tracks
+    pub fn tweenable_mut(&mut self) -> Option<&mut (dyn Tweenable<T> + Send + Sync + 'static)> {
+        if let Some(tweenable) = &mut self.tweenable {
+            Some(tweenable.as_mut())
+        } else {
+            None
+        }
     }
 }
 
@@ -504,7 +630,7 @@ pub struct AssetAnimator<T: Asset> {
     /// Control if this animation is played or not.
     pub state: AnimatorState,
     prev_state: AnimatorState,
-    tracks: Tracks<T>,
+    tweenable: Option<Box<dyn Tweenable<T> + Send + Sync + 'static>>,
     handle: Handle<T>,
 }
 
@@ -516,56 +642,24 @@ impl<T: Asset + std::fmt::Debug> std::fmt::Debug for AssetAnimator<T> {
     }
 }
 
+impl<T: Asset> Default for AssetAnimator<T> {
+    fn default() -> Self {
+        AssetAnimator {
+            state: Default::default(),
+            prev_state: Default::default(),
+            tweenable: None,
+            handle: Default::default(),
+        }
+    }
+}
+
 impl<T: Asset> AssetAnimator<T> {
-    /// Create a new asset animator component from an easing function, tweening type, and a lens.
-    /// The type `T` of the asset to animate can generally be deducted from the lens type itself.
-    /// The component can be attached on any entity.
-    pub fn new<L>(
-        handle: Handle<T>,
-        ease_function: impl Into<EaseMethod>,
-        tweening_type: TweeningType,
-        duration: Duration,
-        lens: L,
-    ) -> Self
-    where
-        L: Lens<T> + Send + Sync + 'static,
-    {
-        let tween = Tween::new(ease_function, tweening_type, duration, lens);
+    /// Create a new animator component from a single [`Tween`] or [`Sequence`].
+    pub fn new(handle: Handle<T>, tween: impl Tweenable<T> + Send + Sync + 'static) -> Self {
         AssetAnimator {
-            state: AnimatorState::Playing,
-            prev_state: AnimatorState::Playing,
-            tracks: Tracks {
-                tracks: vec![Sequence::from_single(tween)],
-            },
+            tweenable: Some(Box::new(tween)),
             handle,
-        }
-    }
-
-    /// Create a new animator component from a single tween instance.
-    pub fn new_single(handle: Handle<T>, tween: Tween<T>) -> Self {
-        AssetAnimator {
-            state: AnimatorState::Playing,
-            prev_state: AnimatorState::Playing,
-            tracks: Tracks {
-                tracks: vec![Sequence::from_single(tween)],
-            },
-            handle,
-        }
-    }
-
-    /// Create a new animator component from a sequence of tween instances.
-    /// The tweens are played in order, one after the other. They all must be non-looping.
-    pub fn new_seq(handle: Handle<T>, tweens: Vec<Tween<T>>) -> Self {
-        for t in &tweens {
-            assert!(matches!(t.tweening_type, TweeningType::Once { .. }));
-        }
-        AssetAnimator {
-            state: AnimatorState::Playing,
-            prev_state: AnimatorState::Playing,
-            tracks: Tracks {
-                tracks: vec![Sequence::new(tweens)],
-            },
-            handle,
+            ..Default::default()
         }
     }
 
@@ -576,18 +670,31 @@ impl<T: Asset> AssetAnimator<T> {
         self
     }
 
-    fn handle(&self) -> Handle<T> {
-        self.handle.clone()
+    /// Set the top-level tweenable item this animator controls.
+    pub fn set_tweenable(&mut self, tween: impl Tweenable<T> + Send + Sync + 'static) {
+        self.tweenable = Some(Box::new(tween));
     }
 
     /// Get the collection of sequences forming the parallel tracks of animation.
-    pub fn tracks(&self) -> &[Sequence<T>] {
-        &self.tracks.tracks
+    pub fn tweenable(&self) -> Option<&(dyn Tweenable<T> + Send + Sync + 'static)> {
+        if let Some(tweenable) = &self.tweenable {
+            Some(tweenable.as_ref())
+        } else {
+            None
+        }
     }
 
     /// Get the mutable collection of sequences forming the parallel tracks of animation.
-    pub fn tracks_mut(&mut self) -> &mut [Sequence<T>] {
-        &mut self.tracks.tracks
+    pub fn tweenable_mut(&mut self) -> Option<&mut (dyn Tweenable<T> + Send + Sync + 'static)> {
+        if let Some(tweenable) = &mut self.tweenable {
+            Some(tweenable.as_mut())
+        } else {
+            None
+        }
+    }
+
+    fn handle(&self) -> Handle<T> {
+        self.handle.clone()
     }
 }
 
@@ -668,6 +775,7 @@ mod tests {
                         (r, ec, dir)
                     }
                 };
+                println!("Expected; r={} ec={} dir={:?}", ratio, ec, dir);
 
                 // Tick the tween
                 tween.tick(tick_duration, &mut transform);
@@ -704,7 +812,7 @@ mod tests {
                 end: Quat::from_rotation_x(180_f32.to_radians()),
             },
         );
-        let mut seq = Sequence::new([tween1, tween2]);
+        let mut seq = Sequence::from_single(tween1).then(tween2);
         let mut transform = Transform::default();
         for i in 1..=11 {
             seq.tick(Duration::from_secs_f32(0.2), &mut transform);
@@ -729,7 +837,7 @@ mod tests {
     /// Animator::new()
     #[test]
     fn animator_new() {
-        let animator = Animator::new(
+        let tween = Tween::new(
             EaseFunction::QuadraticInOut,
             TweeningType::PingPong,
             std::time::Duration::from_secs(1),
@@ -738,21 +846,16 @@ mod tests {
                 end: Quat::from_axis_angle(Vec3::Z, std::f32::consts::PI / 2.),
             },
         );
+        let animator = Animator::new(tween);
         assert_eq!(animator.state, AnimatorState::default());
-        let tracks = animator.tracks();
-        assert_eq!(tracks.len(), 1);
-        let seq = &tracks[0];
-        assert_eq!(seq.tweens.len(), 1);
-        let tween = &seq.tweens[0];
-        assert_eq!(tween.direction(), TweeningDirection::Forward);
+        let tween = animator.tweenable().unwrap();
         assert_eq!(tween.progress(), 0.);
     }
 
     /// AssetAnimator::new()
     #[test]
     fn asset_animator_new() {
-        let animator = AssetAnimator::new(
-            Handle::<ColorMaterial>::default(),
+        let tween = Tween::new(
             EaseFunction::QuadraticInOut,
             TweeningType::PingPong,
             std::time::Duration::from_secs(1),
@@ -761,13 +864,9 @@ mod tests {
                 end: Color::BLUE,
             },
         );
+        let animator = AssetAnimator::new(Handle::<ColorMaterial>::default(), tween);
         assert_eq!(animator.state, AnimatorState::default());
-        let tracks = animator.tracks();
-        assert_eq!(tracks.len(), 1);
-        let seq = &tracks[0];
-        assert_eq!(seq.tweens.len(), 1);
-        let tween = &seq.tweens[0];
-        assert_eq!(tween.direction(), TweeningDirection::Forward);
+        let tween = animator.tweenable().unwrap();
         assert_eq!(tween.progress(), 0.);
     }
 }

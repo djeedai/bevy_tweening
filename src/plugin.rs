@@ -54,15 +54,12 @@ pub fn component_animator_system<T: Component>(
         animator.prev_state = animator.state;
         if animator.state == AnimatorState::Paused {
             if state_changed {
-                for seq in animator.tracks_mut() {
-                    seq.stop();
+                if let Some(tweenable) = animator.tweenable_mut() {
+                    tweenable.stop();
                 }
             }
-        } else {
-            // Play all tracks in parallel
-            for seq in animator.tracks_mut() {
-                seq.tick(time.delta(), target);
-            }
+        } else if let Some(tweenable) = animator.tweenable_mut() {
+            tweenable.tick(time.delta(), target);
         }
     }
 }
@@ -80,14 +77,13 @@ pub fn asset_animator_system<T: Asset>(
         animator.prev_state = animator.state;
         if animator.state == AnimatorState::Paused {
             if state_changed {
-                for seq in animator.tracks_mut() {
-                    seq.stop();
+                if let Some(tweenable) = animator.tweenable_mut() {
+                    tweenable.stop();
                 }
             }
         } else if let Some(target) = assets.get_mut(animator.handle()) {
-            // Play all tracks in parallel
-            for seq in animator.tracks_mut() {
-                seq.tick(time.delta(), target);
+            if let Some(tweenable) = animator.tweenable_mut() {
+                tweenable.tick(time.delta(), target);
             }
         }
     }
