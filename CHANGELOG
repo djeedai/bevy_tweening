@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `Tween<T>::then()` and `Sequence<T>::then()` to append a `Tweenable<T>` to a sequence (creating a new sequence in the case of `Tween<T>::then()`).
 - Added `tweenable()` and `tweenable_mut()` on the `Animator<T>` and `AssetAnimator<T>` to access their top-level `Tweenable<T>`.
 - Implemented `Default` for `Animator<T>` and `AssetAnimator<T>`, creating an animator without any tweenable item (no-op).
+- Added `Delay` tweenable for a time delay between other tweens.
 
 ### Changed
 

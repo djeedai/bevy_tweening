@@ -144,6 +144,14 @@ The process is similar to custom components, creating a custom lens for the cust
 
 See the [`examples/`](https://github.com/djeedai/bevy_tweening/tree/main/examples) folder.
 
+### [`menu`](examples/menu.rs)
+
+```rust
+cargo run --example menu --features="bevy/bevy_winit"
+```
+
+![menu](https://raw.githubusercontent.com/djeedai/bevy_tweening/main/examples/menu.gif)
+
 ### [`sprite_color`](examples/sprite_color.rs)
 
 ```rust
