@@ -20,6 +20,9 @@ version = "0.6"
 default-features = false
 features = [ "render" ]
 
+[dev-dependencies]
+bevy-inspector-egui = "0.8"
+
 [[example]]
 name = "colormaterial_color"
 required-features = [ "bevy/bevy_winit" ]
