@@ -6,16 +6,32 @@ use crate::{EaseMethod, Lens, TweenState, TweeningDirection, TweeningType};
 /// An animatable entity, either a single [`Tween`] or a collection of them.
 pub trait Tweenable<T>: Send + Sync {
     /// Get the total duration of the animation.
+    ///
+    /// For [`TweeningType::PingPong`], this is the duration of a single way, either from start
+    /// to end or back from end to start. The total loop duration start -> end -> start in this
+    /// case is the double of the returned value.
     fn duration(&self) -> Duration;
 
-    /// Get the current progress in \[0:1\] of the animation.
+    /// Get the current progress in \[0:1\] (non-looping) or \[0:1\[ (looping) of the animation.
+    ///
+    /// For looping animations, this reports the progress of the current iteration,
+    /// in the current direction:
+    /// - [`TweeningType::Loop`] is 0 at start and 1 at end. The exact value 1.0 is never reached,
+    ///   since the tweenable loops over to 0.0 immediately.
+    /// - [`TweeningType::PingPong`] is 0 at the source endpoint and 1 and the destination one,
+    ///   which are respectively the start/end for [`TweeningDirection::Forward`], or the end/start
+    ///   for [`TweeningDirection::Backward`]. The exact value 1.0 is never reached, since the tweenable
+    ///   loops over to 0.0 immediately when it changes direction at either endpoint.
     fn progress(&self) -> f32;
 
     /// Tick the animation, advancing it by the given delta time and mutating the
-    /// given target component or asset.
+    /// given target component or asset
+    ///
+    /// This changes the tweenable state to [`TweenState::Running`] before updating it.
+    /// If the tick brings the tweenable to its end, the state changes to [`TweenState::Ended`].
     fn tick(&mut self, delta: Duration, target: &mut T) -> TweenState;
 
-    /// Stop the animation.
+    /// Stop the animation. This changes its state to [`TweenState::Stopped`].
     fn stop(&mut self);
 }
 
@@ -254,6 +270,7 @@ impl<T> Tweenable<T> for Sequence<T> {
 
     fn tick(&mut self, delta: Duration, target: &mut T) -> TweenState {
         if self.index < self.tweens.len() {
+            self.state = TweenState::Running;
             self.time = (self.time + delta).min(self.duration);
             let tween = &mut self.tweens[self.index];
             let state = tween.tick(delta, target);
@@ -312,9 +329,10 @@ impl<T> Tweenable<T> for Tracks<T> {
     }
 
     fn tick(&mut self, delta: Duration, target: &mut T) -> TweenState {
-        let mut any_running = true;
+        let mut any_running = false;
         for tweenable in &mut self.tracks {
-            any_running = any_running && (tweenable.tick(delta, target) == TweenState::Running);
+            let state = tweenable.tick(delta, target);
+            any_running = any_running || (state == TweenState::Running);
         }
         if any_running {
             self.time = (self.time + delta).min(self.duration);
@@ -331,13 +349,17 @@ impl<T> Tweenable<T> for Tracks<T> {
     }
 }
 
-/// A collection of [`Tweenable`] executing in parallel.
+/// A time delay that doesn't animate anything.
+///
+/// This is generally useful for combining with other tweenables into sequences and tracks,
+/// for example to delay the start of a tween in a track relative to another track. The `menu`
+/// example (`examples/menu.rs`) uses this technique to delay the animation of its buttons.
 pub struct Delay {
     timer: Timer,
 }
 
 impl Delay {
-    /// Create a new [`Tracks`] from an iterator over a collection of [`Tweenable`].
+    /// Create a new [`Delay`] with a given duration.
     pub fn new(duration: Duration) -> Self {
         Delay {
             timer: Timer::new(duration, false),
@@ -425,16 +447,21 @@ mod tests {
             let tick_duration = Duration::from_secs_f32(0.2);
             for i in 1..=11 {
                 // Calculate expected values
-                let (ratio, ec, dir) = match tweening_type {
+                let (ratio, ec, dir, expected_state) = match tweening_type {
                     TweeningType::Once => {
                         let r = (i as f32 * 0.2).min(1.0);
                         let ec = if i >= 5 { 1 } else { 0 };
-                        (r, ec, TweeningDirection::Forward)
+                        let state = if i >= 5 {
+                            TweenState::Ended
+                        } else {
+                            TweenState::Running
+                        };
+                        (r, ec, TweeningDirection::Forward, state)
                     }
                     TweeningType::Loop => {
                         let r = (i as f32 * 0.2).fract();
                         let ec = i / 5;
-                        (r, ec, TweeningDirection::Forward)
+                        (r, ec, TweeningDirection::Forward, TweenState::Running)
                     }
                     TweeningType::PingPong => {
                         let i10 = i % 10;
@@ -449,16 +476,20 @@ mod tests {
                         } else {
                             TweeningDirection::Forward
                         };
-                        (r, ec, dir)
+                        (r, ec, dir, TweenState::Running)
                     }
                 };
-                println!("Expected; r={} ec={} dir={:?}", ratio, ec, dir);
+                println!(
+                    "Expected; r={} ec={} dir={:?} state={:?}",
+                    ratio, ec, dir, expected_state
+                );
 
                 // Tick the tween
-                tween.tick(tick_duration, &mut transform);
+                let actual_state = tween.tick(tick_duration, &mut transform);
 
                 // Check actual values
                 assert_eq!(tween.direction(), dir);
+                assert_eq!(actual_state, expected_state);
                 assert!(abs_diff_eq(tween.progress(), ratio, 1e-5));
                 assert!(transform.translation.abs_diff_eq(Vec3::splat(ratio), 1e-5));
                 assert!(transform.rotation.abs_diff_eq(Quat::IDENTITY, 1e-5));
@@ -492,17 +523,20 @@ mod tests {
         let mut seq = tween1.then(tween2);
         let mut transform = Transform::default();
         for i in 1..=16 {
-            seq.tick(Duration::from_secs_f32(0.2), &mut transform);
-            if i <= 5 {
+            let state = seq.tick(Duration::from_secs_f32(0.2), &mut transform);
+            if i < 5 {
+                assert_eq!(state, TweenState::Running);
                 let r = i as f32 * 0.2;
                 assert_eq!(transform, Transform::from_translation(Vec3::splat(r)));
-            } else if i <= 10 {
+            } else if i < 10 {
+                assert_eq!(state, TweenState::Running);
                 let alpha_deg = (36 * (i - 5)) as f32;
                 assert!(transform.translation.abs_diff_eq(Vec3::splat(1.), 1e-5));
                 assert!(transform
                     .rotation
                     .abs_diff_eq(Quat::from_rotation_x(alpha_deg.to_radians()), 1e-5));
             } else {
+                assert_eq!(state, TweenState::Ended);
                 assert!(transform.translation.abs_diff_eq(Vec3::splat(1.), 1e-5));
                 assert!(transform
                     .rotation
@@ -526,7 +560,7 @@ mod tests {
         let tween2 = Tween::new(
             EaseMethod::Linear,
             TweeningType::Once,
-            Duration::from_secs_f32(0.8),
+            Duration::from_secs_f32(0.8), // shorter
             TransformRotationLens {
                 start: Quat::IDENTITY,
                 end: Quat::from_rotation_x(180_f32.to_radians()),
@@ -535,15 +569,17 @@ mod tests {
         let mut tracks = Tracks::new([tween1, tween2]);
         let mut transform = Transform::default();
         for i in 1..=6 {
-            tracks.tick(Duration::from_secs_f32(0.2), &mut transform);
-            if i <= 5 {
+            let state = tracks.tick(Duration::from_secs_f32(0.2), &mut transform);
+            if i < 5 {
+                assert_eq!(state, TweenState::Running);
                 let r = i as f32 * 0.2;
-                let alpha_deg = (45 * i.min(4)) as f32;
+                let alpha_deg = (45 * i) as f32;
                 assert!(transform.translation.abs_diff_eq(Vec3::splat(r), 1e-5));
                 assert!(transform
                     .rotation
                     .abs_diff_eq(Quat::from_rotation_x(alpha_deg.to_radians()), 1e-5));
             } else {
+                assert_eq!(state, TweenState::Ended);
                 assert!(transform.translation.abs_diff_eq(Vec3::splat(1.), 1e-5));
                 assert!(transform
                     .rotation

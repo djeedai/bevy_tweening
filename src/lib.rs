@@ -224,11 +224,13 @@ impl std::ops::Not for TweeningDirection {
 /// Playback state of a [`Tweenable`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TweenState {
-    /// Not animated.
+    /// Not animated. If controlled by an [`Animator`] or [`AssetAnimator`], that animator is paused.
     Stopped,
-    /// Animating.
+    /// Actively animating. The tweenable did not reach its end state yet.
     Running,
-    /// Animation ended (but stop not called).
+    /// Animation ended but [`Tweenable::stop()`] was not called. The tweenable is idling at its latest
+    /// time. This can only happen for [`TweeningType::Once`], since other types loop indefinitely
+    /// until they're stopped.
     Ended,
 }
 
