@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 use bevy_inspector_egui::WorldInspectorPlugin;
-use bevy_tweening::*;
+use bevy_tweening::{lens::*, *};
 use std::time::Duration;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

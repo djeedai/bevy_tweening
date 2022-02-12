@@ -2,7 +2,7 @@ use bevy::{
     prelude::*,
     sprite::{MaterialMesh2dBundle, Mesh2dHandle},
 };
-use bevy_tweening::*;
+use bevy_tweening::{lens::*, *};
 use std::time::Duration;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

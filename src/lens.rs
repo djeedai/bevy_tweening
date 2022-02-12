@@ -1,3 +1,5 @@
+//! Collection of predefined lenses for common Bevy components and assets.
+
 use bevy::prelude::*;
 
 /// A lens over a subset of a component.

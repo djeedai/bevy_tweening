@@ -112,14 +112,11 @@ use interpolation::Ease as IEase;
 pub use interpolation::EaseFunction;
 pub use interpolation::Lerp;
 
-mod lens;
+pub mod lens;
 mod plugin;
 mod tweenable;
 
-pub use lens::{
-    ColorMaterialColorLens, Lens, SpriteColorLens, TextColorLens, TransformPositionLens,
-    TransformRotationLens, TransformScaleLens, UiPositionLens,
-};
+pub use lens::Lens;
 pub use plugin::{asset_animator_system, component_animator_system, TweeningPlugin};
 pub use tweenable::{Delay, Sequence, Tracks, Tween, Tweenable};
 
@@ -377,7 +374,7 @@ impl<T: Asset> AssetAnimator<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{lens::*, *};
 
     /// Animator::new()
     #[test]

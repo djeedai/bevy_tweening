@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy_tweening::*;
+use bevy_tweening::{lens::*, *};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     App::default()

@@ -398,7 +398,7 @@ impl<T> Tweenable<T> for Delay {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{TransformPositionLens, TransformRotationLens};
+    use crate::lens::*;
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
 
