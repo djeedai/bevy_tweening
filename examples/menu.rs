@@ -43,7 +43,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             color: UiColor(Color::NONE),
             ..Default::default()
         })
-        .insert(Name::new("container"))
+        .insert(Name::new("menu"))
         .id();
 
     let mut start_time_ms = 0;

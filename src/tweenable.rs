@@ -165,7 +165,10 @@ impl<T> Tweenable<T> for Tween<T> {
         self.lens.lerp(target, factor);
 
         if self.timer.just_finished() {
-            self.state = TweenState::Ended;
+            if self.tweening_type == TweeningType::Once {
+                self.state = TweenState::Ended;
+            }
+
             // This is always true for non ping-pong, and is true for ping-pong when
             // coming back to start after a full cycle start -> end -> start.
             if self.direction == TweeningDirection::Forward {
