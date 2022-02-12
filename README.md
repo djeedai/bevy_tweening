@@ -29,11 +29,29 @@ App::default()
 
 ### Animate a component
 
-Animate the transform position of an entity:
+Animate the transform position of an entity by creating a `Tween` animation for the tranform, and adding an `Animator` component with that tween:
 
 ```rust
+// Create a single animation (tween) to move an entity.
+let tween = Tween::new(
+    // Use a quadratic easing on both endpoints.
+    EaseFunction::QuadraticInOut,
+    // Loop animation back and forth.
+    TweeningType::PingPong,
+    // Animation time (one way only; for ping-pong it takes 2 seconds
+    // to come back to start).
+    Duration::from_secs(1),
+    // The lens gives the Animator access to the Transform component,
+    // to animate it. It also contains the start and end values associated
+    // with the animation ratios 0. and 1.
+    TransformPositionLens {
+        start: Vec3::new(0., 0., 0.),
+        end: Vec3::new(1., 2., -4.),
+    },
+);
+
 commands
-    // Spawn a Sprite entity to animate the position of
+    // Spawn a Sprite entity to animate the position of.
     .spawn_bundle(SpriteBundle {
         sprite: Sprite {
             color: Color::RED,
@@ -42,25 +60,27 @@ commands
         },
         ..Default::default()
     })
-    // Add an Animator component to perform the animation. This is a shortcut to
-    // create both an Animator and a Tween, and assign the Tween to the Animator.
-    .insert(Animator::new(
-        // Use a quadratic easing on both endpoints
-        EaseFunction::QuadraticInOut,
-        // Loop animation back and forth over 1 second, with a 0.5 second
-        // pause after each cycle (start -> end -> start -> pause -> ...).
-        TweeningType::PingPong {
-            duration: Duration::from_secs(1),
-            pause: Some(Duration::from_millis(500)),
-        },
-        // The lens gives access to the Transform component of the Sprite,
-        // for the Animator to animate it. It also contains the start and
-        // end values associated with the animation ratios 0. and 1.
-        TransformPositionLens {
-            start: Vec3::new(0., 0., 0.),
-            end: Vec3::new(1., 2., -4.),
-        },
-    ));
+    // Add an Animator component to control and execute the animation.
+    .insert(Animator::new(tween));
+}
+```
+
+### Chaining animations
+
+Bevy Tweening supports several types of _tweenables_, building blocks that can be combined to form complex animations. A tweenable is a type implementing the `Tweenable<T>` trait.
+
+- **`Tween`** - A simple tween (easing) animation between two values.
+- **`Sequence`** - A series of tweenables executing in series, one after the other.
+- **`Tracks`** - A collection of tweenables executing in parallel.
+- **`Delay`** - A time delay.
+
+Most tweenables can be chained with the `then()` operator:
+
+```rust
+// Produce a sequence executing 'tween1' then 'tween2'
+let tween1 = Tween { [...] }
+let tween2 = Tween { [...] }
+let seq = tween1.then(tween2);
 ```
 
 ## Predefined Lenses
