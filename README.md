@@ -8,6 +8,8 @@
 
 Tweening animation plugin for the Bevy game engine.
 
+⚠ _Bevy 0.6.0 does not build with the `nightly` toolchain. This breaks `docs.rs` builds. A fix is expected for 0.6.1._
+
 ## Features
 
 - [x] Animate any field of any component or asset, including custom ones.
