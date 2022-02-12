@@ -328,7 +328,6 @@ impl<T> Tweenable<T> for Tracks<T> {
     }
 }
 
-
 /// A collection of [`Tweenable`] executing in parallel.
 pub struct Delay {
     timer: Timer,

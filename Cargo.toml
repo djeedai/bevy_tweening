@@ -24,6 +24,10 @@ features = [ "render" ]
 bevy-inspector-egui = "0.8"
 
 [[example]]
+name = "menu"
+required-features = [ "bevy/bevy_winit" ]
+
+[[example]]
 name = "colormaterial_color"
 required-features = [ "bevy/bevy_winit" ]
 
