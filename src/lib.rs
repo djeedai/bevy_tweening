@@ -12,17 +12,18 @@
 
 //! Tweening animation plugin for the Bevy game engine
 //!
-//! This library provides interpolation-based animation between ("tweening") two values, for a variety
-//! of Bevy components and assets. Each field of a component or asset can be animated via a collection
-//! or predefined easing functions, or providing a custom animation curve.
+//! 🍃 Bevy Tweening provides interpolation-based animation between ("tweening") two values, for Bevy components
+//! and assets. Each field of a component or asset can be animated via a collection or predefined easing functions,
+//! or providing a custom animation curve. Custom components and assets are also supported.
 //!
 //! # Example
 //!
 //! Add the tweening plugin to your app:
 //!
-//! ```rust,no_run
-//! # use bevy::prelude::*;
-//! # use bevy_tweening::*;
+//! ```no_run
+//! use bevy::prelude::*;
+//! use bevy_tweening::*;
+//!
 //! App::default()
 //!     .add_plugins(DefaultPlugins)
 //!     .add_plugin(TweeningPlugin)
@@ -31,9 +32,9 @@
 //!
 //! Animate the position ([`Transform::translation`]) of an [`Entity`]:
 //!
-//! ```rust
+//! ```
 //! # use bevy::prelude::*;
-//! # use bevy_tweening::*;
+//! # use bevy_tweening::{lens::*, *};
 //! # use std::time::Duration;
 //! # fn system(mut commands: Commands) {
 //! # let size = 16.;
@@ -46,11 +47,11 @@
 //!     // Animation time (one way only; for ping-pong it takes 2 seconds
 //!     // to come back to start).
 //!     Duration::from_secs(1),
-//!     // The lens gives access to the Transform component of the Sprite,
+//!     // The lens gives access to the Transform component of the Entity,
 //!     // for the Animator to animate it. It also contains the start and
-//!     // end values associated with the animation ratios 0. and 1.
+//!     // end values respectively associated with the progress ratios 0. and 1.
 //!     TransformPositionLens {
-//!         start: Vec3::new(0., 0., 0.),
+//!         start: Vec3::ZERO,
 //!         end: Vec3::new(1., 2., -4.),
 //!     },
 //! );
@@ -70,10 +71,53 @@
 //! # }
 //! ```
 //!
+//! # Tweenables
+//!
+//! 🍃 Bevy Tweening supports several types of _tweenables_, building blocks that can be combined to form complex
+//! animations. A tweenable is a type implementing the [`Tweenable`] trait.
+//!
+//! - [`Tween`] - A simple tween (easing) animation between two values.
+//! - [`Sequence`] - A series of tweenables executing in series, one after the other.
+//! - [`Tracks`] - A collection of tweenables executing in parallel.
+//! - [`Delay`] - A time delay.
+//!
+//! ## Chaining animations
+//!
+//! Most tweenables can be chained with the `then()` operator to produce a [`Sequence`] tweenable:
+//!
+//! ```
+//! # use bevy::prelude::*;
+//! # use bevy_tweening::{lens::*, *};
+//! # use std::time::Duration;
+//! let tween1 = Tween::new(
+//!     // [...]
+//! #    EaseFunction::BounceOut,
+//! #    TweeningType::Once,
+//! #    Duration::from_secs(2),
+//! #    TransformScaleLens {
+//! #        start: Vec3::ZERO,
+//! #        end: Vec3::ONE,
+//! #    },
+//! );
+//! let tween2 = Tween::new(
+//!     // [...]
+//! #    EaseFunction::QuadraticInOut,
+//! #    TweeningType::Once,
+//! #    Duration::from_secs(1),
+//! #    TransformPositionLens {
+//! #        start: Vec3::ZERO,
+//! #        end: Vec3::new(3.5, 0., 0.),
+//! #    },
+//! );
+//! // Produce a Sequence executing first 'tween1' then 'tween2'
+//! let seq = tween1.then(tween2);
+//! ```
+//!
 //! # Animators and lenses
 //!
-//! Bevy components and assets are animated with tweening animator components. Those animators determine
-//! the fields to animate using lenses.
+//! Bevy components and assets are animated with tweening _animator_ components, which take a tweenable and
+//! apply it to another component on the same [`Entity`]. Those animators determine that other component and
+//! its fields to animate using a _lens_.
 //!
 //! ## Components animation
 //!
@@ -87,17 +131,20 @@
 //!
 //! ## Assets animation
 //!
-//! Assets are animated in a similar way to component, via the [`AssetAnimator`] component. Because assets
-//! are typically shared, and the animation applies to the asset itself, all users of the asset see the
-//! animation. For example, animating the color of a [`ColorMaterial`] will change the color of all the
+//! Assets are animated in a similar way to component, via the [`AssetAnimator`] component.
+//!
+//! Because assets are typically shared, and the animation applies to the asset itself, all users of the asset
+//! see the animation. For example, animating the color of a [`ColorMaterial`] will change the color of all the
 //! 2D meshes using that material.
 //!
 //! ## Lenses
 //!
 //! Both [`Animator`] and [`AssetAnimator`] access the field(s) to animate via a lens, a type that implements
-//! the [`Lens`] trait. Several predefined lenses are provided for the most commonly animated fields, like the
-//! components of a [`Transform`]. A custom lens can also be created by implementing the trait, allowing to
-//! animate virtually any field of any Bevy component or asset.
+//! the [`Lens`] trait.
+//!
+//! Several predefined lenses are provided in the [`lens`] module for the most commonly animated fields, like the
+//! components of a [`Transform`]. A custom lens can also be created by implementing the trait, allowing to animate
+//! virtually any field of any Bevy component or asset.
 //!
 //! [`Transform::translation`]: https://docs.rs/bevy/0.6.0/bevy/transform/components/struct.Transform.html#structfield.translation
 //! [`Entity`]: https://docs.rs/bevy/0.6.0/bevy/ecs/entity/struct.Entity.html
