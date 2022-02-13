@@ -50,16 +50,10 @@ pub fn component_animator_system<T: Component>(
     mut query: Query<(&mut T, &mut Animator<T>)>,
 ) {
     for (ref mut target, ref mut animator) in query.iter_mut() {
-        let state_changed = animator.state != animator.prev_state;
-        animator.prev_state = animator.state;
-        if animator.state == AnimatorState::Paused {
-            if state_changed {
-                if let Some(tweenable) = animator.tweenable_mut() {
-                    tweenable.stop();
-                }
+        if animator.state != AnimatorState::Paused {
+            if let Some(tweenable) = animator.tweenable_mut() {
+                tweenable.tick(time.delta(), target);
             }
-        } else if let Some(tweenable) = animator.tweenable_mut() {
-            tweenable.tick(time.delta(), target);
         }
     }
 }
@@ -73,17 +67,11 @@ pub fn asset_animator_system<T: Asset>(
     mut query: Query<&mut AssetAnimator<T>>,
 ) {
     for ref mut animator in query.iter_mut() {
-        let state_changed = animator.state != animator.prev_state;
-        animator.prev_state = animator.state;
-        if animator.state == AnimatorState::Paused {
-            if state_changed {
+        if animator.state != AnimatorState::Paused {
+            if let Some(target) = assets.get_mut(animator.handle()) {
                 if let Some(tweenable) = animator.tweenable_mut() {
-                    tweenable.stop();
+                    tweenable.tick(time.delta(), target);
                 }
-            }
-        } else if let Some(target) = assets.get_mut(animator.handle()) {
-            if let Some(tweenable) = animator.tweenable_mut() {
-                tweenable.tick(time.delta(), target);
             }
         }
     }

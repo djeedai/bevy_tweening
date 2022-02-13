@@ -3,6 +3,24 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Implemented `Default` for `TweeningType` (= `Once`), `EaseMethod` (= `Linear`), `TweeningDirection` (= `Forward`).
+- Added `Tweenable::is_looping()`, `Tweenable::set_progress()`, `Tweenable::times_completed()`, and `Tweenable::rewind()`.
+- Added `Animator::set_progress()`, `Animator::progress()`, `Animator::stop()`, and `Animator::rewind()`.
+- Added `AssetAnimator::set_progress()`, `AssetAnimator::progress()`, `AssetAnimator::stop()`, and `AssetAnimator::rewind()`.
+
+### Changed
+
+- `TweenState` now contains only two states: `Active` and `Completed`. Looping animations are always active, and non-looping ones are completed once they reach their end point.
+- Merged the `started` and `ended` callbacks into a `completed` one (`Tween::set_completed()` and `Tween::clear_completed()`), which is invoked when the tween completes a single iteration. That is, for non-looping animations, when `TweenState::Completed` is reached. And for looping animations, once per iteration (going from start -> end, or from end -> start).
+
+### Removed
+
+- Removed `Tweenable::stop()`. Tweenables do not have a "stop" state anymore, they are only either active or completed. The playback state is only relevant on the `Animator` or `AssetAnimator` which controls them.
+
 ## [0.3.1] - 2022-02-12
 
 ### Added

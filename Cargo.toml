@@ -14,11 +14,7 @@ exclude = ["examples/*.gif", ".github"]
 
 [dependencies]
 interpolation = "0.2"
-
-[dependencies.bevy]
-version = "0.6"
-default-features = false
-features = [ "render" ]
+bevy = { version = "0.6", default-features = false, features = [ "render" ] }
 
 [dev-dependencies]
 bevy-inspector-egui = "0.8"
