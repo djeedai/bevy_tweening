@@ -47,12 +47,12 @@ impl Plugin for TweeningPlugin {
 /// and tick the animator to animate the component.
 pub fn component_animator_system<T: Component>(
     time: Res<Time>,
-    mut query: Query<(&mut T, &mut Animator<T>)>,
+    mut query: Query<(Entity, &mut T, &mut Animator<T>)>,
 ) {
-    for (ref mut target, ref mut animator) in query.iter_mut() {
+    for (entity, ref mut target, ref mut animator) in query.iter_mut() {
         if animator.state != AnimatorState::Paused {
             if let Some(tweenable) = animator.tweenable_mut() {
-                tweenable.tick(time.delta(), target);
+                tweenable.tick(time.delta(), target, entity);
             }
         }
     }
@@ -64,13 +64,13 @@ pub fn component_animator_system<T: Component>(
 pub fn asset_animator_system<T: Asset>(
     time: Res<Time>,
     mut assets: ResMut<Assets<T>>,
-    mut query: Query<&mut AssetAnimator<T>>,
+    mut query: Query<(Entity, &mut AssetAnimator<T>)>,
 ) {
-    for ref mut animator in query.iter_mut() {
+    for (entity, ref mut animator) in query.iter_mut() {
         if animator.state != AnimatorState::Paused {
             if let Some(target) = assets.get_mut(animator.handle()) {
                 if let Some(tweenable) = animator.tweenable_mut() {
-                    tweenable.tick(time.delta(), target);
+                    tweenable.tick(time.delta(), target, entity);
                 }
             }
         }
