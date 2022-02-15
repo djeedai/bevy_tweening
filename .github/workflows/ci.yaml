@@ -13,7 +13,7 @@ jobs:
   build:
     strategy:
       matrix:
-        toolchain: [stable]
+        toolchain: [stable, nightly]
         os: [windows-latest, ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
