@@ -1,6 +1,6 @@
 use bevy::{asset::Asset, ecs::component::Component, prelude::*};
 
-use crate::{Animator, AnimatorState, AssetAnimator};
+use crate::{Animator, AnimatorState, AssetAnimator, TweenCompleted};
 
 /// Plugin to add systems related to tweening of common components and assets.
 ///
@@ -33,7 +33,8 @@ pub struct TweeningPlugin;
 
 impl Plugin for TweeningPlugin {
     fn build(&self, app: &mut App) {
-        app.add_system(component_animator_system::<Transform>)
+        app.add_event::<TweenCompleted>()
+            .add_system(component_animator_system::<Transform>)
             .add_system(component_animator_system::<Text>)
             .add_system(component_animator_system::<Style>)
             .add_system(component_animator_system::<Sprite>)
@@ -48,11 +49,12 @@ impl Plugin for TweeningPlugin {
 pub fn component_animator_system<T: Component>(
     time: Res<Time>,
     mut query: Query<(Entity, &mut T, &mut Animator<T>)>,
+    mut event_writer: EventWriter<TweenCompleted>,
 ) {
     for (entity, ref mut target, ref mut animator) in query.iter_mut() {
         if animator.state != AnimatorState::Paused {
             if let Some(tweenable) = animator.tweenable_mut() {
-                tweenable.tick(time.delta(), target, entity);
+                tweenable.tick(time.delta(), target, entity, &mut event_writer);
             }
         }
     }
@@ -65,12 +67,13 @@ pub fn asset_animator_system<T: Asset>(
     time: Res<Time>,
     mut assets: ResMut<Assets<T>>,
     mut query: Query<(Entity, &mut AssetAnimator<T>)>,
+    mut event_writer: EventWriter<TweenCompleted>,
 ) {
     for (entity, ref mut animator) in query.iter_mut() {
         if animator.state != AnimatorState::Paused {
             if let Some(target) = assets.get_mut(animator.handle()) {
                 if let Some(tweenable) = animator.tweenable_mut() {
-                    tweenable.tick(time.delta(), target, entity);
+                    tweenable.tick(time.delta(), target, entity, &mut event_writer);
                 }
             }
         }

@@ -120,6 +120,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 end: pair[1] - center,
             },
         )
+        .with_completed_event(true) // Get an event after each segment
     }));
 
     commands
@@ -144,7 +145,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             start: Vec3::new(-200., 100., 0.),
             end: Vec3::new(200., 100., 0.),
         },
-    );
+    )
+    .with_completed_event(true); // Get an event once move completed
     let tween_rotate = Tween::new(
         EaseFunction::QuadraticInOut,
         TweeningType::Once,
@@ -193,6 +195,7 @@ fn update_text(
     )>,
     query_anim_red: Query<&Animator<Transform>, With<RedSprite>>,
     query_anim_blue: Query<&Animator<Transform>, With<BlueSprite>>,
+    mut query_event: EventReader<TweenCompleted>,
 ) {
     let anim_red = query_anim_red.single();
     let tween_red = anim_red.tweenable().unwrap();
@@ -212,5 +215,9 @@ fn update_text(
         let mut q1 = query_text.q1();
         let mut blue_text = q1.single_mut();
         blue_text.sections[1].value = format!("{:5.1}%", progress_blue * 100.).to_string();
+    }
+
+    for ev in query_event.iter() {
+        println!("Event: TweenCompleted entity={:?}", ev.entity);
     }
 }
