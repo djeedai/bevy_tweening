@@ -170,11 +170,13 @@ pub use tweenable::{Delay, Sequence, Tracks, Tween, TweenCompleted, TweenState, 
 /// Type of looping for a tween animation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TweeningType {
-    /// Run the animation once from state to end only.
+    /// Run the animation once from start to end only.
     Once,
-    /// Looping, restarting from the start once finished.
+    /// Loop the animation indefinitely, restarting from the start each time the end is reached.
     Loop,
-    /// Repeat the animation back and forth.
+    /// Loop the animation back and forth, changing direction each time an endpoint is reached.
+    /// A complete cycle start -> end -> start always counts as 2 loop iterations for the various
+    /// operations where looping matters.
     PingPong,
 }
 

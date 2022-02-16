@@ -13,6 +13,7 @@ Tweening animation plugin for the Bevy game engine.
 - [x] Animate any field of any component or asset, including custom ones.
 - [x] Run multiple tweens (animations) per component/asset in parallel.
 - [x] Chain multiple tweens (animations) one after the other for complex animations.
+- [x] Raise a Bevy event or invoke a callback when an tween completed.
 
 ## Usage
 

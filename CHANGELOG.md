@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `Tweenable::is_looping()`, `Tweenable::set_progress()`, `Tweenable::times_completed()`, and `Tweenable::rewind()`.
 - Added `Animator::set_progress()`, `Animator::progress()`, `Animator::stop()`, and `Animator::rewind()`.
 - Added `AssetAnimator::set_progress()`, `AssetAnimator::progress()`, `AssetAnimator::stop()`, and `AssetAnimator::rewind()`.
+- Added the `TweenCompleted` event, raised when a `Tween<T>` completed its animation if that feature was previously activated with `set_completed_event()` or `with_completed_event()`.
 
 ### Changed
 

@@ -17,10 +17,29 @@ pub enum TweenState {
 }
 
 /// Event raised when a tween completed.
+///
+/// This event is raised when a tween completed. For non-looping tweens, this is raised once at the
+/// end of the animation. For looping animations, this is raised once per iteration. In case the animation
+/// direction changes ([`TweeningType::PingPong`]), an iteration corresponds to a single progress from
+/// one endpoint to the other, whatever the direction. Therefore a complete cycle start -> end -> start
+/// counts as 2 iterations and raises 2 events (one when reaching the end, one when reaching back the start).
+///
+/// # Note
+///
+/// The semantic is slightly different from [`TweenState::Completed`], which indicates that the tweenable
+/// has finished ticking and do not need to be updated anymore, a state which is never reached for looping
+/// animation. Here the [`TweenCompleted`] event instead marks the end of a single loop iteration.
 #[derive(Copy, Clone)]
 pub struct TweenCompleted {
     /// The [`Entity`] the tween which completed and its animator are attached to.
     pub entity: Entity,
+    /// An opaque value set by the user when activating event raising, used to identify the particular
+    /// tween which raised this event. The value is passed unmodified from a call to [`with_completed_event()`]
+    /// or [`set_completed_event()`].
+    ///
+    /// [`with_completed_event()`]: Tween::with_completed_event
+    /// [`set_completed_event()`]: Tween::set_completed_event
+    pub user_data: u64,
 }
 
 /// An animatable entity, either a single [`Tween`] or a collection of them.
@@ -136,7 +155,7 @@ pub struct Tween<T> {
     times_completed: u32,
     lens: Box<dyn Lens<T> + Send + Sync + 'static>,
     on_completed: Option<Box<dyn Fn(Entity, &Tween<T>) + Send + Sync + 'static>>,
-    raise_event: bool,
+    event_data: Option<u64>,
 }
 
 impl<T: 'static> Tween<T> {
@@ -207,18 +226,43 @@ impl<T> Tween<T> {
             times_completed: 0,
             lens: Box::new(lens),
             on_completed: None,
-            raise_event: false,
+            event_data: None,
         }
     }
 
     /// Enable or disable raising a completed event.
     ///
     /// If enabled, the tween will raise a [`TweenCompleted`] event when the animation completed.
-    /// This is similar to the [`set_completed`] callback, but uses Bevy events instead.
+    /// This is similar to the [`set_completed()`] callback, but uses Bevy events instead.
     ///
-    /// [`set_completed`]: Tween::set_completed
-    pub fn with_completed_event(mut self, enabled: bool) -> Self {
-        self.raise_event = enabled;
+    /// # Example
+    /// ```
+    /// # use bevy_tweening::{lens::*, *};
+    /// # use bevy::{ecs::event::EventReader, math::Vec3};
+    /// # use std::time::Duration;
+    /// let tween = Tween::new(
+    ///     // [...]
+    /// #    EaseFunction::QuadraticInOut,
+    /// #    TweeningType::Once,
+    /// #    Duration::from_secs_f32(1.0),
+    /// #    TransformPositionLens {
+    /// #        start: Vec3::ZERO,
+    /// #        end: Vec3::new(3.5, 0., 0.),
+    /// #    },
+    /// )
+    /// .with_completed_event(true, 42);
+    ///
+    /// fn my_system(mut reader: EventReader<TweenCompleted>) {
+    ///   for ev in reader.iter() {
+    ///     assert_eq!(ev.user_data, 42);
+    ///     println!("Entity {:?} raised TweenCompleted!", ev.entity);
+    ///   }
+    /// }
+    /// ```
+    ///
+    /// [`set_completed()`]: Tween::set_completed
+    pub fn with_completed_event(mut self, enabled: bool, user_data: u64) -> Self {
+        self.event_data = if enabled { Some(user_data) } else { None };
         self
     }
 
@@ -250,11 +294,14 @@ impl<T> Tween<T> {
     /// Enable or disable raising a completed event.
     ///
     /// If enabled, the tween will raise a [`TweenCompleted`] event when the animation completed.
-    /// This is similar to the [`set_completed`] callback, but uses Bevy events instead.
+    /// This is similar to the [`set_completed()`] callback, but uses Bevy events instead.
     ///
-    /// [`set_completed`]: Tween::set_completed
-    pub fn set_completed_event(&mut self, enabled: bool) {
-        self.raise_event = enabled;
+    /// See [`with_completed_event()`] for details.
+    ///
+    /// [`set_completed()`]: Tween::set_completed
+    /// [`with_completed_event()`]: Tween::with_completed_event
+    pub fn set_completed_event(&mut self, enabled: bool, user_data: u64) {
+        self.event_data = if enabled { Some(user_data) } else { None };
     }
 }
 
@@ -316,8 +363,11 @@ impl<T> Tweenable<T> for Tween<T> {
             // Timer::times_finished() returns the number of finished times since last tick only
             self.times_completed += self.timer.times_finished();
 
-            if self.raise_event {
-                event_writer.send(TweenCompleted { entity });
+            if let Some(user_data) = &self.event_data {
+                event_writer.send(TweenCompleted {
+                    entity,
+                    user_data: *user_data,
+                });
             }
             if let Some(cb) = &self.on_completed {
                 cb(entity, &self);

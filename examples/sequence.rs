@@ -110,7 +110,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         Vec3::new(margin, margin, 0.),
     ];
     // Build a sequence from an iterator over a Tweenable (here, a Tween<Transform>)
-    let seq = Sequence::new(dests.windows(2).map(|pair| {
+    let seq = Sequence::new(dests.windows(2).enumerate().map(|(index, pair)| {
         Tween::new(
             EaseFunction::QuadraticInOut,
             TweeningType::Once,
@@ -120,7 +120,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 end: pair[1] - center,
             },
         )
-        .with_completed_event(true) // Get an event after each segment
+        .with_completed_event(true, index as u64) // Get an event after each segment
     }));
 
     commands
@@ -146,7 +146,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             end: Vec3::new(200., 100., 0.),
         },
     )
-    .with_completed_event(true); // Get an event once move completed
+    .with_completed_event(true, 99); // Get an event once move completed
     let tween_rotate = Tween::new(
         EaseFunction::QuadraticInOut,
         TweeningType::Once,
@@ -218,6 +218,9 @@ fn update_text(
     }
 
     for ev in query_event.iter() {
-        println!("Event: TweenCompleted entity={:?}", ev.entity);
+        println!(
+            "Event: TweenCompleted entity={:?} user_data={}",
+            ev.entity, ev.user_data
+        );
     }
 }
