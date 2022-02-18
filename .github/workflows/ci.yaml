@@ -89,8 +89,8 @@ jobs:
         run: |
           RUST_BACKTRACE=1 cargo tarpaulin --verbose --timeout 120 --out Lcov --workspace
           ls -la
-      # - name: Upload code coverage
-      #   uses: coverallsapp/github-action@master
-      #   with:
-      #     path-to-lcov: 'lcov.info'
-      #     github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Upload code coverage
+        uses: coverallsapp/github-action@master
+        with:
+          path-to-lcov: 'lcov.info'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
