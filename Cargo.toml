@@ -44,6 +44,10 @@ name = "ui_position"
 required-features = [ "bevy/bevy_winit" ]
 
 [[example]]
+name = "text_color"
+required-features = [ "bevy/bevy_winit" ]
+
+[[example]]
 name = "sequence"
 required-features = [ "bevy/bevy_winit" ]
 
