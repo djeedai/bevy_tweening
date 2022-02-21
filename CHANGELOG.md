@@ -22,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Removed `Tweenable::stop()`. Tweenables do not have a "stop" state anymore, they are only either active or completed. The playback state is only relevant on the `Animator` or `AssetAnimator` which controls them.
 
+### Fixed
+
+- Fixed a bug with the alpha value of colored lenses being too large (`TextColorLens`, `SpriteColorLens`, `ColorMaterialColorLens`).
+
 ## [0.3.1] - 2022-02-12
 
 ### Added

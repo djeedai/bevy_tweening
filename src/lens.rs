@@ -54,8 +54,11 @@ pub struct TextColorLens {
 
 impl Lens<Text> for TextColorLens {
     fn lerp(&mut self, target: &mut Text, ratio: f32) {
-        let value = self.start + (self.end + self.start * -1.0) * ratio;
-        target.sections[self.section].style.color = value;
+        // Note: Add<f32> for Color affects alpha, but not Mul<f32>. So use Vec4 for consistency.
+        let start: Vec4 = self.start.into();
+        let end: Vec4 = self.end.into();
+        let value = start.lerp(end, ratio);
+        target.sections[self.section].style.color = value.into();
     }
 }
 
@@ -160,8 +163,11 @@ pub struct ColorMaterialColorLens {
 
 impl Lens<ColorMaterial> for ColorMaterialColorLens {
     fn lerp(&mut self, target: &mut ColorMaterial, ratio: f32) {
-        let value = self.start + (self.end + self.start * -1.) * ratio;
-        target.color = value;
+        // Note: Add<f32> for Color affects alpha, but not Mul<f32>. So use Vec4 for consistency.
+        let start: Vec4 = self.start.into();
+        let end: Vec4 = self.end.into();
+        let value = start.lerp(end, ratio);
+        target.color = value.into();
     }
 }
 
@@ -179,7 +185,158 @@ pub struct SpriteColorLens {
 
 impl Lens<Sprite> for SpriteColorLens {
     fn lerp(&mut self, target: &mut Sprite, ratio: f32) {
-        let value = self.start + (self.end + self.start * -1.) * ratio;
-        target.color = value;
+        // Note: Add<f32> for Color affects alpha, but not Mul<f32>. So use Vec4 for consistency.
+        let start: Vec4 = self.start.into();
+        let end: Vec4 = self.end.into();
+        let value = start.lerp(end, ratio);
+        target.color = value.into();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn text_color() {
+        let mut lens = TextColorLens {
+            start: Color::RED,
+            end: Color::BLUE,
+            section: 0,
+        };
+        let mut text = Text::with_section("", Default::default(), Default::default());
+
+        lens.lerp(&mut text, 0.);
+        assert_eq!(text.sections[0].style.color, Color::RED);
+
+        lens.lerp(&mut text, 1.);
+        assert_eq!(text.sections[0].style.color, Color::BLUE);
+
+        lens.lerp(&mut text, 0.3);
+        assert_eq!(text.sections[0].style.color, Color::rgba(0.7, 0., 0.3, 1.0));
+    }
+
+    #[test]
+    fn transform_position() {
+        let mut lens = TransformPositionLens {
+            start: Vec3::ZERO,
+            end: Vec3::new(1., 2., -4.),
+        };
+        let mut transform = Transform::default();
+
+        lens.lerp(&mut transform, 0.);
+        assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
+        assert!(transform.rotation.abs_diff_eq(Quat::IDENTITY, 1e-5));
+        assert!(transform.scale.abs_diff_eq(Vec3::ONE, 1e-5));
+
+        lens.lerp(&mut transform, 1.);
+        assert!(transform
+            .translation
+            .abs_diff_eq(Vec3::new(1., 2., -4.), 1e-5));
+        assert!(transform.rotation.abs_diff_eq(Quat::IDENTITY, 1e-5));
+        assert!(transform.scale.abs_diff_eq(Vec3::ONE, 1e-5));
+
+        lens.lerp(&mut transform, 0.3);
+        assert!(transform
+            .translation
+            .abs_diff_eq(Vec3::new(0.3, 0.6, -1.2), 1e-5));
+        assert!(transform.rotation.abs_diff_eq(Quat::IDENTITY, 1e-5));
+        assert!(transform.scale.abs_diff_eq(Vec3::ONE, 1e-5));
+    }
+
+    #[test]
+    fn transform_rotation() {
+        let mut lens = TransformRotationLens {
+            start: Quat::IDENTITY,
+            end: Quat::from_rotation_z(100_f32.to_radians()),
+        };
+        let mut transform = Transform::default();
+
+        lens.lerp(&mut transform, 0.);
+        assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
+        assert!(transform.rotation.abs_diff_eq(Quat::IDENTITY, 1e-5));
+        assert!(transform.scale.abs_diff_eq(Vec3::ONE, 1e-5));
+
+        lens.lerp(&mut transform, 1.);
+        assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
+        assert!(transform
+            .rotation
+            .abs_diff_eq(Quat::from_rotation_z(100_f32.to_radians()), 1e-5));
+        assert!(transform.scale.abs_diff_eq(Vec3::ONE, 1e-5));
+
+        lens.lerp(&mut transform, 0.3);
+        assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
+        assert!(transform
+            .rotation
+            .abs_diff_eq(Quat::from_rotation_z(30_f32.to_radians()), 1e-5));
+        assert!(transform.scale.abs_diff_eq(Vec3::ONE, 1e-5));
+    }
+
+    #[test]
+    fn transform_scale() {
+        let mut lens = TransformScaleLens {
+            start: Vec3::ZERO,
+            end: Vec3::new(1., 2., -4.),
+        };
+        let mut transform = Transform::default();
+
+        lens.lerp(&mut transform, 0.);
+        assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
+        assert!(transform.rotation.abs_diff_eq(Quat::IDENTITY, 1e-5));
+        assert!(transform.scale.abs_diff_eq(Vec3::ZERO, 1e-5));
+
+        lens.lerp(&mut transform, 1.);
+        assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
+        assert!(transform.rotation.abs_diff_eq(Quat::IDENTITY, 1e-5));
+        assert!(transform.scale.abs_diff_eq(Vec3::new(1., 2., -4.), 1e-5));
+
+        lens.lerp(&mut transform, 0.3);
+        assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
+        assert!(transform.rotation.abs_diff_eq(Quat::IDENTITY, 1e-5));
+        assert!(transform.scale.abs_diff_eq(Vec3::new(0.3, 0.6, -1.2), 1e-5));
+    }
+
+    #[test]
+    fn colormaterial_color() {
+        let mut lens = ColorMaterialColorLens {
+            start: Color::RED,
+            end: Color::BLUE,
+        };
+        let mut mat = ColorMaterial {
+            color: Color::WHITE,
+            texture: None,
+        };
+
+        lens.lerp(&mut mat, 0.);
+        assert_eq!(mat.color, Color::RED);
+
+        lens.lerp(&mut mat, 1.);
+        assert_eq!(mat.color, Color::BLUE);
+
+        lens.lerp(&mut mat, 0.3);
+        assert_eq!(mat.color, Color::rgba(0.7, 0., 0.3, 1.0));
+    }
+
+    #[test]
+    fn sprite_color() {
+        let mut lens = SpriteColorLens {
+            start: Color::RED,
+            end: Color::BLUE,
+        };
+        let mut sprite = Sprite {
+            color: Color::WHITE,
+            flip_x: false,
+            flip_y: false,
+            custom_size: None,
+        };
+
+        lens.lerp(&mut sprite, 0.);
+        assert_eq!(sprite.color, Color::RED);
+
+        lens.lerp(&mut sprite, 1.);
+        assert_eq!(sprite.color, Color::BLUE);
+
+        lens.lerp(&mut sprite, 0.3);
+        assert_eq!(sprite.color, Color::rgba(0.7, 0., 0.3, 1.0));
     }
 }
