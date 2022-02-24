@@ -172,7 +172,7 @@ See the [`examples/`](https://github.com/djeedai/bevy_tweening/tree/main/example
 cargo run --example menu --features="bevy/bevy_winit"
 ```
 
-![menu](https://raw.githubusercontent.com/djeedai/bevy_tweening/main/examples/menu.gif)
+![menu](https://raw.githubusercontent.com/djeedai/bevy_tweening/92bbadcf6b595c776ee370abe201a1866790d646/examples/menu.gif)
 
 ### [`sprite_color`](examples/sprite_color.rs)
 
@@ -180,7 +180,7 @@ cargo run --example menu --features="bevy/bevy_winit"
 cargo run --example sprite_color --features="bevy/bevy_winit"
 ```
 
-![sprite_color](https://raw.githubusercontent.com/djeedai/bevy_tweening/main/examples/sprite_color.gif)
+![sprite_color](https://raw.githubusercontent.com/djeedai/bevy_tweening/92bbadcf6b595c776ee370abe201a1866790d646/examples/sprite_color.gif)
 
 ### [`transform_rotation`](examples/transform_rotation.rs)
 
@@ -188,7 +188,7 @@ cargo run --example sprite_color --features="bevy/bevy_winit"
 cargo run --example transform_rotation --features="bevy/bevy_winit"
 ```
 
-![sprite_color](https://raw.githubusercontent.com/djeedai/bevy_tweening/main/examples/transform_rotation.gif)
+![sprite_color](https://raw.githubusercontent.com/djeedai/bevy_tweening/92bbadcf6b595c776ee370abe201a1866790d646/examples/transform_rotation.gif)
 
 ### [`transform_translation`](examples/transform_translation.rs)
 
@@ -196,7 +196,7 @@ cargo run --example transform_rotation --features="bevy/bevy_winit"
 cargo run --example transform_translation --features="bevy/bevy_winit"
 ```
 
-![sprite_color](https://raw.githubusercontent.com/djeedai/bevy_tweening/main/examples/transform_translation.gif)
+![sprite_color](https://raw.githubusercontent.com/djeedai/bevy_tweening/92bbadcf6b595c776ee370abe201a1866790d646/examples/transform_translation.gif)
 
 ### [`colormaterial_color`](examples/colormaterial_color.rs)
 
@@ -204,7 +204,7 @@ cargo run --example transform_translation --features="bevy/bevy_winit"
 cargo run --example colormaterial_color --features="bevy/bevy_winit"
 ```
 
-![colormaterial_color](https://raw.githubusercontent.com/djeedai/bevy_tweening/main/examples/colormaterial_color.gif)
+![colormaterial_color](https://raw.githubusercontent.com/djeedai/bevy_tweening/92bbadcf6b595c776ee370abe201a1866790d646/examples/colormaterial_color.gif)
 
 ### [`ui_position`](examples/ui_position.rs)
 
@@ -212,7 +212,7 @@ cargo run --example colormaterial_color --features="bevy/bevy_winit"
 cargo run --example ui_position --features="bevy/bevy_winit"
 ```
 
-![ui_position](https://raw.githubusercontent.com/djeedai/bevy_tweening/main/examples/ui_position.gif)
+![ui_position](https://raw.githubusercontent.com/djeedai/bevy_tweening/92bbadcf6b595c776ee370abe201a1866790d646/examples/ui_position.gif)
 
 ### [`sequence`](examples/sequence.rs)
 
@@ -220,7 +220,7 @@ cargo run --example ui_position --features="bevy/bevy_winit"
 cargo run --example sequence --features="bevy/bevy_winit"
 ```
 
-![sequence](https://raw.githubusercontent.com/djeedai/bevy_tweening/main/examples/sequence.gif)
+![sequence](https://raw.githubusercontent.com/djeedai/bevy_tweening/92bbadcf6b595c776ee370abe201a1866790d646/examples/sequence.gif)
 
 ## Ease Functions
 
