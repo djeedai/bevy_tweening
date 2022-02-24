@@ -526,6 +526,54 @@ impl<T: Asset> AssetAnimator<T> {
 mod tests {
     use super::{lens::*, *};
 
+    #[test]
+    fn tweening_type() {
+        let tweening_type = TweeningType::default();
+        assert_eq!(tweening_type, TweeningType::Once);
+    }
+
+    #[test]
+    fn tweening_direction() {
+        let tweening_direction = TweeningDirection::default();
+        assert_eq!(tweening_direction, TweeningDirection::Forward);
+    }
+
+    #[test]
+    fn animator_state() {
+        let mut state = AnimatorState::default();
+        assert_eq!(state, AnimatorState::Playing);
+        state = !state;
+        assert_eq!(state, AnimatorState::Paused);
+        state = !state;
+        assert_eq!(state, AnimatorState::Playing);
+    }
+
+    #[test]
+    fn ease_method() {
+        let ease = EaseMethod::default();
+        assert!(matches!(ease, EaseMethod::Linear));
+
+        let ease = EaseMethod::EaseFunction(EaseFunction::QuadraticIn);
+        assert_eq!(0., ease.sample(0.));
+        assert_eq!(0.25, ease.sample(0.5));
+        assert_eq!(1., ease.sample(1.));
+
+        let ease = EaseMethod::Linear;
+        assert_eq!(0., ease.sample(0.));
+        assert_eq!(0.5, ease.sample(0.5));
+        assert_eq!(1., ease.sample(1.));
+
+        let ease = EaseMethod::Discrete(0.3);
+        assert_eq!(0., ease.sample(0.));
+        assert_eq!(1., ease.sample(0.5));
+        assert_eq!(1., ease.sample(1.));
+
+        let ease = EaseMethod::CustomFunction(|f| 1. - f);
+        assert_eq!(0., ease.sample(1.));
+        assert_eq!(0.5, ease.sample(0.5));
+        assert_eq!(1., ease.sample(0.));
+    }
+
     /// Animator::new()
     #[test]
     fn animator_new() {
@@ -581,6 +629,48 @@ mod tests {
         animator.set_tweenable(tween);
         assert!(animator.tweenable().is_some());
         assert!(animator.tweenable_mut().is_some());
+    }
+
+    /// Animator control playback
+    #[test]
+    fn animator_controls() {
+        let tween = Tween::new(
+            EaseFunction::QuadraticInOut,
+            TweeningType::PingPong,
+            std::time::Duration::from_secs(1),
+            TransformRotationLens {
+                start: Quat::IDENTITY,
+                end: Quat::from_axis_angle(Vec3::Z, std::f32::consts::PI / 2.),
+            },
+        );
+        let mut animator = Animator::new(tween);
+        assert_eq!(animator.state, AnimatorState::Playing);
+        assert!(animator.progress().abs() <= 1e-5);
+
+        animator.stop();
+        assert_eq!(animator.state, AnimatorState::Paused);
+        assert!(animator.progress().abs() <= 1e-5);
+
+        animator.set_progress(0.5);
+        assert_eq!(animator.state, AnimatorState::Paused);
+        assert!((animator.progress() - 0.5).abs() <= 1e-5);
+
+        animator.rewind();
+        assert_eq!(animator.state, AnimatorState::Paused);
+        assert!(animator.progress().abs() <= 1e-5);
+
+        animator.set_progress(0.5);
+        animator.state = AnimatorState::Playing;
+        assert_eq!(animator.state, AnimatorState::Playing);
+        assert!((animator.progress() - 0.5).abs() <= 1e-5);
+
+        animator.rewind();
+        assert_eq!(animator.state, AnimatorState::Playing);
+        assert!(animator.progress().abs() <= 1e-5);
+
+        animator.stop();
+        assert_eq!(animator.state, AnimatorState::Paused);
+        assert!(animator.progress().abs() <= 1e-5);
     }
 
     /// AssetAnimator::new()
@@ -641,5 +731,47 @@ mod tests {
         assert!(animator.tweenable().is_some());
         assert!(animator.tweenable_mut().is_some());
         assert_eq!(animator.handle(), Handle::<ColorMaterial>::default());
+    }
+
+    /// AssetAnimator control playback
+    #[test]
+    fn asset_animator_controls() {
+        let tween = Tween::new(
+            EaseFunction::QuadraticInOut,
+            TweeningType::PingPong,
+            std::time::Duration::from_secs(1),
+            ColorMaterialColorLens {
+                start: Color::RED,
+                end: Color::BLUE,
+            },
+        );
+        let mut animator = AssetAnimator::new(Handle::<ColorMaterial>::default(), tween);
+        assert_eq!(animator.state, AnimatorState::Playing);
+        assert!(animator.progress().abs() <= 1e-5);
+
+        animator.stop();
+        assert_eq!(animator.state, AnimatorState::Paused);
+        assert!(animator.progress().abs() <= 1e-5);
+
+        animator.set_progress(0.5);
+        assert_eq!(animator.state, AnimatorState::Paused);
+        assert!((animator.progress() - 0.5).abs() <= 1e-5);
+
+        animator.rewind();
+        assert_eq!(animator.state, AnimatorState::Paused);
+        assert!(animator.progress().abs() <= 1e-5);
+
+        animator.set_progress(0.5);
+        animator.state = AnimatorState::Playing;
+        assert_eq!(animator.state, AnimatorState::Playing);
+        assert!((animator.progress() - 0.5).abs() <= 1e-5);
+
+        animator.rewind();
+        assert_eq!(animator.state, AnimatorState::Playing);
+        assert!(animator.progress().abs() <= 1e-5);
+
+        animator.stop();
+        assert_eq!(animator.state, AnimatorState::Paused);
+        assert!(animator.progress().abs() <= 1e-5);
     }
 }
