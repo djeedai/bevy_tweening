@@ -249,9 +249,9 @@ impl Default for EaseMethod {
     }
 }
 
-impl Into<EaseMethod> for EaseFunction {
-    fn into(self) -> EaseMethod {
-        EaseMethod::EaseFunction(self)
+impl From<EaseFunction> for EaseMethod {
+    fn from(ease_function: EaseFunction) -> Self {
+        EaseMethod::EaseFunction(ease_function)
     }
 }
 

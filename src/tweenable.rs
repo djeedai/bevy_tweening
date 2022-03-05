@@ -146,6 +146,11 @@ impl<T, U: Tweenable<T> + Send + Sync + 'static> IntoBoxDynTweenable<T> for U {
     }
 }
 
+/// Type of a callback invoked when a [`Tween`] has completed.
+///
+/// See [`Tween::set_completed()`] for usage.
+pub type CompletedCallback<T> = dyn Fn(Entity, &Tween<T>) + Send + Sync + 'static;
+
 /// Single tweening animation instance.
 pub struct Tween<T> {
     ease_function: EaseMethod,
@@ -154,7 +159,7 @@ pub struct Tween<T> {
     direction: TweeningDirection,
     times_completed: u32,
     lens: Box<dyn Lens<T> + Send + Sync + 'static>,
-    on_completed: Option<Box<dyn Fn(Entity, &Tween<T>) + Send + Sync + 'static>>,
+    on_completed: Option<Box<CompletedCallback<T>>>,
     event_data: Option<u64>,
 }
 
@@ -372,7 +377,7 @@ impl<T> Tweenable<T> for Tween<T> {
                 });
             }
             if let Some(cb) = &self.on_completed {
-                cb(entity, &self);
+                cb(entity, self);
             }
         }
 
@@ -1007,7 +1012,7 @@ mod tests {
         );
         let mut tracks = Tracks::new([tween1, tween2]);
         assert_eq!(tracks.duration(), Duration::from_secs_f32(1.)); // max(1., 0.8)
-        assert_eq!(tracks.is_looping(), false);
+        assert!(!tracks.is_looping());
 
         let mut transform = Transform::default();
 
@@ -1095,7 +1100,7 @@ mod tests {
         {
             let tweenable: &dyn Tweenable<Transform> = &delay;
             assert_eq!(tweenable.duration(), duration);
-            assert_eq!(tweenable.is_looping(), false);
+            assert!(!tweenable.is_looping());
             assert!(tweenable.progress().abs() < 1e-5);
         }
 

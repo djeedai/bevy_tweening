@@ -1,3 +1,5 @@
+#![allow(clippy::all)]
+
 #[cfg(test)]
 mod tests {
     #[test]

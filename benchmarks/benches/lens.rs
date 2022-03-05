@@ -2,7 +2,7 @@
 extern crate criterion;
 
 use bevy::prelude::*;
-use bevy_tweening::*;
+use bevy_tweening::lens::*;
 use criterion::{black_box, Criterion};
 
 fn text_color_lens(c: &mut Criterion) {
@@ -24,7 +24,7 @@ fn text_color_lens(c: &mut Criterion) {
         },
     );
     c.bench_function("TextColorLens", |b| {
-        b.iter(|| lens.interpolate(&mut text, black_box(0.3)))
+        b.iter(|| lens.lerp(&mut text, black_box(0.3)))
     });
 }
 
@@ -35,7 +35,7 @@ fn transform_position_lens(c: &mut Criterion) {
     };
     let mut transform = Transform::identity();
     c.bench_function("TransformPositionLens", |b| {
-        b.iter(|| lens.interpolate(&mut transform, black_box(0.3)))
+        b.iter(|| lens.lerp(&mut transform, black_box(0.3)))
     });
 }
 
@@ -46,7 +46,7 @@ fn transform_rotation_lens(c: &mut Criterion) {
     };
     let mut transform = Transform::identity();
     c.bench_function("TransformRotationLens", |b| {
-        b.iter(|| lens.interpolate(&mut transform, black_box(0.3)))
+        b.iter(|| lens.lerp(&mut transform, black_box(0.3)))
     });
 }
 
@@ -57,7 +57,7 @@ fn transform_scale_lens(c: &mut Criterion) {
     };
     let mut transform = Transform::identity();
     c.bench_function("TransformScaleLens", |b| {
-        b.iter(|| lens.interpolate(&mut transform, black_box(0.3)))
+        b.iter(|| lens.lerp(&mut transform, black_box(0.3)))
     });
 }
 

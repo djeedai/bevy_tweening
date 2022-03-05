@@ -42,7 +42,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         color: Color::RED,
     };
     let text_style_blue = TextStyle {
-        font: font.clone(),
+        font,
         font_size: 50.0,
         color: Color::BLUE,
     };
@@ -63,7 +63,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     },
                     TextSection {
                         value: "0%".to_owned(),
-                        style: text_style_red.clone(),
+                        style: text_style_red,
                     },
                 ],
                 alignment: text_alignment,
@@ -84,7 +84,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     },
                     TextSection {
                         value: "0%".to_owned(),
-                        style: text_style_blue.clone(),
+                        style: text_style_blue,
                     },
                 ],
                 alignment: text_alignment,
@@ -188,11 +188,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 }
 
 fn update_text(
-    // Note: need a QuerySet<> due to the "&mut Text" in both queries
-    mut query_text: QuerySet<(
-        QueryState<&mut Text, With<RedProgress>>,
-        QueryState<&mut Text, With<BlueProgress>>,
-    )>,
+    mut query_text_red: Query<&mut Text, (With<RedProgress>, Without<BlueProgress>)>,
+    mut query_text_blue: Query<&mut Text, (With<BlueProgress>, Without<RedProgress>)>,
     query_anim_red: Query<&Animator<Transform>, With<RedSprite>>,
     query_anim_blue: Query<&Animator<Transform>, With<BlueSprite>>,
     mut query_event: EventReader<TweenCompleted>,
@@ -205,17 +202,11 @@ fn update_text(
     let tween_blue = anim_blue.tweenable().unwrap();
     let progress_blue = tween_blue.progress();
 
-    // Use scopes to force-drop the mutable context before opening the next one
-    {
-        let mut q0 = query_text.q0();
-        let mut red_text = q0.single_mut();
-        red_text.sections[1].value = format!("{:5.1}%", progress_red * 100.).to_string();
-    }
-    {
-        let mut q1 = query_text.q1();
-        let mut blue_text = q1.single_mut();
-        blue_text.sections[1].value = format!("{:5.1}%", progress_blue * 100.).to_string();
-    }
+    let mut red_text = query_text_red.single_mut();
+    red_text.sections[1].value = format!("{:5.1}%", progress_red * 100.);
+
+    let mut blue_text = query_text_blue.single_mut();
+    blue_text.sections[1].value = format!("{:5.1}%", progress_blue * 100.);
 
     for ev in query_event.iter() {
         println!(
