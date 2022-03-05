@@ -23,11 +23,11 @@ use crate::{Animator, AnimatorState, AssetAnimator, TweenCompleted};
 /// This plugin is entirely optional. If you want more control, you can instead add manually
 /// the relevant systems for the exact set of components and assets actually animated.
 ///
-/// [`Transform`]: https://docs.rs/bevy/0.6.0/bevy/transform/components/struct.Transform.html
-/// [`Text`]: https://docs.rs/bevy/0.6.0/bevy/text/struct.Text.html
-/// [`Style`]: https://docs.rs/bevy/0.6.0/bevy/ui/struct.Style.html
-/// [`Sprite`]: https://docs.rs/bevy/0.6.0/bevy/sprite/struct.Sprite.html
-/// [`ColorMaterial`]: https://docs.rs/bevy/0.6.0/bevy/sprite/struct.ColorMaterial.html
+/// [`Transform`]: https://docs.rs/bevy/0.6.1/bevy/transform/components/struct.Transform.html
+/// [`Text`]: https://docs.rs/bevy/0.6.1/bevy/text/struct.Text.html
+/// [`Style`]: https://docs.rs/bevy/0.6.1/bevy/ui/struct.Style.html
+/// [`Sprite`]: https://docs.rs/bevy/0.6.1/bevy/sprite/struct.Sprite.html
+/// [`ColorMaterial`]: https://docs.rs/bevy/0.6.1/bevy/sprite/struct.ColorMaterial.html
 #[derive(Debug, Clone, Copy)]
 pub struct TweeningPlugin;
 
