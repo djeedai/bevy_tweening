@@ -44,10 +44,22 @@ jobs:
           sudo apt-get update
           sudo apt install -y xvfb libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
         if: runner.os == 'linux'
-      - name: Build & run tests
-        run: cargo test
+      - name: Build & run tests (slim)
+        run: cargo test --no-default-features
         env:
           CARGO_INCREMENTAL: 0
+      - name: Build & run tests (ui)
+        run: cargo test --no-default-features --features="bevy_ui"
+        env:
+          CARGO_INCREMENTAL: 1
+      - name: Build & run tests (sprite)
+        run: cargo test --no-default-features --features="bevy_sprite"
+        env:
+          CARGO_INCREMENTAL: 1
+      - name: Build & run tests (all)
+        run: cargo test --all-features
+        env:
+          CARGO_INCREMENTAL: 1
 
   coverage:
     name: Coverage
@@ -87,7 +99,7 @@ jobs:
           RUST_BACKTRACE=1 cargo install --version 0.19.1 cargo-tarpaulin
       - name: Generate code coverage
         run: |
-          RUST_BACKTRACE=1 cargo tarpaulin --verbose --timeout 120 --out Lcov --workspace
+          RUST_BACKTRACE=1 cargo tarpaulin --all-features --verbose --timeout 120 --out Lcov --workspace
           ls -la
       - name: Upload code coverage
         uses: coverallsapp/github-action@master

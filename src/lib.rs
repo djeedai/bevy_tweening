@@ -525,6 +525,35 @@ impl<T: Asset> AssetAnimator<T> {
 #[cfg(test)]
 mod tests {
     use super::{lens::*, *};
+    use bevy::reflect::TypeUuid;
+
+    struct DummyLens {
+        start: f32,
+        end: f32,
+    }
+
+    #[derive(Component)]
+    struct DummyComponent {
+        value: f32,
+    }
+
+    #[derive(Reflect, TypeUuid)]
+    #[uuid = "a33abc11-264e-4bbb-82e8-b87226bb4383"]
+    struct DummyAsset {
+        value: f32,
+    }
+
+    impl Lens<DummyComponent> for DummyLens {
+        fn lerp(&mut self, target: &mut DummyComponent, ratio: f32) {
+            target.value = self.start.lerp(&self.end, &ratio);
+        }
+    }
+
+    impl Lens<DummyAsset> for DummyLens {
+        fn lerp(&mut self, target: &mut DummyAsset, ratio: f32) {
+            target.value = self.start.lerp(&self.end, &ratio);
+        }
+    }
 
     #[test]
     fn tweening_type() {
@@ -581,12 +610,9 @@ mod tests {
             EaseFunction::QuadraticInOut,
             TweeningType::PingPong,
             std::time::Duration::from_secs(1),
-            TransformRotationLens {
-                start: Quat::IDENTITY,
-                end: Quat::from_axis_angle(Vec3::Z, std::f32::consts::PI / 2.),
-            },
+            DummyLens { start: 0., end: 1. },
         );
-        let animator = Animator::new(tween);
+        let animator = Animator::<DummyComponent>::new(tween);
         assert_eq!(animator.state, AnimatorState::default());
         let tween = animator.tweenable().unwrap();
         assert_eq!(tween.progress(), 0.);
@@ -596,14 +622,11 @@ mod tests {
     #[test]
     fn animator_with_state() {
         for state in [AnimatorState::Playing, AnimatorState::Paused] {
-            let tween = Tween::new(
+            let tween = Tween::<DummyComponent>::new(
                 EaseFunction::QuadraticInOut,
                 TweeningType::PingPong,
                 std::time::Duration::from_secs(1),
-                TransformRotationLens {
-                    start: Quat::IDENTITY,
-                    end: Quat::from_axis_angle(Vec3::Z, std::f32::consts::PI / 2.),
-                },
+                DummyLens { start: 0., end: 1. },
             );
             let animator = Animator::new(tween).with_state(state);
             assert_eq!(animator.state, state);
@@ -613,18 +636,15 @@ mod tests {
     /// Animator::default() + Animator::set_tweenable()
     #[test]
     fn animator_default() {
-        let mut animator = Animator::<Transform>::default();
+        let mut animator = Animator::<DummyComponent>::default();
         assert!(animator.tweenable().is_none());
         assert!(animator.tweenable_mut().is_none());
 
-        let tween = Tween::new(
+        let tween = Tween::<DummyComponent>::new(
             EaseFunction::QuadraticInOut,
             TweeningType::PingPong,
             std::time::Duration::from_secs(1),
-            TransformRotationLens {
-                start: Quat::IDENTITY,
-                end: Quat::from_axis_angle(Vec3::Z, std::f32::consts::PI / 2.),
-            },
+            DummyLens { start: 0., end: 1. },
         );
         animator.set_tweenable(tween);
         assert!(animator.tweenable().is_some());
@@ -634,14 +654,11 @@ mod tests {
     /// Animator control playback
     #[test]
     fn animator_controls() {
-        let tween = Tween::new(
+        let tween = Tween::<DummyComponent>::new(
             EaseFunction::QuadraticInOut,
             TweeningType::PingPong,
             std::time::Duration::from_secs(1),
-            TransformRotationLens {
-                start: Quat::IDENTITY,
-                end: Quat::from_axis_angle(Vec3::Z, std::f32::consts::PI / 2.),
-            },
+            DummyLens { start: 0., end: 1. },
         );
         let mut animator = Animator::new(tween);
         assert_eq!(animator.state, AnimatorState::Playing);
@@ -676,16 +693,13 @@ mod tests {
     /// AssetAnimator::new()
     #[test]
     fn asset_animator_new() {
-        let tween = Tween::new(
+        let tween = Tween::<DummyAsset>::new(
             EaseFunction::QuadraticInOut,
             TweeningType::PingPong,
             std::time::Duration::from_secs(1),
-            ColorMaterialColorLens {
-                start: Color::RED,
-                end: Color::BLUE,
-            },
+            DummyLens { start: 0., end: 1. },
         );
-        let animator = AssetAnimator::new(Handle::<ColorMaterial>::default(), tween);
+        let animator = AssetAnimator::new(Handle::<DummyAsset>::default(), tween);
         assert_eq!(animator.state, AnimatorState::default());
         let tween = animator.tweenable().unwrap();
         assert_eq!(tween.progress(), 0.);
@@ -695,17 +709,14 @@ mod tests {
     #[test]
     fn asset_animator_with_state() {
         for state in [AnimatorState::Playing, AnimatorState::Paused] {
-            let tween = Tween::new(
+            let tween = Tween::<DummyAsset>::new(
                 EaseFunction::QuadraticInOut,
                 TweeningType::PingPong,
                 std::time::Duration::from_secs(1),
-                ColorMaterialColorLens {
-                    start: Color::RED,
-                    end: Color::BLUE,
-                },
+                DummyLens { start: 0., end: 1. },
             );
             let animator =
-                AssetAnimator::new(Handle::<ColorMaterial>::default(), tween).with_state(state);
+                AssetAnimator::new(Handle::<DummyAsset>::default(), tween).with_state(state);
             assert_eq!(animator.state, state);
         }
     }
@@ -713,24 +724,21 @@ mod tests {
     /// AssetAnimator::default() + AssetAnimator::set_tweenable()
     #[test]
     fn asset_animator_default() {
-        let mut animator = AssetAnimator::<ColorMaterial>::default();
+        let mut animator = AssetAnimator::<DummyAsset>::default();
         assert!(animator.tweenable().is_none());
         assert!(animator.tweenable_mut().is_none());
-        assert_eq!(animator.handle(), Handle::<ColorMaterial>::default());
+        assert_eq!(animator.handle(), Handle::<DummyAsset>::default());
 
         let tween = Tween::new(
             EaseFunction::QuadraticInOut,
             TweeningType::PingPong,
             std::time::Duration::from_secs(1),
-            ColorMaterialColorLens {
-                start: Color::RED,
-                end: Color::BLUE,
-            },
+            DummyLens { start: 0., end: 1. },
         );
         animator.set_tweenable(tween);
         assert!(animator.tweenable().is_some());
         assert!(animator.tweenable_mut().is_some());
-        assert_eq!(animator.handle(), Handle::<ColorMaterial>::default());
+        assert_eq!(animator.handle(), Handle::<DummyAsset>::default());
     }
 
     /// AssetAnimator control playback
@@ -740,12 +748,9 @@ mod tests {
             EaseFunction::QuadraticInOut,
             TweeningType::PingPong,
             std::time::Duration::from_secs(1),
-            ColorMaterialColorLens {
-                start: Color::RED,
-                end: Color::BLUE,
-            },
+            DummyLens { start: 0., end: 1. },
         );
-        let mut animator = AssetAnimator::new(Handle::<ColorMaterial>::default(), tween);
+        let mut animator = AssetAnimator::new(Handle::<DummyAsset>::default(), tween);
         assert_eq!(animator.state, AnimatorState::Playing);
         assert!(animator.progress().abs() <= 1e-5);
 
