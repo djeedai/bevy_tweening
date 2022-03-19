@@ -18,9 +18,23 @@ Tweening animation plugin for the Bevy game engine.
 
 ## Usage
 
+### Dependency
+
+Add to `Cargo.toml`:
+
+```toml
+[dependencies]
+bevy_tweening = "0.3"
+```
+
+This crate supports the following features:
+
+- `bevy_sprite` (default) : Includes built-in lenses for some `Sprite`-related components.
+- `bevy_ui` (default) : Includes built-in lenses for some UI-related components.
+
 ### System setup
 
-Add the tweening plugin to your app:
+Add the `TweeningPlugin` to your app:
 
 ```rust
 App::default()
@@ -93,18 +107,18 @@ The naming scheme for predefined lenses is `"<TargetName><FieldName>Lens"`, wher
 
 ### Bevy Components
 
-| Target Component | Animated Field | Lens |
-|---|---|---|
-| [`Sprite`](https://docs.rs/bevy/0.6.1/bevy/sprite/struct.Sprite.html) | [`color`](https://docs.rs/bevy/0.6.1/bevy/sprite/struct.Sprite.html#structfield.color) | [`SpriteColorLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/struct.SpriteColorLens.html) |
-| [`Transform`](https://docs.rs/bevy/0.6.1/bevy/transform/components/struct.Transform.html) | [`translation`](https://docs.rs/bevy/0.6.1/bevy/transform/components/struct.Transform.html#structfield.translation) | [`TransformPositionLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/struct.TransformPositionLens.html) |
-| | [`rotation`](https://docs.rs/bevy/0.6.1/bevy/transform/components/struct.Transform.html#structfield.rotation) (`Quat`)¹ | [`TransformRotationLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/struct.TransformRotationLens.html) |
-| | [`rotation`](https://docs.rs/bevy/0.6.1/bevy/transform/components/struct.Transform.html#structfield.rotation) (angle)² | [`TransformRotateXLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/struct.TransformRotateXLens.html) |
-| | [`rotation`](https://docs.rs/bevy/0.6.1/bevy/transform/components/struct.Transform.html#structfield.rotation) (angle)² | [`TransformRotateYLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/struct.TransformRotateYLens.html) |
-| | [`rotation`](https://docs.rs/bevy/0.6.1/bevy/transform/components/struct.Transform.html#structfield.rotation) (angle)² | [`TransformRotateZLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/struct.TransformRotateZLens.html) |
-| | [`rotation`](https://docs.rs/bevy/0.6.1/bevy/transform/components/struct.Transform.html#structfield.rotation) (angle)² | [`TransformRotateAxisLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/struct.TransformRotateAxisLens.html) |
-| | [`scale`](https://docs.rs/bevy/0.6.1/bevy/transform/components/struct.Transform.html#structfield.scale) | [`TransformScaleLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/struct.TransformScaleLens.html) |
-| [`Style`](https://docs.rs/bevy/0.6.1/bevy/ui/struct.Style.html) | [`position`](https://docs.rs/bevy/0.6.1/bevy/ui/struct.Style.html#structfield.position) | [`UiPositionLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/struct.UiPositionLens.html) |
-| [`Text`](https://docs.rs/bevy/0.6.1/bevy/text/struct.Text.html) | [`TextStyle::color`](https://docs.rs/bevy/0.6.1/bevy/text/struct.TextStyle.html#structfield.color) | [`TextColorLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/struct.TextColorLens.html) |
+| Target Component | Animated Field | Lens | Feature |
+|---|---|---|---|
+| [`Transform`](https://docs.rs/bevy/0.6.1/bevy/transform/components/struct.Transform.html) | [`translation`](https://docs.rs/bevy/0.6.1/bevy/transform/components/struct.Transform.html#structfield.translation) | [`TransformPositionLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/struct.TransformPositionLens.html) | |
+| | [`rotation`](https://docs.rs/bevy/0.6.1/bevy/transform/components/struct.Transform.html#structfield.rotation) (`Quat`)¹ | [`TransformRotationLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/struct.TransformRotationLens.html) | |
+| | [`rotation`](https://docs.rs/bevy/0.6.1/bevy/transform/components/struct.Transform.html#structfield.rotation) (angle)² | [`TransformRotateXLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/struct.TransformRotateXLens.html) | |
+| | [`rotation`](https://docs.rs/bevy/0.6.1/bevy/transform/components/struct.Transform.html#structfield.rotation) (angle)² | [`TransformRotateYLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/struct.TransformRotateYLens.html) | |
+| | [`rotation`](https://docs.rs/bevy/0.6.1/bevy/transform/components/struct.Transform.html#structfield.rotation) (angle)² | [`TransformRotateZLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/struct.TransformRotateZLens.html) | |
+| | [`rotation`](https://docs.rs/bevy/0.6.1/bevy/transform/components/struct.Transform.html#structfield.rotation) (angle)² | [`TransformRotateAxisLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/struct.TransformRotateAxisLens.html) | |
+| | [`scale`](https://docs.rs/bevy/0.6.1/bevy/transform/components/struct.Transform.html#structfield.scale) | [`TransformScaleLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/struct.TransformScaleLens.html) | |
+| [`Sprite`](https://docs.rs/bevy/0.6.1/bevy/sprite/struct.Sprite.html) | [`color`](https://docs.rs/bevy/0.6.1/bevy/sprite/struct.Sprite.html#structfield.color) | [`SpriteColorLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/struct.SpriteColorLens.html) | `bevy_sprite` |
+| [`Style`](https://docs.rs/bevy/0.6.1/bevy/ui/struct.Style.html) | [`position`](https://docs.rs/bevy/0.6.1/bevy/ui/struct.Style.html#structfield.position) | [`UiPositionLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/struct.UiPositionLens.html) | `bevy_ui` |
+| [`Text`](https://docs.rs/bevy/0.6.1/bevy/text/struct.Text.html) | [`TextStyle::color`](https://docs.rs/bevy/0.6.1/bevy/text/struct.TextStyle.html#structfield.color) | [`TextColorLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/struct.TextColorLens.html) | `bevy_ui` |
 
 ¹ Shortest-path interpolation between two rotations, using `Quat::slerp()`.
 
@@ -114,9 +128,9 @@ See the [comparison of rotation lenses](https://docs.rs/bevy_tweening/latest/bev
 
 ### Bevy Assets
 
-| Target Asset | Animated Field | Lens |
-|---|---|---|
-| [`ColorMaterial`](https://docs.rs/bevy/0.6.1/bevy/sprite/struct.ColorMaterial.html) | [`color`](https://docs.rs/bevy/0.6.1/bevy/sprite/struct.ColorMaterial.html#structfield.color) | [`ColorMaterialColorLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/struct.ColorMaterialColorLens.html) |
+| Target Asset | Animated Field | Lens | Feature |
+|---|---|---|---|
+| [`ColorMaterial`](https://docs.rs/bevy/0.6.1/bevy/sprite/struct.ColorMaterial.html) | [`color`](https://docs.rs/bevy/0.6.1/bevy/sprite/struct.ColorMaterial.html#structfield.color) | [`ColorMaterialColorLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/struct.ColorMaterialColorLens.html) | `bevy_sprite` |
 
 ## Custom lens
 
