@@ -76,6 +76,7 @@ pub trait Lens<T> {
 ///
 /// [`color`]: https://docs.rs/bevy/0.6.1/bevy/text/struct.TextStyle.html#structfield.color
 /// [`Text`]: https://docs.rs/bevy/0.6.1/bevy/text/struct.Text.html
+#[cfg(feature = "bevy_ui")]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct TextColorLens {
     /// Start color.
@@ -86,6 +87,7 @@ pub struct TextColorLens {
     pub section: usize,
 }
 
+#[cfg(feature = "bevy_ui")]
 impl Lens<Text> for TextColorLens {
     fn lerp(&mut self, target: &mut Text, ratio: f32) {
         // Note: Add<f32> for Color affects alpha, but not Mul<f32>. So use Vec4 for consistency.
@@ -277,6 +279,7 @@ impl Lens<Transform> for TransformScaleLens {
 ///
 /// [`position`]: https://docs.rs/bevy/0.6.1/bevy/ui/struct.Style.html#structfield.position
 /// [`Style`]: https://docs.rs/bevy/0.6.1/bevy/ui/struct.Style.html
+#[cfg(feature = "bevy_ui")]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct UiPositionLens {
     /// Start position.
@@ -285,6 +288,7 @@ pub struct UiPositionLens {
     pub end: Rect<Val>,
 }
 
+#[cfg(feature = "bevy_ui")]
 fn lerp_val(start: &Val, end: &Val, ratio: f32) -> Val {
     match (start, end) {
         (Val::Percent(start), Val::Percent(end)) => Val::Percent(start + (end - start) * ratio),
@@ -293,6 +297,7 @@ fn lerp_val(start: &Val, end: &Val, ratio: f32) -> Val {
     }
 }
 
+#[cfg(feature = "bevy_ui")]
 impl Lens<Style> for UiPositionLens {
     fn lerp(&mut self, target: &mut Style, ratio: f32) {
         target.position = Rect {
@@ -308,6 +313,7 @@ impl Lens<Style> for UiPositionLens {
 ///
 /// [`color`]: https://docs.rs/bevy/0.6.1/bevy/sprite/struct.ColorMaterial.html#structfield.color
 /// [`ColorMaterial`]: https://docs.rs/bevy/0.6.1/bevy/sprite/struct.ColorMaterial.html
+#[cfg(feature = "bevy_sprite")]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct ColorMaterialColorLens {
     /// Start color.
@@ -316,6 +322,7 @@ pub struct ColorMaterialColorLens {
     pub end: Color,
 }
 
+#[cfg(feature = "bevy_sprite")]
 impl Lens<ColorMaterial> for ColorMaterialColorLens {
     fn lerp(&mut self, target: &mut ColorMaterial, ratio: f32) {
         // Note: Add<f32> for Color affects alpha, but not Mul<f32>. So use Vec4 for consistency.
@@ -330,6 +337,7 @@ impl Lens<ColorMaterial> for ColorMaterialColorLens {
 ///
 /// [`color`]: https://docs.rs/bevy/0.6.1/bevy/sprite/struct.Sprite.html#structfield.color
 /// [`Sprite`]: https://docs.rs/bevy/0.6.1/bevy/sprite/struct.Sprite.html
+#[cfg(feature = "bevy_sprite")]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct SpriteColorLens {
     /// Start color.
@@ -338,6 +346,7 @@ pub struct SpriteColorLens {
     pub end: Color,
 }
 
+#[cfg(feature = "bevy_sprite")]
 impl Lens<Sprite> for SpriteColorLens {
     fn lerp(&mut self, target: &mut Sprite, ratio: f32) {
         // Note: Add<f32> for Color affects alpha, but not Mul<f32>. So use Vec4 for consistency.
@@ -353,6 +362,7 @@ mod tests {
     use super::*;
     use std::f32::consts::TAU;
 
+    #[cfg(feature = "bevy_ui")]
     #[test]
     fn text_color() {
         let mut lens = TextColorLens {
@@ -582,6 +592,7 @@ mod tests {
         assert!(transform.scale.abs_diff_eq(Vec3::new(0.3, 0.6, -1.2), 1e-5));
     }
 
+    #[cfg(feature = "bevy_sprite")]
     #[test]
     fn colormaterial_color() {
         let mut lens = ColorMaterialColorLens {
@@ -603,6 +614,7 @@ mod tests {
         assert_eq!(mat.color, Color::rgba(0.7, 0., 0.3, 1.0));
     }
 
+    #[cfg(feature = "bevy_sprite")]
     #[test]
     fn sprite_color() {
         let mut lens = SpriteColorLens {
