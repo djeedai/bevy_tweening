@@ -70,6 +70,11 @@ pub trait Lens<T> {
     /// component or asset is mutated in place. The implementation decides which fields
     /// are interpolated, and performs the animation in-place, overwriting the target.
     fn lerp(&mut self, target: &mut T, ratio: f32);
+
+    /// Update lens on tween start
+    /// Can be used for relative lenses
+    #[allow(unused_variables)]
+    fn update_on_tween_start(&mut self, target: &T) {}
 }
 
 /// A lens to manipulate the [`color`] field of a section of a [`Text`] component.

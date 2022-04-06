@@ -58,6 +58,10 @@ required-features = [ "bevy_ui", "bevy/bevy_winit" ]
 name = "sequence"
 required-features = [ "bevy/bevy_winit" ]
 
+[[example]]
+name = "custom_relative_lens"
+required-features = ["bevy/bevy_winit"]
+
 [workspace]
 resolver = "2"
 members = [".", "benchmarks/"]
