@@ -628,9 +628,7 @@ mod tests {
         };
         let mut sprite = Sprite {
             color: Color::WHITE,
-            flip_x: false,
-            flip_y: false,
-            custom_size: None,
+            ..Default::default()
         };
 
         lens.lerp(&mut sprite, 0.);

@@ -923,7 +923,7 @@ mod tests {
             Duration::from_secs_f32(1.0),
             TransformRotationLens {
                 start: Quat::IDENTITY,
-                end: Quat::from_rotation_x(180_f32.to_radians()),
+                end: Quat::from_rotation_x(90_f32.to_radians()),
             },
         );
         let mut seq = tween1.then(tween2);
@@ -949,7 +949,7 @@ mod tests {
                 assert_eq!(transform, Transform::from_translation(Vec3::splat(r)));
             } else if i < 10 {
                 assert_eq!(state, TweenState::Active);
-                let alpha_deg = (36 * (i - 5)) as f32;
+                let alpha_deg = (18 * (i - 5)) as f32;
                 assert!(transform.translation.abs_diff_eq(Vec3::splat(1.), 1e-5));
                 assert!(transform
                     .rotation
@@ -959,7 +959,7 @@ mod tests {
                 assert!(transform.translation.abs_diff_eq(Vec3::splat(1.), 1e-5));
                 assert!(transform
                     .rotation
-                    .abs_diff_eq(Quat::from_rotation_x(180_f32.to_radians()), 1e-5));
+                    .abs_diff_eq(Quat::from_rotation_x(90_f32.to_radians()), 1e-5));
             }
         }
     }
@@ -1014,7 +1014,7 @@ mod tests {
             Duration::from_secs_f32(0.8), // shorter
             TransformRotationLens {
                 start: Quat::IDENTITY,
-                end: Quat::from_rotation_x(180_f32.to_radians()),
+                end: Quat::from_rotation_x(90_f32.to_radians()),
             },
         );
         let mut tracks = Tracks::new([tween1, tween2]);
@@ -1042,7 +1042,7 @@ mod tests {
                 assert_eq!(tracks.times_completed(), 0);
                 let r = i as f32 * 0.2;
                 assert!((tracks.progress() - r).abs() < 1e-5);
-                let alpha_deg = (45 * i) as f32;
+                let alpha_deg = 22.5 * i as f32;
                 assert!(transform.translation.abs_diff_eq(Vec3::splat(r), 1e-5));
                 assert!(transform
                     .rotation
@@ -1054,7 +1054,7 @@ mod tests {
                 assert!(transform.translation.abs_diff_eq(Vec3::splat(1.), 1e-5));
                 assert!(transform
                     .rotation
-                    .abs_diff_eq(Quat::from_rotation_x(180_f32.to_radians()), 1e-5));
+                    .abs_diff_eq(Quat::from_rotation_x(90_f32.to_radians()), 1e-5));
             }
         }
 

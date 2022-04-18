@@ -7,5 +7,5 @@
 - `cargo build`
 - `cargo clippy --workspace --all-targets --all-features -- -D warnings`
 - `cargo test`
-- `cargo docs --no-deps`
+- `cargo doc --no-deps`
 - `cargo +nightly build` (for `docs.rs`)
