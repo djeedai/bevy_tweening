@@ -10,7 +10,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             title: "TextColorLens".to_string(),
             width: WIDTH,
             height: HEIGHT,
-            vsync: true,
+            present_mode: bevy::window::PresentMode::Fifo, // vsync
             ..Default::default()
         })
         .add_plugins(DefaultPlugins)

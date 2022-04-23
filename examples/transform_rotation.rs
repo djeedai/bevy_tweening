@@ -7,7 +7,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             title: "TransformRotationLens".to_string(),
             width: 1400.,
             height: 600.,
-            vsync: true,
+            present_mode: bevy::window::PresentMode::Fifo, // vsync
             ..Default::default()
         })
         .add_plugins(DefaultPlugins)
