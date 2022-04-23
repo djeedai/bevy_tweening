@@ -9,7 +9,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             title: "Menu".to_string(),
             width: 800.,
             height: 400.,
-            vsync: true,
+            present_mode: bevy::window::PresentMode::Fifo, // vsync
             ..Default::default()
         })
         .add_plugins(DefaultPlugins)

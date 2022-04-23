@@ -8,7 +8,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             title: "Sequence".to_string(),
             width: 600.,
             height: 600.,
-            vsync: true,
+            present_mode: bevy::window::PresentMode::Fifo, // vsync
             ..Default::default()
         })
         .add_plugins(DefaultPlugins)

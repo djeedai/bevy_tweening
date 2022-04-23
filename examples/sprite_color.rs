@@ -7,7 +7,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             title: "SpriteColorLens".to_string(),
             width: 1200.,
             height: 600.,
-            vsync: true,
+            present_mode: bevy::window::PresentMode::Fifo, // vsync
             ..Default::default()
         })
         .add_plugins(DefaultPlugins)
