@@ -57,15 +57,8 @@
 //! );
 //!
 //! commands
-//!     // Spawn a Sprite entity to animate the position of.
-//!     .spawn_bundle(SpriteBundle {
-//!         sprite: Sprite {
-//!             color: Color::RED,
-//!             custom_size: Some(Vec2::new(size, size)),
-//!             ..Default::default()
-//!         },
-//!         ..Default::default()
-//!     })
+//!     // Spawn an entity to animate the position of.
+//!     .spawn_bundle(TransformBundle::default())
 //!     // Add an Animator component to control and execute the animation.
 //!     .insert(Animator::new(tween));
 //! # }
