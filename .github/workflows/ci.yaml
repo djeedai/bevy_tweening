@@ -45,18 +45,18 @@ jobs:
           sudo apt install -y xvfb libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
         if: runner.os == 'linux'
       - name: Build & run tests (slim)
-        run: cargo test --no-default-features
+        run: cargo test --no-default-features --all-targets
         env:
           CARGO_INCREMENTAL: 0
       - name: Build & run tests (ui)
-        run: cargo test --no-default-features --features="bevy_ui"
+        run: cargo test --no-default-features --features="bevy_ui" --all-targets
         env:
           CARGO_INCREMENTAL: 1
       - name: Build & run tests (sprite)
-        run: cargo test --no-default-features --features="bevy_sprite"
+        run: cargo test --no-default-features --features="bevy_sprite" --all-targets
         env:
           CARGO_INCREMENTAL: 1
-      - name: Build & run tests (all)
+      - name: Build & run tests + docs (all)
         run: cargo test --all-features
         env:
           CARGO_INCREMENTAL: 1
