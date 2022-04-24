@@ -250,15 +250,35 @@ impl From<EaseFunction> for EaseMethod {
 
 /// Direction a tweening animation is playing.
 ///
-/// For all but [`TweeningType::PingPong`] this is always [`TweeningDirection::Forward`]. For the
-/// [`TweeningType::PingPong`] tweening type, this is either forward (from start to end; ping) or
-/// backward (from end to start; pong).
+/// When playing a tweenable forward, the progress values `0` and `1` are respectively mapped to
+/// the start and end bounds of the lens(es) being used. Conversely, when playing backward, this
+/// mapping is reversed, such that a progress value of `0` corresponds to the state of the target
+/// at the end bound of the lens, while a progress value of `1` corresponds to the state of that
+/// target at the start bound of the lens, effectively making the animation play backward.
+///
+/// For all but [`TweeningType::PingPong`] this is always [`TweeningDirection::Forward`], unless
+/// manually configured with [`Tween::set_direction()`] in which case the value is constant equal
+/// to the value set. For the [`TweeningType::PingPong`] tweening type, this is either forward
+/// (from start to end; ping) or backward (from end to start; pong), depending on the current
+/// iteration of the loop.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TweeningDirection {
     /// Animation playing from start to end.
     Forward,
-    /// Animation playing from end to start.
+    /// Animation playing from end to start, in reverse.
     Backward,
+}
+
+impl TweeningDirection {
+    /// Is the direction equal to [`TweeningDirection::Forward`]?
+    pub fn is_forward(&self) -> bool {
+        *self == TweeningDirection::Forward
+    }
+
+    /// Is the direction equal to [`TweeningDirection::Backward`]?
+    pub fn is_backward(&self) -> bool {
+        *self == TweeningDirection::Backward
+    }
 }
 
 impl Default for TweeningDirection {
