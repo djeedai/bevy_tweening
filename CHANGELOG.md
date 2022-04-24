@@ -3,6 +3,13 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Add `is_forward()` and `is_backward()` convenience helpers to `TweeningDirection`.
+- Add `Tween::set_direction()` and `Tween::with_direction()` which allow configuring the playback direction of a tween, allowing to play it backward from end to start.
+
 ## [0.4.0] - 2022-04-16
 
 ### Changed
