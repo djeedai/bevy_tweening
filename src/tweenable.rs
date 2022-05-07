@@ -265,7 +265,7 @@ impl<T: 'static> Tween<T> {
     /// let seq = tween1.then(tween2);
     /// ```
     pub fn then(self, tween: impl Tweenable<T> + Send + Sync + 'static) -> Sequence<T> {
-        Sequence::from_single(self).then(tween)
+        Sequence::with_capacity(2).then(self).then(tween)
     }
 }
 
@@ -505,7 +505,7 @@ impl<T> Sequence<T> {
             tweens,
             index: 0,
             duration,
-            time: Duration::from_secs(0),
+            time: Duration::ZERO,
             times_completed: 0,
         }
     }
@@ -517,7 +517,18 @@ impl<T> Sequence<T> {
             tweens: vec![Box::new(tween)],
             index: 0,
             duration,
-            time: Duration::from_secs(0),
+            time: Duration::ZERO,
+            times_completed: 0,
+        }
+    }
+
+    /// Create a new sequence with the specified capacity.
+    pub fn with_capacity(capacity: usize) -> Self {
+        Sequence {
+            tweens: Vec::with_capacity(capacity),
+            index: 0,
+            duration: Duration::ZERO,
+            time: Duration::ZERO,
             times_completed: 0,
         }
     }
@@ -611,7 +622,7 @@ impl<T> Tweenable<T> for Sequence<T> {
     }
 
     fn rewind(&mut self) {
-        self.time = Duration::from_secs(0);
+        self.time = Duration::ZERO;
         self.index = 0;
         self.times_completed = 0;
         for tween in &mut self.tweens {
@@ -640,7 +651,7 @@ impl<T> Tracks<T> {
         Tracks {
             tracks,
             duration,
-            time: Duration::from_secs(0),
+            time: Duration::ZERO,
             times_completed: 0,
         }
     }
@@ -696,7 +707,7 @@ impl<T> Tweenable<T> for Tracks<T> {
     }
 
     fn rewind(&mut self) {
-        self.time = Duration::from_secs(0);
+        self.time = Duration::ZERO;
         self.times_completed = 0;
         for tween in &mut self.tracks {
             tween.rewind();
@@ -723,7 +734,7 @@ impl Delay {
 
     /// Chain another [`Tweenable`] after this tween, making a sequence with the two.
     pub fn then<T>(self, tween: impl Tweenable<T> + Send + Sync + 'static) -> Sequence<T> {
-        Sequence::from_single(self).then(tween)
+        Sequence::with_capacity(2).then(self).then(tween)
     }
 }
 
