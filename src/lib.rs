@@ -395,6 +395,13 @@ impl<T: Component> Animator<T> {
         }
     }
 
+    /// Set the animation speed. See [Tweenable::set_speed] for details.
+    pub fn set_speed(&mut self, speed: f32) {
+        if let Some(tweenable) = &mut self.tweenable {
+            tweenable.set_speed(speed)
+        }
+    }
+
     /// Stop animation playback and rewind the animation.
     ///
     /// This changes the animator state to [`AnimatorState::Paused`] and rewind its tweenable.

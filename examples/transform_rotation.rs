@@ -1,7 +1,9 @@
 use bevy::prelude::*;
+use bevy_egui::{egui, EguiContext, EguiPlugin};
+
 use bevy_tweening::{lens::*, *};
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() {
     App::default()
         .insert_resource(WindowDescriptor {
             title: "TransformRotationLens".to_string(),
@@ -12,10 +14,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .add_plugins(DefaultPlugins)
         .add_plugin(TweeningPlugin)
+        .add_plugin(EguiPlugin)
         .add_startup_system(setup)
+        .init_resource::<Options>()
+        .add_system(options_panel)
+        .add_system(update_animation_speed)
         .run();
+}
 
-    Ok(())
+#[derive(Copy, Clone, PartialEq)]
+struct Options {
+    open: bool,
+    speed: f32,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Self {
+            open: true,
+            speed: 1.,
+        }
+    }
 }
 
 fn setup(mut commands: Commands) {
@@ -94,5 +113,35 @@ fn setup(mut commands: Commands) {
             x += size * spacing;
             y = screen_y;
         }
+    }
+}
+
+fn options_panel(mut egui_context: ResMut<EguiContext>, mut options: ResMut<Options>) {
+    let mut local_options = options.clone();
+    egui::Window::new("Options")
+        .open(&mut local_options.open)
+        .show(egui_context.ctx_mut(), |ui| {
+            ui.horizontal(|ui| {
+                ui.label("Speed modifier");
+                ui.add(
+                    egui::DragValue::new(&mut local_options.speed)
+                        .speed(0.01)
+                        .clamp_range(0.01..=100.),
+                );
+            });
+        });
+
+    if local_options != *options {
+        *options = local_options;
+    }
+}
+
+fn update_animation_speed(options: Res<Options>, mut animators: Query<&mut Animator<Transform>>) {
+    if !options.is_changed() {
+        return;
+    }
+
+    for mut animator in animators.iter_mut() {
+        animator.set_speed(options.speed);
     }
 }
