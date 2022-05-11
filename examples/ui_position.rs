@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy_egui::{egui, EguiContext, EguiPlugin};
+use bevy_inspector_egui::{Inspectable, InspectorPlugin};
 
 use bevy_tweening::{lens::*, *};
 
@@ -14,26 +14,21 @@ fn main() {
         })
         .add_plugins(DefaultPlugins)
         .add_plugin(TweeningPlugin)
-        .add_plugin(EguiPlugin)
+        .add_plugin(InspectorPlugin::<Options>::new())
         .add_startup_system(setup)
-        .init_resource::<Options>()
-        .add_system(options_panel)
         .add_system(update_animation_speed)
         .run();
 }
 
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Inspectable)]
 struct Options {
-    open: bool,
+    #[inspectable(min = 0.01, max = 100.)]
     speed: f32,
 }
 
 impl Default for Options {
     fn default() -> Self {
-        Self {
-            open: true,
-            speed: 1.,
-        }
+        Self { speed: 1. }
     }
 }
 
@@ -122,26 +117,6 @@ fn setup(mut commands: Commands) {
             .insert(Animator::new(tween));
 
         x += offset_x;
-    }
-}
-
-fn options_panel(mut egui_context: ResMut<EguiContext>, mut options: ResMut<Options>) {
-    let mut local_options = options.clone();
-    egui::Window::new("Options")
-        .open(&mut local_options.open)
-        .show(egui_context.ctx_mut(), |ui| {
-            ui.horizontal(|ui| {
-                ui.label("Speed modifier");
-                ui.add(
-                    egui::DragValue::new(&mut local_options.speed)
-                        .speed(0.01)
-                        .clamp_range(0.01..=100.),
-                );
-            });
-        });
-
-    if local_options != *options {
-        *options = local_options;
     }
 }
 
