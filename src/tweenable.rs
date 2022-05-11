@@ -46,7 +46,6 @@ pub struct TweenCompleted {
 struct AnimClock {
     elapsed: Duration,
     total: Duration,
-    original: Duration,
     is_looping: bool,
 }
 
@@ -55,7 +54,6 @@ impl AnimClock {
         AnimClock {
             elapsed: Duration::ZERO,
             total: duration,
-            original: duration,
             is_looping,
         }
     }
@@ -121,13 +119,6 @@ pub trait Tweenable<T>: Send + Sync {
     /// reach back the same state in this case is the double of the returned value.
     fn duration(&self) -> Duration;
 
-    /// Set the animation speed. Defaults to 1.
-    ///
-    /// Speeds greater than 1 slow down time. That is, a speed of 10 means the animation will
-    /// take 10 times longer to complete whereas a speed of 0.5 means the animation will complete
-    /// twice as fast.
-    fn set_speed(&mut self, speed: f32);
-
     /// Return `true` if the animation is looping.
     ///
     /// Looping tweenables are of type [`TweeningType::Loop`] or [`TweeningType::PingPong`].
@@ -189,9 +180,6 @@ pub trait Tweenable<T>: Send + Sync {
 impl<T> Tweenable<T> for Box<dyn Tweenable<T> + Send + Sync + 'static> {
     fn duration(&self) -> Duration {
         self.as_ref().duration()
-    }
-    fn set_speed(&mut self, speed: f32) {
-        self.as_mut().set_speed(speed);
     }
     fn is_looping(&self) -> bool {
         self.as_ref().is_looping()
@@ -320,12 +308,6 @@ impl<T> Tween<T> {
         }
     }
 
-    /// Set the speed of the animation. See [Tweenable::set_speed] for details.
-    pub fn with_speed(mut self, speed: f32) -> Self {
-        self.set_speed(speed);
-        self
-    }
-
     /// Enable or disable raising a completed event.
     ///
     /// If enabled, the tween will raise a [`TweenCompleted`] event when the animation completed.
@@ -427,12 +409,6 @@ impl<T> Tween<T> {
 impl<T> Tweenable<T> for Tween<T> {
     fn duration(&self) -> Duration {
         self.clock.total()
-    }
-
-    fn set_speed(&mut self, speed: f32) {
-        let progress = self.progress();
-        self.clock.total = self.clock.original.mul_f32(speed);
-        self.set_progress(progress);
     }
 
     fn is_looping(&self) -> bool {
@@ -580,12 +556,6 @@ impl<T> Tweenable<T> for Sequence<T> {
         self.duration
     }
 
-    fn set_speed(&mut self, speed: f32) {
-        for tween in &mut self.tweens {
-            tween.set_speed(speed);
-        }
-    }
-
     fn is_looping(&self) -> bool {
         false // TODO - implement looping sequences...
     }
@@ -692,12 +662,6 @@ impl<T> Tweenable<T> for Tracks<T> {
         self.duration
     }
 
-    fn set_speed(&mut self, speed: f32) {
-        for tween in &mut self.tracks {
-            tween.set_speed(speed);
-        }
-    }
-
     fn is_looping(&self) -> bool {
         false // TODO - implement looping tracks...
     }
@@ -758,7 +722,6 @@ impl<T> Tweenable<T> for Tracks<T> {
 /// example (`examples/menu.rs`) uses this technique to delay the animation of its buttons.
 pub struct Delay {
     timer: Timer,
-    original: Duration,
 }
 
 impl Delay {
@@ -766,7 +729,6 @@ impl Delay {
     pub fn new(duration: Duration) -> Self {
         Delay {
             timer: Timer::new(duration, false),
-            original: duration,
         }
     }
 
@@ -779,10 +741,6 @@ impl Delay {
 impl<T> Tweenable<T> for Delay {
     fn duration(&self) -> Duration {
         self.timer.duration()
-    }
-
-    fn set_speed(&mut self, speed: f32) {
-        self.timer.set_duration(self.original.mul_f32(speed));
     }
 
     fn is_looping(&self) -> bool {
