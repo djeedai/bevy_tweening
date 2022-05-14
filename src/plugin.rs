@@ -50,7 +50,7 @@ impl Plugin for TweeningPlugin {
 }
 
 /// Label enum for the systems relating to animations
-#[derive(Debug, Hash, PartialEq, Eq, Clone, SystemLabel)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, SystemLabel)]
 pub enum AnimationSystem {
     /// Ticks animations
     AnimationUpdate,
