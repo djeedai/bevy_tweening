@@ -1,7 +1,9 @@
 use bevy::prelude::*;
+use bevy_inspector_egui::{Inspectable, InspectorPlugin};
+
 use bevy_tweening::{lens::*, *};
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() {
     App::default()
         .insert_resource(WindowDescriptor {
             title: "UiPositionLens".to_string(),
@@ -12,10 +14,22 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         })
         .add_plugins(DefaultPlugins)
         .add_plugin(TweeningPlugin)
+        .add_plugin(InspectorPlugin::<Options>::new())
         .add_startup_system(setup)
+        .add_system(update_animation_speed)
         .run();
+}
 
-    Ok(())
+#[derive(Copy, Clone, PartialEq, Inspectable)]
+struct Options {
+    #[inspectable(min = 0.01, max = 100.)]
+    speed: f32,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Self { speed: 1. }
+    }
 }
 
 fn setup(mut commands: Commands) {
@@ -103,5 +117,15 @@ fn setup(mut commands: Commands) {
             .insert(Animator::new(tween));
 
         x += offset_x;
+    }
+}
+
+fn update_animation_speed(options: Res<Options>, mut animators: Query<&mut Animator<Style>>) {
+    if !options.is_changed() {
+        return;
+    }
+
+    for mut animator in animators.iter_mut() {
+        animator.set_speed(options.speed);
     }
 }

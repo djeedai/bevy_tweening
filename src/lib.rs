@@ -147,6 +147,7 @@
 //! [`Transform`]: https://docs.rs/bevy/0.7.0/bevy/transform/components/struct.Transform.html
 
 use bevy::{asset::Asset, prelude::*};
+use std::time::Duration;
 
 use interpolation::Ease as IEase;
 pub use interpolation::EaseFunction;
@@ -304,6 +305,7 @@ pub struct Animator<T: Component> {
     /// Control if this animation is played or not.
     pub state: AnimatorState,
     tweenable: Option<Box<dyn Tweenable<T> + Send + Sync + 'static>>,
+    speed: f32,
 }
 
 impl<T: Component + std::fmt::Debug> std::fmt::Debug for Animator<T> {
@@ -319,6 +321,7 @@ impl<T: Component> Default for Animator<T> {
         Animator {
             state: Default::default(),
             tweenable: None,
+            speed: 1.,
         }
     }
 }
@@ -336,6 +339,20 @@ impl<T: Component> Animator<T> {
     pub fn with_state(mut self, state: AnimatorState) -> Self {
         self.state = state;
         self
+    }
+
+    /// Set the initial speed of the animator. See [`Animator::set_speed`] for details.
+    pub fn with_speed(mut self, speed: f32) -> Self {
+        self.speed = speed;
+        self
+    }
+
+    /// Set the animation speed. Defaults to 1.
+    ///
+    /// A speed of 2 means the animation will run twice as fast while a speed of 0.1 will result in
+    /// a 10x slowed animation.
+    pub fn set_speed(&mut self, speed: f32) {
+        self.speed = speed;
     }
 
     /// Set the top-level tweenable item this animator controls.
@@ -392,6 +409,21 @@ impl<T: Component> Animator<T> {
             tweenable.progress()
         } else {
             0.
+        }
+    }
+
+    /// Ticks the tween, if present. See [`Tweenable::tick`] for details.
+    pub fn tick(
+        &mut self,
+        delta: Duration,
+        target: &mut T,
+        entity: Entity,
+        event_writer: &mut EventWriter<TweenCompleted>,
+    ) -> Option<TweenState> {
+        if let Some(tweenable) = &mut self.tweenable {
+            Some(tweenable.tick(delta.mul_f32(self.speed), target, entity, event_writer))
+        } else {
+            None
         }
     }
 
@@ -420,6 +452,7 @@ pub struct AssetAnimator<T: Asset> {
     pub state: AnimatorState,
     tweenable: Option<Box<dyn Tweenable<T> + Send + Sync + 'static>>,
     handle: Handle<T>,
+    speed: f32,
 }
 
 impl<T: Asset + std::fmt::Debug> std::fmt::Debug for AssetAnimator<T> {
@@ -436,6 +469,7 @@ impl<T: Asset> Default for AssetAnimator<T> {
             state: Default::default(),
             tweenable: None,
             handle: Default::default(),
+            speed: 1.,
         }
     }
 }
@@ -454,6 +488,20 @@ impl<T: Asset> AssetAnimator<T> {
     pub fn with_state(mut self, state: AnimatorState) -> Self {
         self.state = state;
         self
+    }
+
+    /// Set the initial speed of the animator. See [`Animator::set_speed`] for details.
+    pub fn with_speed(mut self, speed: f32) -> Self {
+        self.speed = speed;
+        self
+    }
+
+    /// Set the animation speed. Defaults to 1.
+    ///
+    /// A speed of 2 means the animation will run twice as fast while a speed of 0.1 will result in
+    /// a 10x slowed animation.
+    pub fn set_speed(&mut self, speed: f32) {
+        self.speed = speed;
     }
 
     /// Set the top-level tweenable item this animator controls.
@@ -510,6 +558,21 @@ impl<T: Asset> AssetAnimator<T> {
             tweenable.progress()
         } else {
             0.
+        }
+    }
+
+    /// Ticks the tween, if present. See [`Tweenable::tick`] for details.
+    pub fn tick(
+        &mut self,
+        delta: Duration,
+        target: &mut T,
+        entity: Entity,
+        event_writer: &mut EventWriter<TweenCompleted>,
+    ) -> Option<TweenState> {
+        if let Some(tweenable) = &mut self.tweenable {
+            Some(tweenable.tick(delta.mul_f32(self.speed), target, entity, event_writer))
+        } else {
+            None
         }
     }
 
