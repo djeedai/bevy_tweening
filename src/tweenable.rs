@@ -45,7 +45,7 @@ pub struct TweenCompleted {
 #[derive(Debug, Default, Clone, Copy)]
 struct AnimClock {
     elapsed: Duration,
-    total: Duration,
+    duration: Duration,
     is_looping: bool,
 }
 
@@ -53,52 +53,44 @@ impl AnimClock {
     fn new(duration: Duration, is_looping: bool) -> Self {
         AnimClock {
             elapsed: Duration::ZERO,
-            total: duration,
+            duration,
             is_looping,
         }
     }
 
-    #[allow(dead_code)] // TEMP
-    fn elapsed(&self) -> Duration {
-        self.elapsed
-    }
-
-    fn total(&self) -> Duration {
-        self.total
-    }
-
     fn tick(&mut self, duration: Duration) -> u32 {
-        let new_elapsed = self.elapsed.saturating_add(duration);
-        let progress = new_elapsed.as_secs_f64() / self.total.as_secs_f64();
-        let times_completed = progress as u32;
-        let progress = if self.is_looping {
-            progress.fract()
+        self.elapsed = self.elapsed.saturating_add(duration);
+
+        if self.elapsed < self.duration {
+            0
+        } else if self.is_looping {
+            let elapsed = self.elapsed.as_nanos();
+            let duration = self.duration.as_nanos();
+
+            self.elapsed = Duration::from_nanos((elapsed % duration) as u64);
+            (elapsed / duration) as u32
         } else {
-            progress.min(1.)
-        };
-        self.elapsed = self.total.mul_f64(progress);
-        times_completed
+            self.elapsed = self.duration;
+            1
+        }
     }
 
-    fn set_progress(&mut self, progress: f32) -> u32 {
-        let progress = progress.max(0.);
-        let times_completed = progress as u32;
+    fn set_progress(&mut self, progress: f32) {
         let progress = if self.is_looping {
-            progress.fract()
+            progress.max(0.).fract()
         } else {
-            progress.min(1.)
+            progress.clamp(0., 1.)
         };
-        self.elapsed = self.total.mul_f32(progress);
-        times_completed
+
+        self.elapsed = self.duration.mul_f32(progress);
     }
 
     fn progress(&self) -> f32 {
-        //self.elapsed.div_duration_f32(self.total) // TODO: unstable
-        (self.elapsed.as_secs_f64() / self.total.as_secs_f64()) as f32
+        self.elapsed.as_secs_f32() / self.duration.as_secs_f32()
     }
 
     fn completed(&self) -> bool {
-        self.elapsed >= self.total
+        self.elapsed >= self.duration
     }
 
     fn reset(&mut self) {
@@ -408,7 +400,7 @@ impl<T> Tween<T> {
 
 impl<T> Tweenable<T> for Tween<T> {
     fn duration(&self) -> Duration {
-        self.clock.total()
+        self.clock.duration
     }
 
     fn is_looping(&self) -> bool {
@@ -806,6 +798,36 @@ mod tests {
     struct CallbackMonitor {
         invoke_count: u64,
         last_reported_count: u32,
+    }
+
+    #[test]
+    fn anim_clock_precision() {
+        let duration = Duration::from_millis(1);
+        let mut clock = AnimClock::new(duration, true);
+
+        let test_ticks = [
+            Duration::from_micros(123),
+            Duration::from_millis(1),
+            Duration::from_secs_f32(1. / 24.),
+            Duration::from_secs_f32(1. / 30.),
+            Duration::from_secs_f32(1. / 60.),
+            Duration::from_secs_f32(1. / 120.),
+            Duration::from_secs_f32(1. / 144.),
+            Duration::from_secs_f32(1. / 240.),
+        ];
+
+        let mut times_completed = 0;
+        let mut total_duration = Duration::ZERO;
+        for i in 0..10_000_000 {
+            let tick = test_ticks[i % test_ticks.len()];
+            times_completed += clock.tick(tick);
+            total_duration += tick;
+        }
+
+        assert_eq!(
+            (total_duration.as_secs_f64() / duration.as_secs_f64()) as u32,
+            times_completed
+        );
     }
 
     /// Test ticking of a single tween in isolation.
