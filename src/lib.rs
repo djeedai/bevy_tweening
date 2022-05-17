@@ -158,7 +158,9 @@ mod plugin;
 mod tweenable;
 
 pub use lens::Lens;
-pub use plugin::{asset_animator_system, component_animator_system, TweeningPlugin};
+pub use plugin::{
+    asset_animator_system, component_animator_system, AnimationSystem, TweeningPlugin,
+};
 pub use tweenable::{Delay, Sequence, Tracks, Tween, TweenCompleted, TweenState, Tweenable};
 
 /// Type of looping for a tween animation.

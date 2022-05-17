@@ -33,17 +33,27 @@ pub struct TweeningPlugin;
 
 impl Plugin for TweeningPlugin {
     fn build(&self, app: &mut App) {
-        app.add_event::<TweenCompleted>()
-            .add_system(component_animator_system::<Transform>);
+        app.add_event::<TweenCompleted>().add_system(
+            component_animator_system::<Transform>.label(AnimationSystem::AnimationUpdate),
+        );
 
         #[cfg(feature = "bevy_ui")]
-        app.add_system(component_animator_system::<Text>)
-            .add_system(component_animator_system::<Style>);
+        app.add_system(component_animator_system::<Text>.label(AnimationSystem::AnimationUpdate))
+            .add_system(component_animator_system::<Style>.label(AnimationSystem::AnimationUpdate));
 
         #[cfg(feature = "bevy_sprite")]
-        app.add_system(component_animator_system::<Sprite>)
-            .add_system(asset_animator_system::<ColorMaterial>);
+        app.add_system(component_animator_system::<Sprite>.label(AnimationSystem::AnimationUpdate))
+            .add_system(
+                asset_animator_system::<ColorMaterial>.label(AnimationSystem::AnimationUpdate),
+            );
     }
+}
+
+/// Label enum for the systems relating to animations
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, SystemLabel)]
+pub enum AnimationSystem {
+    /// Ticks animations
+    AnimationUpdate,
 }
 
 /// Animator system for components.
