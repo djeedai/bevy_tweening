@@ -168,7 +168,7 @@ impl Lens<Transform> for TransformLens {
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct IsometricTransformLens {
     /// Start value of the postition.
-    pub start_postition: Vec3,
+    pub start_position: Vec3,
     /// End value of the position.
     pub end_position: Vec3,
     /// Start value of the rotation.
