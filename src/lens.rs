@@ -98,6 +98,92 @@ impl Lens<Text> for TextColorLens {
     }
 }
 
+/// A lens to manipulate a [`Transform`] component.
+/// 
+/// Each of the fields have their own lenses which should be used independently
+/// where possible:
+/// - [`TransformPositionLens`]
+/// - [`TransformScaleLens`]
+/// - [`TransformRotationLens`] (See the [top-level `lens` module documentation]
+/// for a comparison of rotation lenses.)
+/// Or if just [`translation`] and [`rotation`] is needed to be modified, see
+/// [`IsometricTransformLens`]
+///
+/// This lens interpolates the [`rotation`] field of a [`Transform`] component
+/// from a `start` value to an `end` value using the spherical linear interpolation
+/// provided by [`Quat::slerp()`]. This means the rotation always uses the shortest
+/// path from `start` to `end`. In particular, this means it cannot make entities
+/// do a full 360 degrees turn. Instead use [`TransformRotateXLens`] and similar
+/// to interpolate the rotation angle around a given axis.
+///
+/// [`Transform`]: https://docs.rs/bevy/0.7.0/bevy/transform/components/struct.Transform.html
+/// [`translation`]: https://docs.rs/bevy/0.7.0/bevy/transform/components/struct.Transform.html#structfield.translation
+/// [`rotation`]: https://docs.rs/bevy/0.7.0/bevy/transform/components/struct.Transform.html#structfield.rotation
+/// [`Quat::slerp()`]: https://docs.rs/bevy/0.7.0/bevy/math/struct.Quat.html#method.slerp
+/// [top-level `lens` module documentation]: crate::lens
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct TransformLens {
+    /// Start value of the transform.
+    pub start: Transform,
+    /// End value of the transform.
+    pub end: Transform,
+}
+
+impl Lens<Transform> for TransformLens {
+    fn lerp(&mut self, target: &mut Transform, ratio: f32) {
+        // position
+        let translation = self.start.translation + (self.end.translation - self.start.translation) * ratio;
+        target.translation = translation;
+        // rotation
+        target.rotation = self.start.rotation.slerp(self.end.rotation, ratio);
+        // scale
+        let value = self.start.scale + (self.end.scale - self.start.scale) * ratio;
+        target.scale = value;
+    }
+}
+
+/// A lens to manipulate a [`Transform`] component.
+///
+/// This lens interpolates the [`rotation`] field of a [`Transform`] component
+/// from a `start` value to an `end` value using the spherical linear interpolation
+/// provided by [`Quat::slerp()`]. This means the rotation always uses the shortest
+/// path from `start` to `end`. In particular, this means it cannot make entities
+/// do a full 360 degrees turn. Instead use [`TransformRotateXLens`] and similar
+/// to interpolate the rotation angle around a given axis.
+/// 
+/// Each of the fields have their own lenses which should be used independently
+/// where possible:
+/// - [`TransformPositionLens`]
+/// - [`TransformScaleLens`]
+/// - [`TransformRotationLens`] (See the [top-level `lens` module documentation]
+/// for a comparison of rotation lenses.)
+///
+/// [`Transform`]: https://docs.rs/bevy/0.7.0/bevy/transform/components/struct.Transform.html
+/// [`rotation`]: https://docs.rs/bevy/0.7.0/bevy/transform/components/struct.Transform.html#structfield.rotation
+/// [`Quat::slerp()`]: https://docs.rs/bevy/0.7.0/bevy/math/struct.Quat.html#method.slerp
+/// [top-level `lens` module documentation]: crate::lens
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct IsometricTransformLens {
+    /// Start value of the postition.
+    pub start_postition: Vec3,
+    /// End value of the position.
+    pub end_position: Vec3,
+    /// Start value of the rotation.
+    pub start_rotation: Quat,
+    /// End value of the rotation.
+    pub end_rotation: Quat
+}
+
+impl Lens<Transform> for IsometricTransformLens {
+    fn lerp(&mut self, target: &mut Transform, ratio: f32) {
+        // position
+        let translation = self.start_position + (self.end_position - self.start_position) * ratio;
+        target.translation = translation;
+        // rotation
+        target.rotation = self.start_rotation.slerp(self.end_rotation, ratio);
+    }
+}
+
 /// A lens to manipulate the [`translation`] field of a [`Transform`] component.
 ///
 /// [`translation`]: https://docs.rs/bevy/0.7.0/bevy/transform/components/struct.Transform.html#structfield.translation
