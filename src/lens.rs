@@ -102,11 +102,11 @@ impl Lens<Text> for TextColorLens {
 /// 
 /// Each of the fields have their own lenses which should be used independently
 /// where possible:
-/// - [`TransformPositionLens`]
-/// - [`TransformScaleLens`]
-/// - [`TransformRotationLens`] (See the [top-level `lens` module documentation]
+/// - [`TransformPositionLens`] for [`translation`]
+/// - [`TransformScaleLens`] for [`scale`]
+/// - [`TransformRotationLens`] for [`rotation`] (See the [top-level `lens` module documentation]
 /// for a comparison of rotation lenses.)
-/// Or if just [`translation`] and [`rotation`] is needed to be modified, see
+/// - Or if both [`translation`] and [`rotation`] need to be interpolated, see
 /// [`IsometricTransformLens`]
 ///
 /// This lens interpolates the [`rotation`] field of a [`Transform`] component
@@ -119,6 +119,7 @@ impl Lens<Text> for TextColorLens {
 /// [`Transform`]: https://docs.rs/bevy/0.7.0/bevy/transform/components/struct.Transform.html
 /// [`translation`]: https://docs.rs/bevy/0.7.0/bevy/transform/components/struct.Transform.html#structfield.translation
 /// [`rotation`]: https://docs.rs/bevy/0.7.0/bevy/transform/components/struct.Transform.html#structfield.rotation
+/// [`scale`]: https://docs.rs/bevy/0.7.0/bevy/transform/components/struct.Transform.html#structfield.scale
 /// [`Quat::slerp()`]: https://docs.rs/bevy/0.7.0/bevy/math/struct.Quat.html#method.slerp
 /// [top-level `lens` module documentation]: crate::lens
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -142,24 +143,26 @@ impl Lens<Transform> for TransformLens {
     }
 }
 
-/// A lens to manipulate a [`Transform`] component.
+/// A lens to manipulate the [`translation`] and [`rotation`] fields a [`Transform`] component.
 ///
-/// This lens interpolates the [`rotation`] field of a [`Transform`] component
-/// from a `start` value to an `end` value using the spherical linear interpolation
-/// provided by [`Quat::slerp()`]. This means the rotation always uses the shortest
-/// path from `start` to `end`. In particular, this means it cannot make entities
-/// do a full 360 degrees turn. Instead use [`TransformRotateXLens`] and similar
-/// to interpolate the rotation angle around a given axis.
-/// 
-/// Each of the fields have their own lenses which should be used independently
-/// where possible:
-/// - [`TransformPositionLens`]
-/// - [`TransformScaleLens`]
-/// - [`TransformRotationLens`] (See the [top-level `lens` module documentation]
+/// Both fields have their own lenses independently:
+/// - [`TransformPositionLens`] for [`translation`]
+/// - [`TransformRotationLens`] for [`rotation`] (See the [top-level `lens` module documentation]
 /// for a comparison of rotation lenses.)
+/// - Or if [`scale`] also needs to be interpolated, see [`TransformLens`]
+/// 
+/// This lens interpolates the [`rotation`] field of a [`Transform`] component
+/// from a `start_rotation` value to an `end_rotation` value using the spherical
+/// linear interpolation provided by [`Quat::slerp()`]. This means the rotation
+/// always uses the shortest path from `start_rotation` to `end_rotation`. In
+/// particular, this means it cannot make entities do a full 360 degrees turn.
+/// Instead use [`TransformRotateXLens`] and similar to interpolate the rotation
+/// angle around a given axis.
 ///
-/// [`Transform`]: https://docs.rs/bevy/0.7.0/bevy/transform/components/struct.Transform.html
+/// [`translation`]: https://docs.rs/bevy/0.7.0/bevy/transform/components/struct.Transform.html#structfield.translation
 /// [`rotation`]: https://docs.rs/bevy/0.7.0/bevy/transform/components/struct.Transform.html#structfield.rotation
+/// [`scale`]: https://docs.rs/bevy/0.7.0/bevy/transform/components/struct.Transform.html#structfield.scale
+/// [`Transform`]: https://docs.rs/bevy/0.7.0/bevy/transform/components/struct.Transform.html
 /// [`Quat::slerp()`]: https://docs.rs/bevy/0.7.0/bevy/math/struct.Quat.html#method.slerp
 /// [top-level `lens` module documentation]: crate::lens
 #[derive(Debug, Copy, Clone, PartialEq)]
