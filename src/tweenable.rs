@@ -207,7 +207,7 @@ impl<T> Tweenable<T> for BoxedTweenable<T> {
 /// You should only ever use [`DynTweenable::from`][From::from].
 ///
 /// When using your own [`Tweenable`]s, convert them to a box first:
-/// ```no_run
+/// ```
 /// # use std::time::Duration;
 /// # use bevy::prelude::{Entity, EventWriter, Transform};
 /// # use bevy_tweening::{BoxedTweenable, DynTweenable, Tweenable, TweenCompleted, TweenState};
@@ -224,6 +224,16 @@ impl<T> Tweenable<T> for BoxedTweenable<T> {
 /// # }
 ///
 /// DynTweenable::from(Box::new(MyTweenable) as BoxedTweenable<_>);
+///
+/// // OR
+///
+/// DynTweenable::from(MyTweenable);
+///
+/// impl From<MyTweenable> for DynTweenable<Transform> {
+///     fn from(t: MyTweenable) -> Self {
+///         DynTweenable::from(Box::new(t) as BoxedTweenable<_>)
+///     }
+/// }
 /// ```
 pub enum DynTweenable<T> {
     #[doc(hidden)]
