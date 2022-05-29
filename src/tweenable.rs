@@ -3,6 +3,9 @@ use std::time::Duration;
 
 use crate::{EaseMethod, Lens, TweeningDirection, TweeningType};
 
+/// The dynamic tweenable type.
+pub type BoxedTweenable<T> = Box<dyn Tweenable<T> + Send + Sync + 'static>;
+
 /// Playback state of a [`Tweenable`].
 ///
 /// This is returned by [`Tweenable::tick()`] to allow the caller to execute some logic based on the
@@ -169,7 +172,7 @@ pub trait Tweenable<T>: Send + Sync {
     fn rewind(&mut self);
 }
 
-impl<T> Tweenable<T> for Box<dyn Tweenable<T> + Send + Sync + 'static> {
+impl<T> Tweenable<T> for BoxedTweenable<T> {
     fn duration(&self) -> Duration {
         self.as_ref().duration()
     }
@@ -199,15 +202,123 @@ impl<T> Tweenable<T> for Box<dyn Tweenable<T> + Send + Sync + 'static> {
     }
 }
 
-/// Trait for boxing a [`Tweenable`] trait object.
-pub trait IntoBoxDynTweenable<T> {
-    /// Convert the current object into a boxed [`Tweenable`].
-    fn into_box_dyn(this: Self) -> Box<dyn Tweenable<T> + Send + Sync + 'static>;
+/// An emulated dynamic tweenabled used to optimize out allocations in [`Sequence`]s and [`Tracks`].
+/// You should only ever use [`DynTweenable::from`][From::from].
+///
+/// When using your own [`Tweenable`]s, convert them to a box first:
+/// `DynTweenable::from(Box::new(my_tweenable) as BoxedTweenable<_>)`.
+pub enum DynTweenable<T> {
+    #[doc(hidden)]
+    Boxed(BoxedTweenable<T>),
+    #[doc(hidden)]
+    Delay(Delay),
+    #[doc(hidden)]
+    Sequence(Sequence<T>),
+    #[doc(hidden)]
+    Tracks(Tracks<T>),
+    #[doc(hidden)]
+    Tween(Tween<T>),
 }
 
-impl<T, U: Tweenable<T> + Send + Sync + 'static> IntoBoxDynTweenable<T> for U {
-    fn into_box_dyn(this: U) -> Box<dyn Tweenable<T> + Send + Sync + 'static> {
-        Box::new(this)
+impl<T> Tweenable<T> for DynTweenable<T> {
+    fn duration(&self) -> Duration {
+        match self {
+            Self::Boxed(b) => b.duration(),
+            Self::Delay(d) => Tweenable::<T>::duration(d),
+            Self::Sequence(s) => s.duration(),
+            Self::Tracks(t) => t.duration(),
+            Self::Tween(t) => t.duration(),
+        }
+    }
+    fn is_looping(&self) -> bool {
+        match self {
+            Self::Boxed(b) => b.is_looping(),
+            Self::Delay(d) => Tweenable::<T>::is_looping(d),
+            Self::Sequence(s) => s.is_looping(),
+            Self::Tracks(t) => t.is_looping(),
+            Self::Tween(t) => t.is_looping(),
+        }
+    }
+    fn set_progress(&mut self, progress: f32) {
+        match self {
+            Self::Boxed(b) => b.set_progress(progress),
+            Self::Delay(d) => Tweenable::<T>::set_progress(d, progress),
+            Self::Sequence(s) => s.set_progress(progress),
+            Self::Tracks(t) => t.set_progress(progress),
+            Self::Tween(t) => t.set_progress(progress),
+        }
+    }
+    fn progress(&self) -> f32 {
+        match self {
+            Self::Boxed(b) => b.progress(),
+            Self::Delay(d) => Tweenable::<T>::progress(d),
+            Self::Sequence(s) => s.progress(),
+            Self::Tracks(t) => t.progress(),
+            Self::Tween(t) => t.progress(),
+        }
+    }
+    fn tick(
+        &mut self,
+        delta: Duration,
+        target: &mut T,
+        entity: Entity,
+        event_writer: &mut EventWriter<TweenCompleted>,
+    ) -> TweenState {
+        match self {
+            Self::Boxed(b) => b.tick(delta, target, entity, event_writer),
+            Self::Delay(d) => d.tick(delta, target, entity, event_writer),
+            Self::Sequence(s) => s.tick(delta, target, entity, event_writer),
+            Self::Tracks(t) => t.tick(delta, target, entity, event_writer),
+            Self::Tween(t) => t.tick(delta, target, entity, event_writer),
+        }
+    }
+    fn times_completed(&self) -> u32 {
+        match self {
+            Self::Boxed(b) => b.times_completed(),
+            Self::Delay(d) => Tweenable::<T>::times_completed(d),
+            Self::Sequence(s) => s.times_completed(),
+            Self::Tracks(t) => t.times_completed(),
+            Self::Tween(t) => t.times_completed(),
+        }
+    }
+    fn rewind(&mut self) {
+        match self {
+            Self::Boxed(b) => b.rewind(),
+            Self::Delay(d) => Tweenable::<T>::rewind(d),
+            Self::Sequence(s) => s.rewind(),
+            Self::Tracks(t) => t.rewind(),
+            Self::Tween(t) => t.rewind(),
+        }
+    }
+}
+
+impl<T> From<BoxedTweenable<T>> for DynTweenable<T> {
+    fn from(b: BoxedTweenable<T>) -> Self {
+        Self::Boxed(b)
+    }
+}
+
+impl<T> From<Delay> for DynTweenable<T> {
+    fn from(d: Delay) -> Self {
+        Self::Delay(d)
+    }
+}
+
+impl<T> From<Sequence<T>> for DynTweenable<T> {
+    fn from(s: Sequence<T>) -> Self {
+        Self::Sequence(s)
+    }
+}
+
+impl<T> From<Tracks<T>> for DynTweenable<T> {
+    fn from(t: Tracks<T>) -> Self {
+        Self::Tracks(t)
+    }
+}
+
+impl<T> From<Tween<T>> for DynTweenable<T> {
+    fn from(t: Tween<T>) -> Self {
+        Self::Tween(t)
     }
 }
 
@@ -480,7 +591,7 @@ impl<T> Tweenable<T> for Tween<T> {
 
 /// A sequence of tweens played back in order one after the other.
 pub struct Sequence<T> {
-    tweens: Vec<Box<dyn Tweenable<T> + Send + Sync + 'static>>,
+    tweens: Vec<DynTweenable<T>>,
     index: usize,
     duration: Duration,
     time: Duration,
@@ -492,11 +603,8 @@ impl<T> Sequence<T> {
     ///
     /// This method panics if the input collection is empty.
     #[must_use]
-    pub fn new(items: impl IntoIterator<Item = impl IntoBoxDynTweenable<T>>) -> Self {
-        let tweens: Vec<_> = items
-            .into_iter()
-            .map(IntoBoxDynTweenable::into_box_dyn)
-            .collect();
+    pub fn new(items: impl IntoIterator<Item = impl Into<DynTweenable<T>>>) -> Self {
+        let tweens: Vec<_> = items.into_iter().map(Into::into).collect();
         assert!(!tweens.is_empty());
         let duration = tweens.iter().map(Tweenable::duration).sum();
         Self {
@@ -513,7 +621,7 @@ impl<T> Sequence<T> {
     pub fn from_single(tween: impl Tweenable<T> + Send + Sync + 'static) -> Self {
         let duration = tween.duration();
         Self {
-            tweens: vec![Box::new(tween)],
+            tweens: vec![DynTweenable::Boxed(Box::new(tween))],
             index: 0,
             duration,
             time: Duration::ZERO,
@@ -537,7 +645,7 @@ impl<T> Sequence<T> {
     #[must_use]
     pub fn then(mut self, tween: impl Tweenable<T> + Send + Sync + 'static) -> Self {
         self.duration += tween.duration();
-        self.tweens.push(Box::new(tween));
+        self.tweens.push(DynTweenable::Boxed(Box::new(tween)));
         self
     }
 
@@ -550,7 +658,13 @@ impl<T> Sequence<T> {
     /// Get the current active tween in the sequence.
     #[must_use]
     pub fn current(&self) -> &dyn Tweenable<T> {
-        self.tweens[self.index()].as_ref()
+        match &self.tweens[self.index()] {
+            DynTweenable::Boxed(b) => b.as_ref(),
+            DynTweenable::Delay(d) => d,
+            DynTweenable::Sequence(s) => s,
+            DynTweenable::Tracks(t) => t,
+            DynTweenable::Tween(t) => t,
+        }
     }
 }
 
@@ -637,7 +751,7 @@ impl<T> Tweenable<T> for Sequence<T> {
 
 /// A collection of [`Tweenable`] executing in parallel.
 pub struct Tracks<T> {
-    tracks: Vec<Box<dyn Tweenable<T> + Send + Sync + 'static>>,
+    tracks: Vec<DynTweenable<T>>,
     duration: Duration,
     time: Duration,
     times_completed: u32,
@@ -646,11 +760,8 @@ pub struct Tracks<T> {
 impl<T> Tracks<T> {
     /// Create a new [`Tracks`] from an iterator over a collection of [`Tweenable`].
     #[must_use]
-    pub fn new(items: impl IntoIterator<Item = impl IntoBoxDynTweenable<T>>) -> Self {
-        let tracks: Vec<_> = items
-            .into_iter()
-            .map(IntoBoxDynTweenable::into_box_dyn)
-            .collect();
+    pub fn new(items: impl IntoIterator<Item = impl Into<DynTweenable<T>>>) -> Self {
+        let tracks: Vec<_> = items.into_iter().map(Into::into).collect();
         let duration = tracks.iter().map(Tweenable::duration).max().unwrap();
         Self {
             tracks,
