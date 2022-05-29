@@ -1,5 +1,6 @@
-use bevy::prelude::*;
 use std::time::Duration;
+
+use bevy::prelude::*;
 
 use crate::{EaseMethod, Lens, TweeningDirection, TweeningType};
 
@@ -206,7 +207,24 @@ impl<T> Tweenable<T> for BoxedTweenable<T> {
 /// You should only ever use [`DynTweenable::from`][From::from].
 ///
 /// When using your own [`Tweenable`]s, convert them to a box first:
-/// `DynTweenable::from(Box::new(my_tweenable) as BoxedTweenable<_>)`.
+/// ```no_run
+/// # use std::time::Duration;
+/// # use bevy::prelude::{Entity, EventWriter, Transform};
+/// # use bevy_tweening::{BoxedTweenable, DynTweenable, Tweenable, TweenCompleted, TweenState};
+/// #
+/// # struct MyTweenable;
+/// # impl Tweenable<Transform> for MyTweenable {
+/// #     fn duration(&self) -> Duration  { unimplemented!() }
+/// #     fn is_looping(&self) -> bool  { unimplemented!() }
+/// #     fn set_progress(&mut self, progress: f32)  { unimplemented!() }
+/// #     fn progress(&self) -> f32  { unimplemented!() }
+/// #     fn tick(&mut self, delta: Duration, target: &mut Transform, entity: Entity, event_writer: &mut EventWriter<TweenCompleted>) -> TweenState  { unimplemented!() }
+/// #     fn times_completed(&self) -> u32  { unimplemented!() }
+/// #     fn rewind(&mut self) { unimplemented!() }
+/// # }
+///
+/// DynTweenable::from(Box::new(MyTweenable) as BoxedTweenable<_>);
+/// ```
 pub enum DynTweenable<T> {
     #[doc(hidden)]
     Boxed(BoxedTweenable<T>),
@@ -908,11 +926,14 @@ impl<T> Tweenable<T> for Delay {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::lens::*;
-    use bevy::ecs::{event::Events, system::SystemState};
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
+
+    use bevy::ecs::{event::Events, system::SystemState};
+
+    use crate::lens::*;
+
+    use super::*;
 
     /// Utility to compare floating-point values with a tolerance.
     fn abs_diff_eq(a: f32, b: f32, tol: f32) -> bool {
