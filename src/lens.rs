@@ -370,7 +370,7 @@ mod tests {
             end: Color::BLUE,
             section: 0,
         };
-        let mut text = Text::with_section("", Default::default(), Default::default());
+        let mut text = Text::with_section("", default(), default());
 
         lens.lerp(&mut text, 0.);
         assert_eq!(text.sections[0].style.color, Color::RED);
@@ -623,7 +623,7 @@ mod tests {
         };
         let mut sprite = Sprite {
             color: Color::WHITE,
-            ..Default::default()
+            ..default()
         };
 
         lens.lerp(&mut sprite, 0.);

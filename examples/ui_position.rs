@@ -9,8 +9,7 @@ fn main() {
             title: "UiPositionLens".to_string(),
             width: 1400.,
             height: 600.,
-            present_mode: bevy::window::PresentMode::Fifo, // vsync
-            ..Default::default()
+            ..default()
         })
         .add_plugins(DefaultPlugins)
         .add_plugin(TweeningPlugin)
@@ -109,10 +108,10 @@ fn setup(mut commands: Commands) {
                     align_items: AlignItems::Center,
                     align_self: AlignSelf::Center,
                     justify_content: JustifyContent::Center,
-                    ..Default::default()
+                    ..default()
                 },
                 color: UiColor(Color::RED),
-                ..Default::default()
+                ..default()
             })
             .insert(Animator::new(tween));
 

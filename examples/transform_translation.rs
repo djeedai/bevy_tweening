@@ -9,8 +9,7 @@ fn main() {
             title: "TransformPositionLens".to_string(),
             width: 1400.,
             height: 600.,
-            present_mode: bevy::window::PresentMode::Fifo, // vsync
-            ..Default::default()
+            ..default()
         })
         .add_plugins(DefaultPlugins)
         .add_plugin(TweeningPlugin)
@@ -89,9 +88,9 @@ fn setup(mut commands: Commands) {
                 sprite: Sprite {
                     color: Color::RED,
                     custom_size: Some(Vec2::new(size, size)),
-                    ..Default::default()
+                    ..default()
                 },
-                ..Default::default()
+                ..default()
             })
             .insert(Animator::new(tween));
 

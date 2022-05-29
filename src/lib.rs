@@ -321,7 +321,7 @@ impl<T: Component + std::fmt::Debug> std::fmt::Debug for Animator<T> {
 impl<T: Component> Default for Animator<T> {
     fn default() -> Self {
         Animator {
-            state: Default::default(),
+            state: default(),
             tweenable: None,
             speed: 1.,
         }
@@ -333,7 +333,7 @@ impl<T: Component> Animator<T> {
     pub fn new(tween: impl Tweenable<T> + Send + Sync + 'static) -> Self {
         Animator {
             tweenable: Some(Box::new(tween)),
-            ..Default::default()
+            ..default()
         }
     }
 
@@ -468,9 +468,9 @@ impl<T: Asset + std::fmt::Debug> std::fmt::Debug for AssetAnimator<T> {
 impl<T: Asset> Default for AssetAnimator<T> {
     fn default() -> Self {
         AssetAnimator {
-            state: Default::default(),
+            state: default(),
             tweenable: None,
-            handle: Default::default(),
+            handle: default(),
             speed: 1.,
         }
     }
@@ -482,7 +482,7 @@ impl<T: Asset> AssetAnimator<T> {
         AssetAnimator {
             tweenable: Some(Box::new(tween)),
             handle,
-            ..Default::default()
+            ..default()
         }
     }
 
@@ -687,7 +687,7 @@ mod tests {
         let tween = Tween::new(
             EaseFunction::QuadraticInOut,
             TweeningType::PingPong,
-            std::time::Duration::from_secs(1),
+            Duration::from_secs(1),
             DummyLens { start: 0., end: 1. },
         );
         let animator = Animator::<DummyComponent>::new(tween);
@@ -703,7 +703,7 @@ mod tests {
             let tween = Tween::<DummyComponent>::new(
                 EaseFunction::QuadraticInOut,
                 TweeningType::PingPong,
-                std::time::Duration::from_secs(1),
+                Duration::from_secs(1),
                 DummyLens { start: 0., end: 1. },
             );
             let animator = Animator::new(tween).with_state(state);
@@ -721,7 +721,7 @@ mod tests {
         let tween = Tween::<DummyComponent>::new(
             EaseFunction::QuadraticInOut,
             TweeningType::PingPong,
-            std::time::Duration::from_secs(1),
+            Duration::from_secs(1),
             DummyLens { start: 0., end: 1. },
         );
         animator.set_tweenable(tween);
@@ -735,7 +735,7 @@ mod tests {
         let tween = Tween::<DummyComponent>::new(
             EaseFunction::QuadraticInOut,
             TweeningType::PingPong,
-            std::time::Duration::from_secs(1),
+            Duration::from_secs(1),
             DummyLens { start: 0., end: 1. },
         );
         let mut animator = Animator::new(tween);
@@ -774,7 +774,7 @@ mod tests {
         let tween = Tween::<DummyAsset>::new(
             EaseFunction::QuadraticInOut,
             TweeningType::PingPong,
-            std::time::Duration::from_secs(1),
+            Duration::from_secs(1),
             DummyLens { start: 0., end: 1. },
         );
         let animator = AssetAnimator::new(Handle::<DummyAsset>::default(), tween);
@@ -790,7 +790,7 @@ mod tests {
             let tween = Tween::<DummyAsset>::new(
                 EaseFunction::QuadraticInOut,
                 TweeningType::PingPong,
-                std::time::Duration::from_secs(1),
+                Duration::from_secs(1),
                 DummyLens { start: 0., end: 1. },
             );
             let animator =
@@ -810,7 +810,7 @@ mod tests {
         let tween = Tween::new(
             EaseFunction::QuadraticInOut,
             TweeningType::PingPong,
-            std::time::Duration::from_secs(1),
+            Duration::from_secs(1),
             DummyLens { start: 0., end: 1. },
         );
         animator.set_tweenable(tween);
@@ -825,7 +825,7 @@ mod tests {
         let tween = Tween::new(
             EaseFunction::QuadraticInOut,
             TweeningType::PingPong,
-            std::time::Duration::from_secs(1),
+            Duration::from_secs(1),
             DummyLens { start: 0., end: 1. },
         );
         let mut animator = AssetAnimator::new(Handle::<DummyAsset>::default(), tween);

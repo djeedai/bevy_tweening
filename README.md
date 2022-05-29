@@ -74,9 +74,9 @@ commands
         sprite: Sprite {
             color: Color::RED,
             custom_size: Some(Vec2::new(size, size)),
-            ..Default::default()
+            ..default()
         },
-        ..Default::default()
+        ..default()
     })
     // Add an Animator component to control and execute the animation.
     .insert(Animator::new(tween));
