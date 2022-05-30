@@ -248,42 +248,40 @@ pub enum DynTweenable<T> {
     Tween(Tween<T>),
 }
 
+impl<T> DynTweenable<T> {
+    fn as_dyn(&self) -> &dyn Tweenable<T> {
+        match self {
+            Self::Boxed(b) => b,
+            Self::Delay(d) => d,
+            Self::Sequence(s) => s,
+            Self::Tracks(t) => t,
+            Self::Tween(t) => t,
+        }
+    }
+
+    fn as_mut_dyn(&mut self) -> &mut dyn Tweenable<T> {
+        match self {
+            Self::Boxed(b) => b,
+            Self::Delay(d) => d,
+            Self::Sequence(s) => s,
+            Self::Tracks(t) => t,
+            Self::Tween(t) => t,
+        }
+    }
+}
+
 impl<T> Tweenable<T> for DynTweenable<T> {
     fn duration(&self) -> Duration {
-        match self {
-            Self::Boxed(b) => b.duration(),
-            Self::Delay(d) => Tweenable::<T>::duration(d),
-            Self::Sequence(s) => s.duration(),
-            Self::Tracks(t) => t.duration(),
-            Self::Tween(t) => t.duration(),
-        }
+        self.as_dyn().duration()
     }
     fn is_looping(&self) -> bool {
-        match self {
-            Self::Boxed(b) => b.is_looping(),
-            Self::Delay(d) => Tweenable::<T>::is_looping(d),
-            Self::Sequence(s) => s.is_looping(),
-            Self::Tracks(t) => t.is_looping(),
-            Self::Tween(t) => t.is_looping(),
-        }
+        self.as_dyn().is_looping()
     }
     fn set_progress(&mut self, progress: f32) {
-        match self {
-            Self::Boxed(b) => b.set_progress(progress),
-            Self::Delay(d) => Tweenable::<T>::set_progress(d, progress),
-            Self::Sequence(s) => s.set_progress(progress),
-            Self::Tracks(t) => t.set_progress(progress),
-            Self::Tween(t) => t.set_progress(progress),
-        }
+        self.as_mut_dyn().set_progress(progress);
     }
     fn progress(&self) -> f32 {
-        match self {
-            Self::Boxed(b) => b.progress(),
-            Self::Delay(d) => Tweenable::<T>::progress(d),
-            Self::Sequence(s) => s.progress(),
-            Self::Tracks(t) => t.progress(),
-            Self::Tween(t) => t.progress(),
-        }
+        self.as_dyn().progress()
     }
     fn tick(
         &mut self,
@@ -292,31 +290,13 @@ impl<T> Tweenable<T> for DynTweenable<T> {
         entity: Entity,
         event_writer: &mut EventWriter<TweenCompleted>,
     ) -> TweenState {
-        match self {
-            Self::Boxed(b) => b.tick(delta, target, entity, event_writer),
-            Self::Delay(d) => d.tick(delta, target, entity, event_writer),
-            Self::Sequence(s) => s.tick(delta, target, entity, event_writer),
-            Self::Tracks(t) => t.tick(delta, target, entity, event_writer),
-            Self::Tween(t) => t.tick(delta, target, entity, event_writer),
-        }
+        self.as_mut_dyn().tick(delta, target, entity, event_writer)
     }
     fn times_completed(&self) -> u32 {
-        match self {
-            Self::Boxed(b) => b.times_completed(),
-            Self::Delay(d) => Tweenable::<T>::times_completed(d),
-            Self::Sequence(s) => s.times_completed(),
-            Self::Tracks(t) => t.times_completed(),
-            Self::Tween(t) => t.times_completed(),
-        }
+        self.as_dyn().times_completed()
     }
     fn rewind(&mut self) {
-        match self {
-            Self::Boxed(b) => b.rewind(),
-            Self::Delay(d) => Tweenable::<T>::rewind(d),
-            Self::Sequence(s) => s.rewind(),
-            Self::Tracks(t) => t.rewind(),
-            Self::Tween(t) => t.rewind(),
-        }
+        self.as_mut_dyn().rewind();
     }
 }
 
@@ -686,13 +666,7 @@ impl<T> Sequence<T> {
     /// Get the current active tween in the sequence.
     #[must_use]
     pub fn current(&self) -> &dyn Tweenable<T> {
-        match &self.tweens[self.index()] {
-            DynTweenable::Boxed(b) => b.as_ref(),
-            DynTweenable::Delay(d) => d,
-            DynTweenable::Sequence(s) => s,
-            DynTweenable::Tracks(t) => t,
-            DynTweenable::Tween(t) => t,
-        }
+        self.tweens[self.index()].as_dyn()
     }
 }
 
