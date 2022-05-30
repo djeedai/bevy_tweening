@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 use std::time::Duration;
 
-use crate::{EaseMethod, Lens, TweeningDirection, TweeningType};
+use crate::{EaseMethod, Lens, RepeatCount, RepeatStrategy, TweeningDirection};
 
 /// Playback state of a [`Tweenable`].
 ///
@@ -42,7 +42,7 @@ pub struct TweenCompleted {
     pub user_data: u64,
 }
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug)]
 struct AnimClock {
     elapsed: Duration,
     duration: Duration,
@@ -221,7 +221,8 @@ pub struct Tween<T> {
     ease_function: EaseMethod,
     clock: AnimClock,
     times_completed: u32,
-    tweening_type: TweeningType,
+    count: RepeatCount,
+    strategy: RepeatStrategy,
     direction: TweeningDirection,
     lens: Box<dyn Lens<T> + Send + Sync + 'static>,
     on_completed: Option<Box<CompletedCallback<T>>>,
@@ -238,7 +239,6 @@ impl<T: 'static> Tween<T> {
     /// # use std::time::Duration;
     /// let tween1 = Tween::new(
     ///     EaseFunction::QuadraticInOut,
-    ///     TweeningType::Once,
     ///     Duration::from_secs_f32(1.0),
     ///     TransformPositionLens {
     ///         start: Vec3::ZERO,
@@ -247,7 +247,6 @@ impl<T: 'static> Tween<T> {
     /// );
     /// let tween2 = Tween::new(
     ///     EaseFunction::QuadraticInOut,
-    ///     TweeningType::Once,
     ///     Duration::from_secs_f32(1.0),
     ///     TransformRotationLens {
     ///         start: Quat::IDENTITY,
@@ -271,7 +270,6 @@ impl<T> Tween<T> {
     /// # use std::time::Duration;
     /// let tween = Tween::new(
     ///     EaseFunction::QuadraticInOut,
-    ///     TweeningType::Once,
     ///     Duration::from_secs_f32(1.0),
     ///     TransformPositionLens {
     ///         start: Vec3::ZERO,
@@ -279,20 +277,16 @@ impl<T> Tween<T> {
     ///     },
     /// );
     /// ```
-    pub fn new<L>(
-        ease_function: impl Into<EaseMethod>,
-        tweening_type: TweeningType,
-        duration: Duration,
-        lens: L,
-    ) -> Self
+    pub fn new<L>(ease_function: impl Into<EaseMethod>, duration: Duration, lens: L) -> Self
     where
         L: Lens<T> + Send + Sync + 'static,
     {
         Tween {
             ease_function: ease_function.into(),
-            clock: AnimClock::new(duration, tweening_type != TweeningType::Once),
+            clock: AnimClock::new(duration, RepeatCount::default() != RepeatCount::Finite(1)),
             times_completed: 0,
-            tweening_type,
+            count: default(),
+            strategy: default(),
             direction: TweeningDirection::Forward,
             lens: Box::new(lens),
             on_completed: None,
@@ -313,7 +307,6 @@ impl<T> Tween<T> {
     /// let tween = Tween::new(
     ///     // [...]
     /// #    EaseFunction::QuadraticInOut,
-    /// #    TweeningType::Once,
     /// #    Duration::from_secs_f32(1.0),
     /// #    TransformPositionLens {
     /// #        start: Vec3::ZERO,
@@ -356,6 +349,29 @@ impl<T> Tween<T> {
     /// See [`Tween::set_direction()`].
     pub fn with_direction(mut self, direction: TweeningDirection) -> Self {
         self.direction = direction;
+        self
+    }
+
+    /// TODO
+    pub fn set_repeat_count(&mut self, count: RepeatCount) {
+        self.count = count;
+        self.clock.is_looping = count != RepeatCount::Finite(1);
+    }
+
+    /// TODO
+    pub fn with_repeat_count(mut self, count: RepeatCount) -> Self {
+        self.set_repeat_count(count);
+        self
+    }
+
+    /// TODO
+    pub fn set_repeat_strategy(&mut self, strategy: RepeatStrategy) {
+        self.strategy = strategy;
+    }
+
+    /// TODO
+    pub fn with_repeat_strategy(mut self, strategy: RepeatStrategy) -> Self {
+        self.strategy = strategy;
         self
     }
 
@@ -404,7 +420,11 @@ impl<T> Tweenable<T> for Tween<T> {
     }
 
     fn is_looping(&self) -> bool {
-        self.tweening_type != TweeningType::Once
+        match self.count {
+            RepeatCount::Finite(times) if times == 1 => false,
+            RepeatCount::Finite(times) => self.times_completed < times,
+            RepeatCount::Infinite => true,
+        }
     }
 
     fn set_progress(&mut self, progress: f32) {
@@ -429,14 +449,9 @@ impl<T> Tweenable<T> for Tween<T> {
         // Tick the animation clock
         let times_completed = self.clock.tick(delta);
         self.times_completed += times_completed;
-        if times_completed & 1 != 0 && self.tweening_type == TweeningType::PingPong {
+        if self.strategy == RepeatStrategy::Bounce && times_completed & 1 != 0 {
             self.direction = !self.direction;
         }
-        let state = if self.is_looping() || times_completed == 0 {
-            TweenState::Active
-        } else {
-            TweenState::Completed
-        };
         let progress = self.clock.progress();
 
         // Apply the lens, even if the animation finished, to ensure the state is consistent
@@ -460,7 +475,11 @@ impl<T> Tweenable<T> for Tween<T> {
             }
         }
 
-        state
+        if self.is_looping() || self.times_completed == 0 {
+            TweenState::Active
+        } else {
+            TweenState::Completed
+        }
     }
 
     fn times_completed(&self) -> u32 {
@@ -834,27 +853,29 @@ mod tests {
     #[test]
     fn tween_tick() {
         for tweening_direction in &[TweeningDirection::Forward, TweeningDirection::Backward] {
-            for tweening_type in &[
-                TweeningType::Once,
-                TweeningType::Loop,
-                TweeningType::PingPong,
+            for (count, strategy) in &[
+                (RepeatCount::Finite(1), RepeatStrategy::default()),
+                (RepeatCount::Infinite, RepeatStrategy::Teleport),
+                (RepeatCount::Finite(2), RepeatStrategy::Teleport),
+                (RepeatCount::Infinite, RepeatStrategy::Bounce),
+                (RepeatCount::Finite(2), RepeatStrategy::Bounce),
             ] {
                 println!(
-                    "TweeningType: type={:?} dir={:?}",
-                    tweening_type, tweening_direction
+                    "TweeningType: count={count:?} strategy={strategy:?} dir={tweening_direction:?}",
                 );
 
                 // Create a linear tween over 1 second
                 let mut tween = Tween::new(
                     EaseMethod::Linear,
-                    *tweening_type,
                     Duration::from_secs_f32(1.0),
                     TransformPositionLens {
                         start: Vec3::ZERO,
                         end: Vec3::ONE,
                     },
                 )
-                .with_direction(*tweening_direction);
+                .with_direction(*tweening_direction)
+                .with_repeat_count(*count)
+                .with_repeat_strategy(*strategy);
                 assert_eq!(tween.direction(), *tweening_direction);
                 assert!(tween.on_completed.is_none());
                 assert!(tween.event_data.is_none());
@@ -894,8 +915,8 @@ mod tests {
                 for i in 1..=11 {
                     // Calculate expected values
                     let (progress, times_completed, mut direction, expected_state, just_completed) =
-                        match tweening_type {
-                            TweeningType::Once => {
+                        match count {
+                            RepeatCount::Finite(1) => {
                                 let progress = (i as f32 * 0.2).min(1.0);
                                 let times_completed = if i >= 5 { 1 } else { 0 };
                                 let state = if i < 5 {
@@ -912,36 +933,77 @@ mod tests {
                                     just_completed,
                                 )
                             }
-                            TweeningType::Loop => {
-                                let progress = (i as f32 * 0.2).fract();
-                                let times_completed = i / 5;
-                                let just_completed = i % 5 == 0;
-                                (
-                                    progress,
-                                    times_completed,
-                                    TweeningDirection::Forward,
-                                    TweenState::Active,
-                                    just_completed,
-                                )
-                            }
-                            TweeningType::PingPong => {
-                                let i5 = i % 5;
-                                let progress = i5 as f32 * 0.2;
-                                let times_completed = i / 5;
-                                let i10 = i % 10;
-                                let direction = if i10 >= 5 {
-                                    TweeningDirection::Backward
+                            RepeatCount::Finite(_) => {
+                                if *strategy == RepeatStrategy::Teleport {
+                                    let progress = (i as f32 * 0.2).fract();
+                                    let times_completed = i / 5;
+                                    let just_completed = i % 5 == 0;
+                                    (
+                                        progress,
+                                        times_completed,
+                                        TweeningDirection::Forward,
+                                        if i < 10 {
+                                            TweenState::Active
+                                        } else {
+                                            TweenState::Completed
+                                        },
+                                        just_completed,
+                                    )
                                 } else {
-                                    TweeningDirection::Forward
-                                };
-                                let just_completed = i5 == 0;
-                                (
-                                    progress,
-                                    times_completed,
-                                    direction,
-                                    TweenState::Active,
-                                    just_completed,
-                                )
+                                    let i5 = i % 5;
+                                    let progress = i5 as f32 * 0.2;
+                                    let times_completed = i / 5;
+                                    let i10 = i % 10;
+                                    let direction = if i10 >= 5 {
+                                        TweeningDirection::Backward
+                                    } else {
+                                        TweeningDirection::Forward
+                                    };
+                                    let just_completed = i5 == 0;
+                                    (
+                                        progress,
+                                        times_completed,
+                                        direction,
+                                        if i < 10 {
+                                            TweenState::Active
+                                        } else {
+                                            TweenState::Completed
+                                        },
+                                        just_completed,
+                                    )
+                                }
+                            }
+                            RepeatCount::Infinite => {
+                                if *strategy == RepeatStrategy::Teleport {
+                                    let progress = (i as f32 * 0.2).fract();
+                                    let times_completed = i / 5;
+                                    let just_completed = i % 5 == 0;
+                                    (
+                                        progress,
+                                        times_completed,
+                                        TweeningDirection::Forward,
+                                        TweenState::Active,
+                                        just_completed,
+                                    )
+                                } else {
+                                    let i5 = i % 5;
+                                    let progress = i5 as f32 * 0.2;
+                                    let times_completed = i / 5;
+                                    let i10 = i % 10;
+                                    let direction = if i10 >= 5 {
+                                        TweeningDirection::Backward
+                                    } else {
+                                        TweeningDirection::Forward
+                                    };
+                                    let just_completed = i5 == 0;
+                                    (
+                                        progress,
+                                        times_completed,
+                                        direction,
+                                        TweenState::Active,
+                                        just_completed,
+                                    )
+                                }
                             }
                         };
                     let factor = if tweening_direction.is_backward() {
@@ -980,7 +1042,14 @@ mod tests {
 
                     // Check actual values
                     assert_eq!(tween.direction(), direction);
-                    assert_eq!(tween.is_looping(), *tweening_type != TweeningType::Once);
+                    assert_eq!(
+                        tween.is_looping(),
+                        match *count {
+                            RepeatCount::Finite(times) if times == 1 => false,
+                            RepeatCount::Finite(times) => times_completed < times,
+                            RepeatCount::Infinite => true,
+                        }
+                    );
                     assert_eq!(actual_state, expected_state);
                     assert!(abs_diff_eq(tween.progress(), progress, 1e-5));
                     assert_eq!(tween.times_completed(), times_completed);
@@ -1009,7 +1078,7 @@ mod tests {
                 // Rewind
                 tween.rewind();
                 assert_eq!(tween.direction(), *tweening_direction); // does not change
-                assert_eq!(tween.is_looping(), *tweening_type != TweeningType::Once);
+                assert_eq!(tween.is_looping(), *count != RepeatCount::Finite(1));
                 assert!(abs_diff_eq(tween.progress(), 0., 1e-5));
                 assert_eq!(tween.times_completed(), 0);
 
@@ -1045,7 +1114,6 @@ mod tests {
     fn tween_dir() {
         let mut tween = Tween::new(
             EaseMethod::Linear,
-            TweeningType::Once,
             Duration::from_secs_f32(1.0),
             TransformPositionLens {
                 start: Vec3::ZERO,
@@ -1103,7 +1171,6 @@ mod tests {
     fn seq_tick() {
         let tween1 = Tween::new(
             EaseMethod::Linear,
-            TweeningType::Once,
             Duration::from_secs_f32(1.0),
             TransformPositionLens {
                 start: Vec3::ZERO,
@@ -1112,7 +1179,6 @@ mod tests {
         );
         let tween2 = Tween::new(
             EaseMethod::Linear,
-            TweeningType::Once,
             Duration::from_secs_f32(1.0),
             TransformRotationLens {
                 start: Quat::IDENTITY,
@@ -1163,7 +1229,6 @@ mod tests {
         let mut seq = Sequence::new((1..5).map(|i| {
             Tween::new(
                 EaseMethod::Linear,
-                TweeningType::Once,
                 Duration::from_secs_f32(0.2 * i as f32),
                 TransformPositionLens {
                     start: Vec3::ZERO,
@@ -1194,7 +1259,6 @@ mod tests {
     fn tracks_tick() {
         let tween1 = Tween::new(
             EaseMethod::Linear,
-            TweeningType::Once,
             Duration::from_secs_f32(1.),
             TransformPositionLens {
                 start: Vec3::ZERO,
@@ -1203,7 +1267,6 @@ mod tests {
         );
         let tween2 = Tween::new(
             EaseMethod::Linear,
-            TweeningType::Once,
             Duration::from_secs_f32(0.8), // shorter
             TransformRotationLens {
                 start: Quat::IDENTITY,

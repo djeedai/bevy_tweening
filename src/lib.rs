@@ -42,10 +42,7 @@
 //! let tween = Tween::new(
 //!     // Use a quadratic easing on both endpoints.
 //!     EaseFunction::QuadraticInOut,
-//!     // Loop animation back and forth.
-//!     TweeningType::PingPong,
-//!     // Animation time (one way only; for ping-pong it takes 2 seconds
-//!     // to come back to start).
+//!     // Animation time.
 //!     Duration::from_secs(1),
 //!     // The lens gives access to the Transform component of the Entity,
 //!     // for the Animator to animate it. It also contains the start and
@@ -85,7 +82,6 @@
 //! let tween1 = Tween::new(
 //!     // [...]
 //! #    EaseFunction::BounceOut,
-//! #    TweeningType::Once,
 //! #    Duration::from_secs(2),
 //! #    TransformScaleLens {
 //! #        start: Vec3::ZERO,
@@ -95,7 +91,6 @@
 //! let tween2 = Tween::new(
 //!     // [...]
 //! #    EaseFunction::QuadraticInOut,
-//! #    TweeningType::Once,
 //! #    Duration::from_secs(1),
 //! #    TransformPositionLens {
 //! #        start: Vec3::ZERO,
@@ -163,22 +158,34 @@ pub use plugin::{
 };
 pub use tweenable::{Delay, Sequence, Tracks, Tween, TweenCompleted, TweenState, Tweenable};
 
-/// Type of looping for a tween animation.
+/// How many times to repeat a tween animation. See also: [`RepeatMode`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TweeningType {
-    /// Run the animation once from start to end only.
-    Once,
-    /// Loop the animation indefinitely, restarting from the start each time the end is reached.
-    Loop,
-    /// Loop the animation back and forth, changing direction each time an endpoint is reached.
-    /// A complete cycle start -> end -> start always counts as 2 loop iterations for the various
-    /// operations where looping matters.
-    PingPong,
+pub enum RepeatCount {
+    /// Run the animation N times.
+    Finite(u32),
+    /// Loop the animation indefinitely.
+    Infinite,
 }
 
-impl Default for TweeningType {
+/// What to do when a tween animation needs to be repeated.
+///
+/// Only applicable when [`RepeatCount`] is greater than 1.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RepeatStrategy {
+    /// Reset the animation back to its starting position.
+    #[default]
+    Teleport,
+    /// Follow a ping-pong pattern, changing the direction each time an endpoint is reached.
+    ///
+    /// A complete cycle start -> end -> start always counts as 2 loop iterations for the various
+    /// operations where looping matters. That is, a 1 second animation will take 2 seconds to end
+    /// up back where it started.
+    Bounce,
+}
+
+impl Default for RepeatCount {
     fn default() -> Self {
-        TweeningType::Once
+        Self::Finite(1)
     }
 }
 
@@ -634,9 +641,15 @@ mod tests {
     }
 
     #[test]
-    fn tweening_type() {
-        let tweening_type = TweeningType::default();
-        assert_eq!(tweening_type, TweeningType::Once);
+    fn repeat_count() {
+        let tweening_type = RepeatCount::default();
+        assert_eq!(tweening_type, RepeatCount::Finite(1));
+    }
+
+    #[test]
+    fn repeat_strategy() {
+        let tweening_type = RepeatStrategy::default();
+        assert_eq!(tweening_type, RepeatStrategy::Teleport);
     }
 
     #[test]
@@ -686,7 +699,6 @@ mod tests {
     fn animator_new() {
         let tween = Tween::new(
             EaseFunction::QuadraticInOut,
-            TweeningType::PingPong,
             std::time::Duration::from_secs(1),
             DummyLens { start: 0., end: 1. },
         );
@@ -702,7 +714,6 @@ mod tests {
         for state in [AnimatorState::Playing, AnimatorState::Paused] {
             let tween = Tween::<DummyComponent>::new(
                 EaseFunction::QuadraticInOut,
-                TweeningType::PingPong,
                 std::time::Duration::from_secs(1),
                 DummyLens { start: 0., end: 1. },
             );
@@ -720,7 +731,6 @@ mod tests {
 
         let tween = Tween::<DummyComponent>::new(
             EaseFunction::QuadraticInOut,
-            TweeningType::PingPong,
             std::time::Duration::from_secs(1),
             DummyLens { start: 0., end: 1. },
         );
@@ -734,7 +744,6 @@ mod tests {
     fn animator_controls() {
         let tween = Tween::<DummyComponent>::new(
             EaseFunction::QuadraticInOut,
-            TweeningType::PingPong,
             std::time::Duration::from_secs(1),
             DummyLens { start: 0., end: 1. },
         );
@@ -773,7 +782,6 @@ mod tests {
     fn asset_animator_new() {
         let tween = Tween::<DummyAsset>::new(
             EaseFunction::QuadraticInOut,
-            TweeningType::PingPong,
             std::time::Duration::from_secs(1),
             DummyLens { start: 0., end: 1. },
         );
@@ -789,7 +797,6 @@ mod tests {
         for state in [AnimatorState::Playing, AnimatorState::Paused] {
             let tween = Tween::<DummyAsset>::new(
                 EaseFunction::QuadraticInOut,
-                TweeningType::PingPong,
                 std::time::Duration::from_secs(1),
                 DummyLens { start: 0., end: 1. },
             );
@@ -809,7 +816,6 @@ mod tests {
 
         let tween = Tween::new(
             EaseFunction::QuadraticInOut,
-            TweeningType::PingPong,
             std::time::Duration::from_secs(1),
             DummyLens { start: 0., end: 1. },
         );
@@ -824,7 +830,6 @@ mod tests {
     fn asset_animator_controls() {
         let tween = Tween::new(
             EaseFunction::QuadraticInOut,
-            TweeningType::PingPong,
             std::time::Duration::from_secs(1),
             DummyLens { start: 0., end: 1. },
         );

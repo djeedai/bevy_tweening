@@ -79,13 +79,14 @@ fn setup(
 
         let tween = Tween::new(
             *ease_function,
-            TweeningType::PingPong,
             Duration::from_secs(1),
             ColorMaterialColorLens {
                 start: Color::RED,
                 end: Color::BLUE,
             },
-        );
+        )
+        .with_repeat_count(RepeatCount::Infinite)
+        .with_repeat_strategy(RepeatStrategy::Bounce);
 
         commands
             .spawn_bundle(MaterialMesh2dBundle {
