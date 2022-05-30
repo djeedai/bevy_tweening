@@ -170,10 +170,9 @@ pub enum RepeatCount {
 /// What to do when a tween animation needs to be repeated.
 ///
 /// Only applicable when [`RepeatCount`] is greater than 1.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RepeatStrategy {
     /// Reset the animation back to its starting position.
-    #[default]
     Teleport,
     /// Follow a ping-pong pattern, changing the direction each time an endpoint is reached.
     ///
@@ -186,6 +185,12 @@ pub enum RepeatStrategy {
 impl Default for RepeatCount {
     fn default() -> Self {
         Self::Finite(1)
+    }
+}
+
+impl Default for RepeatStrategy {
+    fn default() -> Self {
+        Self::Teleport
     }
 }
 
