@@ -168,10 +168,10 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     // Build parallel tracks executing two tweens at the same time : rotate and scale.
     let tracks = Tracks::new([tween_rotate, tween_scale]);
     // Build a sequence from an heterogeneous list of tweenables by casting them manually
-    // to a boxed Tweenable<Transform> : first move, then { rotate + scale }.
-    let seq2 = Sequence::new([
-        Box::new(tween_move) as Box<dyn Tweenable<Transform> + Send + Sync + 'static>,
-        Box::new(tracks) as Box<dyn Tweenable<Transform> + Send + Sync + 'static>,
+    // to a BoxedTweenable<Transform> : first move, then { rotate + scale }.
+    let seq2 = Sequence::from_vec(vec![
+        Box::new(tween_move) as BoxedTweenable<Transform>,
+        Box::new(tracks) as BoxedTweenable<Transform>,
     ]);
 
     commands

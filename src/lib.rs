@@ -161,7 +161,10 @@ pub use lens::Lens;
 pub use plugin::{
     asset_animator_system, component_animator_system, AnimationSystem, TweeningPlugin,
 };
-pub use tweenable::{Delay, Sequence, Tracks, Tween, TweenCompleted, TweenState, Tweenable};
+pub use tweenable::{
+    BoxedTweenable, Delay, IntoBoxedTweenable, Sequence, Tracks, Tween, TweenCompleted, TweenState,
+    Tweenable,
+};
 
 /// Type of looping for a tween animation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

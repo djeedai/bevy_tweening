@@ -169,44 +169,17 @@ pub trait Tweenable<T>: Send + Sync {
     fn rewind(&mut self);
 }
 
-impl<T> Tweenable<T> for Box<dyn Tweenable<T> + Send + Sync + 'static> {
-    fn duration(&self) -> Duration {
-        self.as_ref().duration()
-    }
-    fn is_looping(&self) -> bool {
-        self.as_ref().is_looping()
-    }
-    fn set_progress(&mut self, progress: f32) {
-        self.as_mut().set_progress(progress);
-    }
-    fn progress(&self) -> f32 {
-        self.as_ref().progress()
-    }
-    fn tick(
-        &mut self,
-        delta: Duration,
-        target: &mut T,
-        entity: Entity,
-        event_writer: &mut EventWriter<TweenCompleted>,
-    ) -> TweenState {
-        self.as_mut().tick(delta, target, entity, event_writer)
-    }
-    fn times_completed(&self) -> u32 {
-        self.as_ref().times_completed()
-    }
-    fn rewind(&mut self) {
-        self.as_mut().rewind();
-    }
+/// Boxed tweenable trait object.
+pub type BoxedTweenable<T> = Box<dyn Tweenable<T> + Send + Sync + 'static>;
+
+/// Trait for boxing a [`Tweenable`] trait object into a [`BoxedTweenable`].
+pub trait IntoBoxedTweenable<T> {
+    /// Convert the current object into a [`BoxedTweenable`].
+    fn into_boxed(this: Self) -> BoxedTweenable<T>;
 }
 
-/// Trait for boxing a [`Tweenable`] trait object.
-pub trait IntoBoxDynTweenable<T> {
-    /// Convert the current object into a boxed [`Tweenable`].
-    fn into_box_dyn(this: Self) -> Box<dyn Tweenable<T> + Send + Sync + 'static>;
-}
-
-impl<T, U: Tweenable<T> + Send + Sync + 'static> IntoBoxDynTweenable<T> for U {
-    fn into_box_dyn(this: U) -> Box<dyn Tweenable<T> + Send + Sync + 'static> {
+impl<T, U: Tweenable<T> + Send + Sync + 'static> IntoBoxedTweenable<T> for U {
+    fn into_boxed(this: U) -> BoxedTweenable<T> {
         Box::new(this)
     }
 }
@@ -475,7 +448,7 @@ impl<T> Tweenable<T> for Tween<T> {
 
 /// A sequence of tweens played back in order one after the other.
 pub struct Sequence<T> {
-    tweens: Vec<Box<dyn Tweenable<T> + Send + Sync + 'static>>,
+    tweens: Vec<BoxedTweenable<T>>,
     index: usize,
     duration: Duration,
     time: Duration,
@@ -483,14 +456,33 @@ pub struct Sequence<T> {
 }
 
 impl<T> Sequence<T> {
-    /// Create a new sequence of tweens.
+    /// Create a new sequence of tweenables.
+    ///
+    /// # Panics
     ///
     /// This method panics if the input collection is empty.
-    pub fn new(items: impl IntoIterator<Item = impl IntoBoxDynTweenable<T>>) -> Self {
+    pub fn new(items: impl IntoIterator<Item = impl IntoBoxedTweenable<T>>) -> Self {
         let tweens: Vec<_> = items
             .into_iter()
-            .map(IntoBoxDynTweenable::into_box_dyn)
+            .map(IntoBoxedTweenable::into_boxed)
             .collect();
+        assert!(!tweens.is_empty());
+        let duration = tweens.iter().map(|t| t.duration()).sum();
+        Sequence {
+            tweens,
+            index: 0,
+            duration,
+            time: Duration::ZERO,
+            times_completed: 0,
+        }
+    }
+
+    /// Create a new sequence of tweenables from an existing collection.
+    ///
+    /// # Panics
+    ///
+    /// This method panics if the input collection is empty.
+    pub fn from_vec(tweens: Vec<BoxedTweenable<T>>) -> Self {
         assert!(!tweens.is_empty());
         let duration = tweens.iter().map(|t| t.duration()).sum();
         Sequence {
@@ -626,7 +618,7 @@ impl<T> Tweenable<T> for Sequence<T> {
 
 /// A collection of [`Tweenable`] executing in parallel.
 pub struct Tracks<T> {
-    tracks: Vec<Box<dyn Tweenable<T> + Send + Sync + 'static>>,
+    tracks: Vec<BoxedTweenable<T>>,
     duration: Duration,
     time: Duration,
     times_completed: u32,
@@ -634,10 +626,10 @@ pub struct Tracks<T> {
 
 impl<T> Tracks<T> {
     /// Create a new [`Tracks`] from an iterator over a collection of [`Tweenable`].
-    pub fn new(items: impl IntoIterator<Item = impl IntoBoxDynTweenable<T>>) -> Self {
+    pub fn new(items: impl IntoIterator<Item = impl IntoBoxedTweenable<T>>) -> Self {
         let tracks: Vec<_> = items
             .into_iter()
-            .map(IntoBoxDynTweenable::into_box_dyn)
+            .map(IntoBoxedTweenable::into_boxed)
             .collect();
         let duration = tracks.iter().map(|t| t.duration()).max().unwrap();
         Tracks {
@@ -1177,6 +1169,47 @@ mod tests {
         for i in 1..5 {
             assert_eq!(seq.index(), i - 1);
             assert!((seq.progress() - progress).abs() < 1e-5);
+            let secs = 0.2 * i as f32;
+            assert_eq!(seq.current().duration(), Duration::from_secs_f32(secs));
+            progress += 0.25;
+            seq.set_progress(progress);
+            assert_eq!(seq.times_completed(), if i == 4 { 1 } else { 0 });
+        }
+
+        seq.rewind();
+        assert_eq!(seq.progress(), 0.);
+        assert_eq!(seq.times_completed(), 0);
+    }
+
+    /// Sequence::from_vec() with Vec<BoxedTweenable>
+    #[test]
+    fn seq_vec() {
+        let v = (1..5)
+            .map(|i| {
+                let duration = Duration::from_secs_f32(0.2 * i as f32);
+                let b: BoxedTweenable<_> = if i % 5 == 0 {
+                    Box::new(Tween::new(
+                        EaseMethod::Linear,
+                        TweeningType::Once,
+                        duration,
+                        TransformPositionLens {
+                            start: Vec3::ZERO,
+                            end: Vec3::ONE,
+                        },
+                    ))
+                } else {
+                    Box::new(Delay::new(duration))
+                };
+                b
+            })
+            .collect::<Vec<BoxedTweenable<_>>>();
+        let mut seq = Sequence::from_vec(v);
+        assert!(!seq.is_looping());
+
+        let mut progress = 0.;
+        for i in 1..5 {
+            assert_eq!(seq.index(), i - 1);
+            assert!(abs_diff_eq(seq.progress(), progress, 1e-5));
             let secs = 0.2 * i as f32;
             assert_eq!(seq.current().duration(), Duration::from_secs_f32(secs));
             progress += 0.25;
