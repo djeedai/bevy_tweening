@@ -1,7 +1,6 @@
 use std::time::Duration;
 
 use bevy::prelude::*;
-use smallvec::{smallvec, SmallVec};
 
 use crate::{EaseMethod, Lens, TweeningDirection, TweeningType};
 
@@ -479,7 +478,7 @@ impl<T> Tweenable<T> for Tween<T> {
 
 /// A sequence of tweens played back in order one after the other.
 pub struct Sequence<T> {
-    tweens: SmallVec<[BoxedTweenable<T>; 3]>,
+    tweens: Vec<BoxedTweenable<T>>,
     index: usize,
     duration: Duration,
     time: Duration,
@@ -492,9 +491,13 @@ impl<T> Sequence<T> {
     /// This method panics if the input collection is empty.
     #[must_use]
     pub fn new(items: impl IntoIterator<Item = impl Into<BoxedTweenable<T>>>) -> Self {
-        let tweens: SmallVec<[_; 3]> = items.into_iter().map(Into::into).collect();
+        let tweens: Vec<_> = items.into_iter().map(Into::into).collect();
         assert!(!tweens.is_empty());
-        let duration = tweens.iter().map(Tweenable::duration).sum();
+        let duration = tweens
+            .iter()
+            .map(AsRef::as_ref)
+            .map(Tweenable::duration)
+            .sum();
         Self {
             tweens,
             index: 0,
@@ -510,7 +513,7 @@ impl<T> Sequence<T> {
         let duration = tween.duration();
         let boxed: BoxedTweenable<T> = Box::new(tween);
         Self {
-            tweens: smallvec![boxed],
+            tweens: vec![boxed],
             index: 0,
             duration,
             time: Duration::ZERO,
@@ -522,7 +525,7 @@ impl<T> Sequence<T> {
     #[must_use]
     pub fn with_capacity(capacity: usize) -> Self {
         Self {
-            tweens: SmallVec::with_capacity(capacity),
+            tweens: Vec::with_capacity(capacity),
             index: 0,
             duration: Duration::ZERO,
             time: Duration::ZERO,
@@ -634,7 +637,7 @@ impl<T> Tweenable<T> for Sequence<T> {
 
 /// A collection of [`Tweenable`] executing in parallel.
 pub struct Tracks<T> {
-    tracks: SmallVec<[BoxedTweenable<T>; 3]>,
+    tracks: Vec<BoxedTweenable<T>>,
     duration: Duration,
     time: Duration,
     times_completed: u32,
@@ -644,8 +647,13 @@ impl<T> Tracks<T> {
     /// Create a new [`Tracks`] from an iterator over a collection of [`Tweenable`].
     #[must_use]
     pub fn new(items: impl IntoIterator<Item = impl Into<BoxedTweenable<T>>>) -> Self {
-        let tracks: SmallVec<[_; 3]> = items.into_iter().map(Into::into).collect();
-        let duration = tracks.iter().map(Tweenable::duration).max().unwrap();
+        let tracks: Vec<_> = items.into_iter().map(Into::into).collect();
+        let duration = tracks
+            .iter()
+            .map(AsRef::as_ref)
+            .map(Tweenable::duration)
+            .max()
+            .unwrap();
         Self {
             tracks,
             duration,

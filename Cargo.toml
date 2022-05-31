@@ -22,7 +22,6 @@ bevy_ui = ["bevy/bevy_ui", "bevy/bevy_text", "bevy/bevy_render"]
 [dependencies]
 interpolation = "0.2"
 bevy = { version = "0.7", default-features = false }
-smallvec = "1.8.0"
 
 [dev-dependencies]
 bevy-inspector-egui = "0.10"
