@@ -9,6 +9,7 @@ fn main() {
             title: "Menu".to_string(),
             width: 800.,
             height: 400.,
+            present_mode: bevy::window::PresentMode::Fifo, // vsync
             ..default()
         })
         .add_plugins(DefaultPlugins)

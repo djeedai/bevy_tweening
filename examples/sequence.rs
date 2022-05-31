@@ -8,6 +8,7 @@ fn main() {
             title: "Sequence".to_string(),
             width: 600.,
             height: 600.,
+            present_mode: bevy::window::PresentMode::Fifo, // vsync
             ..default()
         })
         .add_plugins(DefaultPlugins)

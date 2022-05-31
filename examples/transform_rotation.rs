@@ -9,6 +9,7 @@ fn main() {
             title: "TransformRotationLens".to_string(),
             width: 1400.,
             height: 600.,
+            present_mode: bevy::window::PresentMode::Fifo, // vsync
             ..default()
         })
         .add_plugins(DefaultPlugins)

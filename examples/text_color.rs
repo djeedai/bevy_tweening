@@ -10,6 +10,7 @@ fn main() {
             title: "TextColorLens".to_string(),
             width: WIDTH,
             height: HEIGHT,
+            present_mode: bevy::window::PresentMode::Fifo, // vsync
             ..default()
         })
         .add_plugins(DefaultPlugins)

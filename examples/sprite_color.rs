@@ -7,6 +7,7 @@ fn main() {
             title: "SpriteColorLens".to_string(),
             width: 1200.,
             height: 600.,
+            present_mode: bevy::window::PresentMode::Fifo, // vsync
             ..default()
         })
         .add_plugins(DefaultPlugins)
