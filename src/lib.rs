@@ -226,16 +226,16 @@ impl EaseMethod {
     #[must_use]
     fn sample(self, x: f32) -> f32 {
         match self {
-            EaseMethod::EaseFunction(function) => x.calc(function),
+            Self::EaseFunction(function) => x.calc(function),
             Self::Linear => x,
-            EaseMethod::Discrete(limit) => {
+            Self::Discrete(limit) => {
                 if x > limit {
                     1.
                 } else {
                     0.
                 }
             }
-            EaseMethod::CustomFunction(function) => function(x),
+            Self::CustomFunction(function) => function(x),
         }
     }
 }
