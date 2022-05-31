@@ -3,22 +3,20 @@ use bevy_inspector_egui::WorldInspectorPlugin;
 use bevy_tweening::{lens::*, *};
 use std::time::Duration;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() {
     App::default()
         .insert_resource(WindowDescriptor {
             title: "Menu".to_string(),
             width: 800.,
             height: 400.,
             present_mode: bevy::window::PresentMode::Fifo, // vsync
-            ..Default::default()
+            ..default()
         })
         .add_plugins(DefaultPlugins)
         .add_plugin(TweeningPlugin)
         .add_plugin(WorldInspectorPlugin::new())
         .add_startup_system(setup)
         .run();
-
-    Ok(())
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -38,10 +36,10 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 align_items: AlignItems::Center,
                 align_self: AlignSelf::Center,
                 justify_content: JustifyContent::Center,
-                ..Default::default()
+                ..default()
             },
             color: UiColor(Color::NONE),
-            ..Default::default()
+            ..default()
         })
         .insert(Name::new("menu"))
         .id();
@@ -73,11 +71,11 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     align_items: AlignItems::Center,
                     align_self: AlignSelf::Center,
                     justify_content: JustifyContent::Center,
-                    ..Default::default()
+                    ..default()
                 },
                 color: UiColor(Color::rgb_u8(162, 226, 95)),
                 transform: Transform::from_scale(Vec3::splat(0.01)),
-                ..Default::default()
+                ..default()
             })
             .insert(Name::new(format!("button:{}", text)))
             .insert(Parent(container))
@@ -96,7 +94,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                             horizontal: HorizontalAlign::Center,
                         },
                     ),
-                    ..Default::default()
+                    ..default()
                 });
             });
     }

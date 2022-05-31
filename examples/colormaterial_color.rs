@@ -5,21 +5,19 @@ use bevy::{
 use bevy_tweening::{lens::*, *};
 use std::time::Duration;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() {
     App::default()
         .insert_resource(WindowDescriptor {
             title: "ColorMaterialColorLens".to_string(),
             width: 1200.,
             height: 600.,
             present_mode: bevy::window::PresentMode::Fifo, // vsync
-            ..Default::default()
+            ..default()
         })
         .add_plugins(DefaultPlugins)
         .add_plugin(TweeningPlugin)
         .add_startup_system(setup)
         .run();
-
-    Ok(())
 }
 
 fn setup(
@@ -93,7 +91,7 @@ fn setup(
                 transform: Transform::from_translation(Vec3::new(x, y, 0.))
                     .with_scale(Vec3::splat(size)),
                 material: unique_material.clone(),
-                ..Default::default()
+                ..default()
             })
             .insert(AssetAnimator::new(unique_material.clone(), tween));
         y -= size * spacing;

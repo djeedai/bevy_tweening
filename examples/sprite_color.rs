@@ -1,21 +1,19 @@
 use bevy::prelude::*;
 use bevy_tweening::{lens::*, *};
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() {
     App::default()
         .insert_resource(WindowDescriptor {
             title: "SpriteColorLens".to_string(),
             width: 1200.,
             height: 600.,
             present_mode: bevy::window::PresentMode::Fifo, // vsync
-            ..Default::default()
+            ..default()
         })
         .add_plugins(DefaultPlugins)
         .add_plugin(TweeningPlugin)
         .add_startup_system(setup)
         .run();
-
-    Ok(())
 }
 
 fn setup(mut commands: Commands) {
@@ -77,9 +75,9 @@ fn setup(mut commands: Commands) {
                 sprite: Sprite {
                     color: Color::BLACK,
                     custom_size: Some(Vec2::new(size, size)),
-                    ..Default::default()
+                    ..default()
                 },
-                ..Default::default()
+                ..default()
             })
             .insert(Animator::new(tween));
 

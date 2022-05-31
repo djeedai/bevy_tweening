@@ -2,22 +2,20 @@ use bevy::prelude::*;
 use bevy_tweening::{lens::*, *};
 use std::time::Duration;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() {
     App::default()
         .insert_resource(WindowDescriptor {
             title: "Sequence".to_string(),
             width: 600.,
             height: 600.,
             present_mode: bevy::window::PresentMode::Fifo, // vsync
-            ..Default::default()
+            ..default()
         })
         .add_plugins(DefaultPlugins)
         .add_plugin(TweeningPlugin)
         .add_startup_system(setup)
         .add_system(update_text)
         .run();
-
-    Ok(())
 }
 
 #[derive(Component)]
@@ -69,7 +67,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 alignment: text_alignment,
             },
             transform: Transform::from_translation(Vec3::new(0., 40., 0.)),
-            ..Default::default()
+            ..default()
         })
         .insert(RedProgress);
 
@@ -90,7 +88,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 alignment: text_alignment,
             },
             transform: Transform::from_translation(Vec3::new(0., -40., 0.)),
-            ..Default::default()
+            ..default()
         })
         .insert(BlueProgress);
 
@@ -128,9 +126,9 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             sprite: Sprite {
                 color: Color::RED,
                 custom_size: Some(Vec2::new(size, size)),
-                ..Default::default()
+                ..default()
             },
-            ..Default::default()
+            ..default()
         })
         .insert(RedSprite)
         .insert(Animator::new(seq));
@@ -179,7 +177,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             sprite: Sprite {
                 color: Color::BLUE,
                 custom_size: Some(Vec2::new(size * 3., size)),
-                ..Default::default()
+                ..default()
             },
             ..Default::default()
         })

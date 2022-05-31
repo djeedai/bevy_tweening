@@ -4,21 +4,19 @@ use bevy_tweening::{lens::*, *};
 const WIDTH: f32 = 1200.;
 const HEIGHT: f32 = 600.;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() {
     App::default()
         .insert_resource(WindowDescriptor {
             title: "TextColorLens".to_string(),
             width: WIDTH,
             height: HEIGHT,
             present_mode: bevy::window::PresentMode::Fifo, // vsync
-            ..Default::default()
+            ..default()
         })
         .add_plugins(DefaultPlugins)
         .add_plugin(TweeningPlugin)
         .add_startup_system(setup)
         .run();
-
-    Ok(())
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
@@ -94,7 +92,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     align_items: AlignItems::Center,
                     align_self: AlignSelf::Center,
                     justify_content: JustifyContent::Center,
-                    ..Default::default()
+                    ..default()
                 },
                 text: Text::with_section(
                     *ease_name,
@@ -104,9 +102,9 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                         color: Color::WHITE,
                     },
                     // you can still use Default
-                    Default::default(),
+                    default(),
                 ),
-                ..Default::default()
+                ..default()
             })
             .insert(Animator::new(tween));
 
