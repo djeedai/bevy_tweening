@@ -17,6 +17,36 @@ use crate::{EaseMethod, Lens, TweeningDirection, TweeningType};
 ///
 /// Sequence::new([Box::new(delay) as BoxedTweenable<Transform>, tween.into()]);
 /// ```
+///
+/// When using your own [`Tweenable`] types, APIs will be easier to use if you implement [`From`]:
+/// ```no_run
+/// # use std::time::Duration;
+/// # use bevy::prelude::{Entity, EventWriter, Transform};
+/// # use bevy_tweening::{BoxedTweenable, Sequence, Tweenable, TweenCompleted, TweenState};
+/// #
+/// # struct MyTweenable;
+/// # impl Tweenable<Transform> for MyTweenable {
+/// #     fn duration(&self) -> Duration  { unimplemented!() }
+/// #     fn is_looping(&self) -> bool  { unimplemented!() }
+/// #     fn set_progress(&mut self, progress: f32)  { unimplemented!() }
+/// #     fn progress(&self) -> f32  { unimplemented!() }
+/// #     fn tick(&mut self, delta: Duration, target: &mut Transform, entity: Entity, event_writer: &mut EventWriter<TweenCompleted>) -> TweenState  { unimplemented!() }
+/// #     fn times_completed(&self) -> u32  { unimplemented!() }
+/// #     fn rewind(&mut self) { unimplemented!() }
+/// # }
+///
+/// Sequence::new([Box::new(MyTweenable) as BoxedTweenable<_>]);
+///
+/// // OR
+///
+/// Sequence::new([MyTweenable]);
+///
+/// impl From<MyTweenable> for BoxedTweenable<Transform> {
+///     fn from(t: MyTweenable) -> Self {
+///         Box::new(t)
+///     }
+/// }
+/// ```
 pub type BoxedTweenable<T> = Box<dyn Tweenable<T> + Send + Sync + 'static>;
 
 /// Playback state of a [`Tweenable`].
