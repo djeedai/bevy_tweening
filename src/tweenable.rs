@@ -5,6 +5,18 @@ use bevy::prelude::*;
 use crate::{EaseMethod, Lens, TweeningDirection, TweeningType};
 
 /// The dynamic tweenable type.
+///
+/// When creating lists of tweenables, you will need to box them to create a homogeneous
+/// array like so:
+/// ```no_run
+/// # use bevy::prelude::Transform;
+/// # use bevy_tweening::{BoxedTweenable, Delay, Sequence, Tween};
+/// #
+/// # let delay: Delay = unimplemented!();
+/// # let tween: Tween<Transform> = unimplemented!();
+///
+/// Sequence::new([Box::new(delay) as BoxedTweenable<Transform>, tween.into()]);
+/// ```
 pub type BoxedTweenable<T> = Box<dyn Tweenable<T> + Send + Sync + 'static>;
 
 /// Playback state of a [`Tweenable`].
@@ -173,160 +185,27 @@ pub trait Tweenable<T>: Send + Sync {
     fn rewind(&mut self);
 }
 
-impl<T> Tweenable<T> for BoxedTweenable<T> {
-    fn duration(&self) -> Duration {
-        self.as_ref().duration()
-    }
-    fn is_looping(&self) -> bool {
-        self.as_ref().is_looping()
-    }
-    fn set_progress(&mut self, progress: f32) {
-        self.as_mut().set_progress(progress);
-    }
-    fn progress(&self) -> f32 {
-        self.as_ref().progress()
-    }
-    fn tick(
-        &mut self,
-        delta: Duration,
-        target: &mut T,
-        entity: Entity,
-        event_writer: &mut EventWriter<TweenCompleted>,
-    ) -> TweenState {
-        self.as_mut().tick(delta, target, entity, event_writer)
-    }
-    fn times_completed(&self) -> u32 {
-        self.as_ref().times_completed()
-    }
-    fn rewind(&mut self) {
-        self.as_mut().rewind();
-    }
-}
-
-/// An emulated dynamic tweenabled used to optimize out allocations in [`Sequence`]s and [`Tracks`].
-/// You should only ever use [`DynTweenable::from`][From::from].
-///
-/// When using your own [`Tweenable`]s, convert them to a box first:
-/// ```
-/// # use std::time::Duration;
-/// # use bevy::prelude::{Entity, EventWriter, Transform};
-/// # use bevy_tweening::{BoxedTweenable, DynTweenable, Tweenable, TweenCompleted, TweenState};
-/// #
-/// # struct MyTweenable;
-/// # impl Tweenable<Transform> for MyTweenable {
-/// #     fn duration(&self) -> Duration  { unimplemented!() }
-/// #     fn is_looping(&self) -> bool  { unimplemented!() }
-/// #     fn set_progress(&mut self, progress: f32)  { unimplemented!() }
-/// #     fn progress(&self) -> f32  { unimplemented!() }
-/// #     fn tick(&mut self, delta: Duration, target: &mut Transform, entity: Entity, event_writer: &mut EventWriter<TweenCompleted>) -> TweenState  { unimplemented!() }
-/// #     fn times_completed(&self) -> u32  { unimplemented!() }
-/// #     fn rewind(&mut self) { unimplemented!() }
-/// # }
-///
-/// DynTweenable::from(Box::new(MyTweenable) as BoxedTweenable<_>);
-///
-/// // OR
-///
-/// DynTweenable::from(MyTweenable);
-///
-/// impl From<MyTweenable> for DynTweenable<Transform> {
-///     fn from(t: MyTweenable) -> Self {
-///         DynTweenable::from(Box::new(t) as BoxedTweenable<_>)
-///     }
-/// }
-/// ```
-pub enum DynTweenable<T> {
-    #[doc(hidden)]
-    Boxed(BoxedTweenable<T>),
-    #[doc(hidden)]
-    Delay(Delay),
-    #[doc(hidden)]
-    Sequence(Sequence<T>),
-    #[doc(hidden)]
-    Tracks(Tracks<T>),
-    #[doc(hidden)]
-    Tween(Tween<T>),
-}
-
-impl<T> DynTweenable<T> {
-    fn as_dyn(&self) -> &dyn Tweenable<T> {
-        match self {
-            Self::Boxed(b) => b,
-            Self::Delay(d) => d,
-            Self::Sequence(s) => s,
-            Self::Tracks(t) => t,
-            Self::Tween(t) => t,
-        }
-    }
-
-    fn as_mut_dyn(&mut self) -> &mut dyn Tweenable<T> {
-        match self {
-            Self::Boxed(b) => b,
-            Self::Delay(d) => d,
-            Self::Sequence(s) => s,
-            Self::Tracks(t) => t,
-            Self::Tween(t) => t,
-        }
-    }
-}
-
-impl<T> Tweenable<T> for DynTweenable<T> {
-    fn duration(&self) -> Duration {
-        self.as_dyn().duration()
-    }
-    fn is_looping(&self) -> bool {
-        self.as_dyn().is_looping()
-    }
-    fn set_progress(&mut self, progress: f32) {
-        self.as_mut_dyn().set_progress(progress);
-    }
-    fn progress(&self) -> f32 {
-        self.as_dyn().progress()
-    }
-    fn tick(
-        &mut self,
-        delta: Duration,
-        target: &mut T,
-        entity: Entity,
-        event_writer: &mut EventWriter<TweenCompleted>,
-    ) -> TweenState {
-        self.as_mut_dyn().tick(delta, target, entity, event_writer)
-    }
-    fn times_completed(&self) -> u32 {
-        self.as_dyn().times_completed()
-    }
-    fn rewind(&mut self) {
-        self.as_mut_dyn().rewind();
-    }
-}
-
-impl<T> From<BoxedTweenable<T>> for DynTweenable<T> {
-    fn from(b: BoxedTweenable<T>) -> Self {
-        Self::Boxed(b)
-    }
-}
-
-impl<T> From<Delay> for DynTweenable<T> {
+impl<T> From<Delay> for BoxedTweenable<T> {
     fn from(d: Delay) -> Self {
-        Self::Delay(d)
+        Box::new(d)
     }
 }
 
-impl<T> From<Sequence<T>> for DynTweenable<T> {
+impl<T: 'static> From<Sequence<T>> for BoxedTweenable<T> {
     fn from(s: Sequence<T>) -> Self {
-        Self::Sequence(s)
+        Box::new(s)
     }
 }
 
-impl<T> From<Tracks<T>> for DynTweenable<T> {
+impl<T: 'static> From<Tracks<T>> for BoxedTweenable<T> {
     fn from(t: Tracks<T>) -> Self {
-        Self::Tracks(t)
+        Box::new(t)
     }
 }
 
-impl<T> From<Tween<T>> for DynTweenable<T> {
+impl<T: 'static> From<Tween<T>> for BoxedTweenable<T> {
     fn from(t: Tween<T>) -> Self {
-        Self::Tween(t)
+        Box::new(t)
     }
 }
 
@@ -599,7 +478,7 @@ impl<T> Tweenable<T> for Tween<T> {
 
 /// A sequence of tweens played back in order one after the other.
 pub struct Sequence<T> {
-    tweens: Vec<DynTweenable<T>>,
+    tweens: Vec<BoxedTweenable<T>>,
     index: usize,
     duration: Duration,
     time: Duration,
@@ -611,7 +490,7 @@ impl<T> Sequence<T> {
     ///
     /// This method panics if the input collection is empty.
     #[must_use]
-    pub fn new(items: impl IntoIterator<Item = impl Into<DynTweenable<T>>>) -> Self {
+    pub fn new(items: impl IntoIterator<Item = impl Into<BoxedTweenable<T>>>) -> Self {
         let tweens: Vec<_> = items.into_iter().map(Into::into).collect();
         assert!(!tweens.is_empty());
         let duration = tweens.iter().map(Tweenable::duration).sum();
@@ -629,7 +508,7 @@ impl<T> Sequence<T> {
     pub fn from_single(tween: impl Tweenable<T> + Send + Sync + 'static) -> Self {
         let duration = tween.duration();
         Self {
-            tweens: vec![DynTweenable::Boxed(Box::new(tween))],
+            tweens: vec![Box::new(tween)],
             index: 0,
             duration,
             time: Duration::ZERO,
@@ -653,7 +532,7 @@ impl<T> Sequence<T> {
     #[must_use]
     pub fn then(mut self, tween: impl Tweenable<T> + Send + Sync + 'static) -> Self {
         self.duration += tween.duration();
-        self.tweens.push(DynTweenable::Boxed(Box::new(tween)));
+        self.tweens.push(Box::new(tween));
         self
     }
 
@@ -666,7 +545,7 @@ impl<T> Sequence<T> {
     /// Get the current active tween in the sequence.
     #[must_use]
     pub fn current(&self) -> &dyn Tweenable<T> {
-        self.tweens[self.index()].as_dyn()
+        self.tweens[self.index()].as_ref()
     }
 }
 
@@ -753,7 +632,7 @@ impl<T> Tweenable<T> for Sequence<T> {
 
 /// A collection of [`Tweenable`] executing in parallel.
 pub struct Tracks<T> {
-    tracks: Vec<DynTweenable<T>>,
+    tracks: Vec<BoxedTweenable<T>>,
     duration: Duration,
     time: Duration,
     times_completed: u32,
@@ -762,7 +641,7 @@ pub struct Tracks<T> {
 impl<T> Tracks<T> {
     /// Create a new [`Tracks`] from an iterator over a collection of [`Tweenable`].
     #[must_use]
-    pub fn new(items: impl IntoIterator<Item = impl Into<DynTweenable<T>>>) -> Self {
+    pub fn new(items: impl IntoIterator<Item = impl Into<BoxedTweenable<T>>>) -> Self {
         let tracks: Vec<_> = items.into_iter().map(Into::into).collect();
         let duration = tracks.iter().map(Tweenable::duration).max().unwrap();
         Self {

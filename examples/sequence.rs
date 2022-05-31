@@ -167,7 +167,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let tracks = Tracks::new([tween_rotate, tween_scale]);
     // Build a sequence from an heterogeneous list of tweenables by casting them manually
     // to a boxed Tweenable<Transform> : first move, then { rotate + scale }.
-    let seq2 = Sequence::new([DynTweenable::from(tween_move), tracks.into()]);
+    let seq2 = Sequence::new([Box::new(tween_move) as BoxedTweenable<_>, tracks.into()]);
 
     commands
         .spawn_bundle(SpriteBundle {

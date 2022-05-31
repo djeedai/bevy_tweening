@@ -162,7 +162,7 @@ pub use plugin::{
     asset_animator_system, component_animator_system, AnimationSystem, TweeningPlugin,
 };
 pub use tweenable::{
-    BoxedTweenable, Delay, DynTweenable, Sequence, Tracks, Tween, TweenCompleted, TweenState,
+    BoxedTweenable, Delay, Sequence, Tracks, Tween, TweenCompleted, TweenState,
     Tweenable,
 };
 
