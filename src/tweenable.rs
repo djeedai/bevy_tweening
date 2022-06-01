@@ -541,7 +541,7 @@ impl<T> Sequence<T> {
     #[must_use]
     pub fn from_single(tween: impl Tweenable<T> + Send + Sync + 'static) -> Self {
         let duration = tween.duration();
-        let boxed: BoxedTweenable<T> = tween.into();
+        let boxed: BoxedTweenable<T> = Box::new(tween);
         Self {
             tweens: vec![boxed],
             index: 0,
