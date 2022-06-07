@@ -1,5 +1,6 @@
-use bevy::prelude::*;
 use std::time::Duration;
+
+use bevy::prelude::*;
 
 use crate::{EaseMethod, Lens, RepeatCount, RepeatStrategy, TweeningDirection};
 
@@ -26,7 +27,6 @@ use crate::{EaseMethod, Lens, RepeatCount, RepeatStrategy, TweeningDirection};
 /// # struct MyTweenable;
 /// # impl Tweenable<Transform> for MyTweenable {
 /// #     fn duration(&self) -> Duration  { unimplemented!() }
-/// #     fn is_looping(&self) -> bool  { unimplemented!() }
 /// #     fn set_progress(&mut self, progress: f32)  { unimplemented!() }
 /// #     fn progress(&self) -> f32  { unimplemented!() }
 /// #     fn tick(&mut self, delta: Duration, target: &mut Transform, entity: Entity, event_writer: &mut EventWriter<TweenCompleted>) -> TweenState  { unimplemented!() }
@@ -56,8 +56,9 @@ pub type BoxedTweenable<T> = Box<dyn Tweenable<T> + Send + Sync + 'static>;
 pub enum TweenState {
     /// The tweenable is still active, and did not reach its end state yet.
     Active,
-    /// Animation reached its end state. The tweenable is idling at its latest time. This can only happen
-    /// for [`TweeningType::Once`], since other types loop indefinitely.
+    /// Animation reached its end state. The tweenable is idling at its latest time.
+    ///
+    /// Note that [`RepeatCount::Infinite`] tweenables never reach this state.
     Completed,
 }
 
@@ -91,15 +92,13 @@ pub struct TweenCompleted {
 struct AnimClock {
     elapsed: Duration,
     duration: Duration,
-    is_looping: bool,
 }
 
 impl AnimClock {
-    fn new(duration: Duration, is_looping: bool) -> Self {
+    fn new(duration: Duration) -> Self {
         Self {
             elapsed: Duration::ZERO,
             duration,
-            is_looping,
         }
     }
 
@@ -108,38 +107,55 @@ impl AnimClock {
 
         if self.elapsed < self.duration {
             0
-        } else if self.is_looping {
+        } else {
             let elapsed = self.elapsed.as_nanos();
             let duration = self.duration.as_nanos();
 
             self.elapsed = Duration::from_nanos((elapsed % duration) as u64);
             (elapsed / duration) as u32
-        } else {
-            self.elapsed = self.duration;
-            1
         }
     }
 
     fn set_progress(&mut self, progress: f32) {
-        let progress = if self.is_looping {
-            progress.max(0.).fract()
-        } else {
-            progress.clamp(0., 1.)
-        };
-
-        self.elapsed = self.duration.mul_f32(progress);
+        self.elapsed = self.duration.mul_f32(progress.clamp(0., 1.));
     }
 
     fn progress(&self) -> f32 {
         self.elapsed.as_secs_f32() / self.duration.as_secs_f32()
     }
 
-    fn completed(&self) -> bool {
-        self.elapsed >= self.duration
+    fn reset(&mut self) {
+        self.elapsed = Duration::ZERO;
+    }
+}
+
+#[derive(Debug, Default)]
+struct AnimCompletion {
+    times_completed: u32,
+    count: RepeatCount,
+    strategy: RepeatStrategy,
+}
+
+impl AnimCompletion {
+    fn record_completions(&mut self, times_completed: u32) {
+        self.times_completed = self.times_completed.saturating_add(times_completed);
+    }
+
+    fn state(&self) -> TweenState {
+        match self.count {
+            RepeatCount::Finite(times) => {
+                if self.times_completed >= times {
+                    TweenState::Completed
+                } else {
+                    TweenState::Active
+                }
+            }
+            RepeatCount::Infinite => TweenState::Active,
+        }
     }
 
     fn reset(&mut self) {
-        self.elapsed = Duration::ZERO;
+        self.times_completed = 0;
     }
 }
 
@@ -155,11 +171,6 @@ pub trait Tweenable<T>: Send + Sync {
     /// start to end or back from end to start. The total "loop" duration start -> end -> start to
     /// reach back the same state in this case is the double of the returned value.
     fn duration(&self) -> Duration;
-
-    /// Return `true` if the animation is looping.
-    ///
-    /// Looping tweenables are of type [`TweeningType::Loop`] or [`TweeningType::PingPong`].
-    fn is_looping(&self) -> bool;
 
     /// Set the current animation playback progress.
     ///
@@ -247,9 +258,7 @@ pub type CompletedCallback<T> = dyn Fn(Entity, &Tween<T>) + Send + Sync + 'stati
 pub struct Tween<T> {
     ease_function: EaseMethod,
     clock: AnimClock,
-    times_completed: u32,
-    count: RepeatCount,
-    strategy: RepeatStrategy,
+    completion: AnimCompletion,
     direction: TweeningDirection,
     lens: Box<dyn Lens<T> + Send + Sync + 'static>,
     on_completed: Option<Box<CompletedCallback<T>>>,
@@ -312,10 +321,8 @@ impl<T> Tween<T> {
     {
         Self {
             ease_function: ease_function.into(),
-            clock: AnimClock::new(duration, RepeatCount::default() != RepeatCount::Finite(1)),
-            times_completed: 0,
-            count: default(),
-            strategy: default(),
+            clock: AnimClock::new(duration),
+            completion: default(),
             direction: TweeningDirection::Forward,
             lens: Box::new(lens),
             on_completed: None,
@@ -385,24 +392,25 @@ impl<T> Tween<T> {
 
     /// TODO
     pub fn set_repeat_count(&mut self, count: RepeatCount) {
-        self.count = count;
-        self.clock.is_looping = count != RepeatCount::Finite(1);
+        self.completion.count = count;
     }
 
     /// TODO
+    #[must_use]
     pub fn with_repeat_count(mut self, count: RepeatCount) -> Self {
-        self.set_repeat_count(count);
+        self.completion.count = count;
         self
     }
 
     /// TODO
     pub fn set_repeat_strategy(&mut self, strategy: RepeatStrategy) {
-        self.strategy = strategy;
+        self.completion.strategy = strategy;
     }
 
     /// TODO
+    #[must_use]
     pub fn with_repeat_strategy(mut self, strategy: RepeatStrategy) -> Self {
-        self.strategy = strategy;
+        self.completion.strategy = strategy;
         self
     }
 
@@ -451,20 +459,16 @@ impl<T> Tweenable<T> for Tween<T> {
         self.clock.duration
     }
 
-    fn is_looping(&self) -> bool {
-        match self.count {
-            RepeatCount::Finite(times) if times == 1 => false,
-            RepeatCount::Finite(times) => self.times_completed < times,
-            RepeatCount::Infinite => true,
-        }
-    }
-
     fn set_progress(&mut self, progress: f32) {
         self.clock.set_progress(progress);
     }
 
     fn progress(&self) -> f32 {
-        self.clock.progress()
+        if self.completion.state() == TweenState::Completed {
+            1.
+        } else {
+            self.clock.progress()
+        }
     }
 
     fn tick(
@@ -474,17 +478,17 @@ impl<T> Tweenable<T> for Tween<T> {
         entity: Entity,
         event_writer: &mut EventWriter<TweenCompleted>,
     ) -> TweenState {
-        if !self.is_looping() && self.clock.completed() {
+        if self.completion.state() == TweenState::Completed {
             return TweenState::Completed;
         }
 
         // Tick the animation clock
         let times_completed = self.clock.tick(delta);
-        self.times_completed += times_completed;
-        if self.strategy == RepeatStrategy::Bounce && times_completed & 1 != 0 {
+        self.completion.record_completions(times_completed);
+        if self.completion.strategy == RepeatStrategy::Bounce && times_completed & 1 != 0 {
             self.direction = !self.direction;
         }
-        let progress = self.clock.progress();
+        let progress = self.progress();
 
         // Apply the lens, even if the animation finished, to ensure the state is consistent
         let mut factor = progress;
@@ -507,20 +511,16 @@ impl<T> Tweenable<T> for Tween<T> {
             }
         }
 
-        if self.is_looping() || self.times_completed == 0 {
-            TweenState::Active
-        } else {
-            TweenState::Completed
-        }
+        self.completion.state()
     }
 
     fn times_completed(&self) -> u32 {
-        self.times_completed
+        self.completion.times_completed
     }
 
     fn rewind(&mut self) {
         self.clock.reset();
-        self.times_completed = 0;
+        self.completion.reset();
     }
 }
 
@@ -605,10 +605,6 @@ impl<T> Sequence<T> {
 impl<T> Tweenable<T> for Sequence<T> {
     fn duration(&self) -> Duration {
         self.duration
-    }
-
-    fn is_looping(&self) -> bool {
-        false // TODO - implement looping sequences...
     }
 
     fn set_progress(&mut self, progress: f32) {
@@ -716,10 +712,6 @@ impl<T> Tweenable<T> for Tracks<T> {
         self.duration
     }
 
-    fn is_looping(&self) -> bool {
-        false // TODO - implement looping tracks...
-    }
-
     fn set_progress(&mut self, progress: f32) {
         self.times_completed = if progress >= 1. { 1 } else { 0 }; // not looping
         let progress = progress.clamp(0., 1.); // not looping
@@ -799,10 +791,6 @@ impl<T> Tweenable<T> for Delay {
         self.timer.duration()
     }
 
-    fn is_looping(&self) -> bool {
-        false
-    }
-
     fn set_progress(&mut self, progress: f32) {
         // need to reset() to clear finished() unfortunately
         self.timer.reset();
@@ -870,7 +858,7 @@ mod tests {
     #[test]
     fn anim_clock_precision() {
         let duration = Duration::from_millis(1);
-        let mut clock = AnimClock::new(duration, true);
+        let mut clock = AnimClock::new(duration);
 
         let test_ticks = [
             Duration::from_micros(123),
@@ -983,7 +971,8 @@ mod tests {
                             }
                             RepeatCount::Finite(_) => {
                                 if *strategy == RepeatStrategy::Teleport {
-                                    let progress = (i as f32 * 0.2).fract();
+                                    let progress =
+                                        if i < 10 { (i as f32 * 0.2).fract() } else { 1. };
                                     let times_completed = i / 5;
                                     let just_completed = i % 5 == 0;
                                     (
@@ -999,7 +988,7 @@ mod tests {
                                     )
                                 } else {
                                     let i5 = i % 5;
-                                    let progress = i5 as f32 * 0.2;
+                                    let progress = if i < 10 { i5 as f32 * 0.2 } else { 1. };
                                     let times_completed = i / 5;
                                     let i10 = i % 10;
                                     let direction = if i10 >= 5 {
@@ -1090,14 +1079,6 @@ mod tests {
 
                     // Check actual values
                     assert_eq!(tween.direction(), direction);
-                    assert_eq!(
-                        tween.is_looping(),
-                        match *count {
-                            RepeatCount::Finite(times) if times == 1 => false,
-                            RepeatCount::Finite(times) => times_completed < times,
-                            RepeatCount::Infinite => true,
-                        }
-                    );
                     assert_eq!(actual_state, expected_state);
                     assert!(abs_diff_eq(tween.progress(), progress, 1e-5));
                     assert_eq!(tween.times_completed(), times_completed);
@@ -1126,7 +1107,6 @@ mod tests {
                 // Rewind
                 tween.rewind();
                 assert_eq!(tween.direction(), *tweening_direction); // does not change
-                assert_eq!(tween.is_looping(), *count != RepeatCount::Finite(1));
                 assert!(abs_diff_eq(tween.progress(), 0., 1e-5));
                 assert_eq!(tween.times_completed(), 0);
 
@@ -1257,13 +1237,13 @@ mod tests {
             } else if i < 10 {
                 assert_eq!(state, TweenState::Active);
                 let alpha_deg = (18 * (i - 5)) as f32;
-                assert!(transform.translation.abs_diff_eq(Vec3::splat(1.), 1e-5));
+                assert!(transform.translation.abs_diff_eq(Vec3::ONE, 1e-5));
                 assert!(transform
                     .rotation
                     .abs_diff_eq(Quat::from_rotation_x(alpha_deg.to_radians()), 1e-5));
             } else {
                 assert_eq!(state, TweenState::Completed);
-                assert!(transform.translation.abs_diff_eq(Vec3::splat(1.), 1e-5));
+                assert!(transform.translation.abs_diff_eq(Vec3::ONE, 1e-5));
                 assert!(transform
                     .rotation
                     .abs_diff_eq(Quat::from_rotation_x(90_f32.to_radians()), 1e-5));
@@ -1284,7 +1264,6 @@ mod tests {
                 },
             )
         }));
-        assert!(!seq.is_looping());
 
         let mut progress = 0.;
         for i in 1..5 {
@@ -1323,7 +1302,6 @@ mod tests {
         );
         let mut tracks = Tracks::new([tween1, tween2]);
         assert_eq!(tracks.duration(), Duration::from_secs_f32(1.)); // max(1., 0.8)
-        assert!(!tracks.is_looping());
 
         let mut transform = Transform::default();
 
@@ -1355,7 +1333,7 @@ mod tests {
                 assert_eq!(state, TweenState::Completed);
                 assert_eq!(tracks.times_completed(), 1);
                 assert!((tracks.progress() - 1.).abs() < 1e-5);
-                assert!(transform.translation.abs_diff_eq(Vec3::splat(1.), 1e-5));
+                assert!(transform.translation.abs_diff_eq(Vec3::ONE, 1e-5));
                 assert!(transform
                     .rotation
                     .abs_diff_eq(Quat::from_rotation_x(90_f32.to_radians()), 1e-5));
@@ -1366,6 +1344,7 @@ mod tests {
         assert_eq!(tracks.times_completed(), 0);
         assert!(tracks.progress().abs() < 1e-5);
 
+        tracks.rewind();
         tracks.set_progress(0.9);
         assert!((tracks.progress() - 0.9).abs() < 1e-5);
         // tick to udpate state (set_progress() does not update state)
@@ -1378,6 +1357,7 @@ mod tests {
         assert_eq!(state, TweenState::Active);
         assert_eq!(tracks.times_completed(), 0);
 
+        tracks.rewind();
         tracks.set_progress(3.2);
         assert!((tracks.progress() - 1.).abs() < 1e-5);
         // tick to udpate state (set_progress() does not update state)
@@ -1390,6 +1370,7 @@ mod tests {
         assert_eq!(state, TweenState::Completed);
         assert_eq!(tracks.times_completed(), 1); // no looping
 
+        tracks.rewind();
         tracks.set_progress(-0.5);
         assert!(tracks.progress().abs() < 1e-5);
         // tick to udpate state (set_progress() does not update state)
@@ -1411,7 +1392,6 @@ mod tests {
         {
             let tweenable: &dyn Tweenable<Transform> = &delay;
             assert_eq!(tweenable.duration(), duration);
-            assert!(!tweenable.is_looping());
             assert!(tweenable.progress().abs() < 1e-5);
         }
 

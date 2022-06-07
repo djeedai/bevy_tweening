@@ -141,16 +141,12 @@
 //! [`Sprite`]: https://docs.rs/bevy/0.7.0/bevy/sprite/struct.Sprite.html
 //! [`Transform`]: https://docs.rs/bevy/0.7.0/bevy/transform/components/struct.Transform.html
 
-use bevy::{asset::Asset, prelude::*};
 use std::time::Duration;
 
+use bevy::{asset::Asset, prelude::*};
 use interpolation::Ease as IEase;
 pub use interpolation::EaseFunction;
 pub use interpolation::Lerp;
-
-pub mod lens;
-mod plugin;
-mod tweenable;
 
 pub use lens::Lens;
 pub use plugin::{
@@ -159,6 +155,10 @@ pub use plugin::{
 pub use tweenable::{
     BoxedTweenable, Delay, Sequence, Tracks, Tween, TweenCompleted, TweenState, Tweenable,
 };
+
+pub mod lens;
+mod plugin;
+mod tweenable;
 
 /// How many times to repeat a tween animation. See also: [`RepeatMode`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -526,8 +526,9 @@ impl<T: Asset> AssetAnimator<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::{lens::*, *};
     use bevy::reflect::TypeUuid;
+
+    use super::{lens::*, *};
 
     struct DummyLens {
         start: f32,
