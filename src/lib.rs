@@ -12,9 +12,11 @@
 
 //! Tweening animation plugin for the Bevy game engine
 //!
-//! 🍃 Bevy Tweening provides interpolation-based animation between ("tweening") two values, for Bevy components
-//! and assets. Each field of a component or asset can be animated via a collection or predefined easing functions,
-//! or providing a custom animation curve. Custom components and assets are also supported.
+//! 🍃 Bevy Tweening provides interpolation-based animation between ("tweening")
+//! two values, for Bevy components and assets. Each field of a component or
+//! asset can be animated via a collection or predefined easing functions,
+//! or providing a custom animation curve. Custom components and assets are also
+//! supported.
 //!
 //! # Example
 //!
@@ -66,17 +68,20 @@
 //!
 //! # Tweenables
 //!
-//! 🍃 Bevy Tweening supports several types of _tweenables_, building blocks that can be combined to form complex
-//! animations. A tweenable is a type implementing the [`Tweenable`] trait.
+//! 🍃 Bevy Tweening supports several types of _tweenables_, building blocks
+//! that can be combined to form complex animations. A tweenable is a type
+//! implementing the [`Tweenable`] trait.
 //!
 //! - [`Tween`] - A simple tween (easing) animation between two values.
-//! - [`Sequence`] - A series of tweenables executing in series, one after the other.
+//! - [`Sequence`] - A series of tweenables executing in series, one after the
+//!   other.
 //! - [`Tracks`] - A collection of tweenables executing in parallel.
 //! - [`Delay`] - A time delay.
 //!
 //! ## Chaining animations
 //!
-//! Most tweenables can be chained with the `then()` operator to produce a [`Sequence`] tweenable:
+//! Most tweenables can be chained with the `then()` operator to produce a
+//! [`Sequence`] tweenable:
 //!
 //! ```
 //! # use bevy::prelude::*;
@@ -108,35 +113,40 @@
 //!
 //! # Animators and lenses
 //!
-//! Bevy components and assets are animated with tweening _animator_ components, which take a tweenable and
-//! apply it to another component on the same [`Entity`]. Those animators determine that other component and
-//! its fields to animate using a _lens_.
+//! Bevy components and assets are animated with tweening _animator_ components,
+//! which take a tweenable and apply it to another component on the same
+//! [`Entity`]. Those animators determine that other component and its fields to
+//! animate using a _lens_.
 //!
 //! ## Components animation
 //!
-//! Components are animated with the [`Animator`] component, which is generic over the type of component
-//! it animates. This is a restriction imposed by Bevy, to access the animated component as a mutable
-//! reference via a [`Query`] and comply with the ECS rules.
+//! Components are animated with the [`Animator`] component, which is generic
+//! over the type of component it animates. This is a restriction imposed by
+//! Bevy, to access the animated component as a mutable reference via a
+//! [`Query`] and comply with the ECS rules.
 //!
-//! The [`Animator`] itself is not generic over the subset of fields of the components it animates.
-//! This limits the proliferation of generic types when animating e.g. both the position and rotation
-//! of an entity.
+//! The [`Animator`] itself is not generic over the subset of fields of the
+//! components it animates. This limits the proliferation of generic types when
+//! animating e.g. both the position and rotation of an entity.
 //!
 //! ## Assets animation
 //!
-//! Assets are animated in a similar way to component, via the [`AssetAnimator`] component.
+//! Assets are animated in a similar way to component, via the [`AssetAnimator`]
+//! component.
 //!
-//! Because assets are typically shared, and the animation applies to the asset itself, all users of the asset
-//! see the animation. For example, animating the color of a [`ColorMaterial`] will change the color of all the
+//! Because assets are typically shared, and the animation applies to the asset
+//! itself, all users of the asset see the animation. For example, animating the
+//! color of a [`ColorMaterial`] will change the color of all the
 //! 2D meshes using that material.
 //!
 //! ## Lenses
 //!
-//! Both [`Animator`] and [`AssetAnimator`] access the field(s) to animate via a lens, a type that implements
-//! the [`Lens`] trait.
+//! Both [`Animator`] and [`AssetAnimator`] access the field(s) to animate via a
+//! lens, a type that implements the [`Lens`] trait.
 //!
-//! Several predefined lenses are provided in the [`lens`] module for the most commonly animated fields, like the
-//! components of a [`Transform`]. A custom lens can also be created by implementing the trait, allowing to animate
+//! Several predefined lenses are provided in the [`lens`] module for the most
+//! commonly animated fields, like the components of a [`Transform`]. A custom
+//! lens can also be created by implementing the trait, allowing to animate
 //! virtually any field of any Bevy component or asset.
 //!
 //! [`Transform::translation`]: https://docs.rs/bevy/0.7.0/bevy/transform/components/struct.Transform.html#structfield.translation
@@ -150,8 +160,7 @@ use bevy::{asset::Asset, prelude::*};
 use std::time::Duration;
 
 use interpolation::Ease as IEase;
-pub use interpolation::EaseFunction;
-pub use interpolation::Lerp;
+pub use interpolation::{EaseFunction, Lerp};
 
 pub mod lens;
 mod plugin;
@@ -170,11 +179,13 @@ pub use tweenable::{
 pub enum TweeningType {
     /// Run the animation once from start to end only.
     Once,
-    /// Loop the animation indefinitely, restarting from the start each time the end is reached.
+    /// Loop the animation indefinitely, restarting from the start each time the
+    /// end is reached.
     Loop,
-    /// Loop the animation back and forth, changing direction each time an endpoint is reached.
-    /// A complete cycle start -> end -> start always counts as 2 loop iterations for the various
-    /// operations where looping matters.
+    /// Loop the animation back and forth, changing direction each time an
+    /// endpoint is reached. A complete cycle start -> end -> start always
+    /// counts as 2 loop iterations for the various operations where looping
+    /// matters.
     PingPong,
 }
 
@@ -256,17 +267,20 @@ impl From<EaseFunction> for EaseMethod {
 
 /// Direction a tweening animation is playing.
 ///
-/// When playing a tweenable forward, the progress values `0` and `1` are respectively mapped to
-/// the start and end bounds of the lens(es) being used. Conversely, when playing backward, this
-/// mapping is reversed, such that a progress value of `0` corresponds to the state of the target
-/// at the end bound of the lens, while a progress value of `1` corresponds to the state of that
-/// target at the start bound of the lens, effectively making the animation play backward.
+/// When playing a tweenable forward, the progress values `0` and `1` are
+/// respectively mapped to the start and end bounds of the lens(es) being used.
+/// Conversely, when playing backward, this mapping is reversed, such that a
+/// progress value of `0` corresponds to the state of the target at the end
+/// bound of the lens, while a progress value of `1` corresponds to the state of
+/// that target at the start bound of the lens, effectively making the animation
+/// play backward.
 ///
-/// For all but [`TweeningType::PingPong`] this is always [`TweeningDirection::Forward`], unless
-/// manually configured with [`Tween::set_direction()`] in which case the value is constant equal
-/// to the value set. For the [`TweeningType::PingPong`] tweening type, this is either forward
-/// (from start to end; ping) or backward (from end to start; pong), depending on the current
-/// iteration of the loop.
+/// For all but [`TweeningType::PingPong`] this is always
+/// [`TweeningDirection::Forward`], unless manually configured with
+/// [`Tween::set_direction()`] in which case the value is constant equal
+/// to the value set. For the [`TweeningType::PingPong`] tweening type, this is
+/// either forward (from start to end; ping) or backward (from end to start;
+/// pong), depending on the current iteration of the loop.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TweeningDirection {
     /// Animation playing from start to end.
@@ -315,7 +329,8 @@ macro_rules! animator_impl {
             self
         }
 
-        /// Set the initial speed of the animator. See [`Animator::set_speed`] for details.
+        /// Set the initial speed of the animator. See [`Animator::set_speed`] for
+        /// details.
         #[must_use]
         pub fn with_speed(mut self, speed: f32) -> Self {
             self.speed = speed;
@@ -324,8 +339,8 @@ macro_rules! animator_impl {
 
         /// Set the animation speed. Defaults to 1.
         ///
-        /// A speed of 2 means the animation will run twice as fast while a speed of 0.1 will result in
-        /// a 10x slowed animation.
+        /// A speed of 2 means the animation will run twice as fast while a speed of 0.1
+        /// will result in a 10x slowed animation.
         pub fn set_speed(&mut self, speed: f32) {
             self.speed = speed;
         }
@@ -366,21 +381,26 @@ macro_rules! animator_impl {
             }
         }
 
-        /// Get the current progress in \[0:1\] (non-looping) or \[0:1\[ (looping) of the animation.
+        /// Get the current progress in \[0:1\] (non-looping) or \[0:1\[ (looping) of
+        /// the animation.
         ///
-        /// For looping animations, this reports the progress of the current iteration, in the current direction:
-        /// - [`TweeningType::Loop`] is 0 at start and 1 at end. The exact value 1.0 is never reached,
-        ///   since the tweenable loops over to 0.0 immediately.
-        /// - [`TweeningType::PingPong`] is 0 at the source endpoint and 1 and the destination one,
-        ///   which are respectively the start/end for [`TweeningDirection::Forward`], or the end/start
-        ///   for [`TweeningDirection::Backward`]. The exact value 1.0 is never reached, since the tweenable
-        ///   loops over to 0.0 immediately when it changes direction at either endpoint.
+        /// For looping animations, this reports the progress of the current iteration,
+        /// in the current direction:
+        /// - [`TweeningType::Loop`] is 0 at start and 1 at end. The exact value 1.0 is
+        ///   never reached, since the tweenable loops over to 0.0 immediately.
+        /// - [`TweeningType::PingPong`] is 0 at the source endpoint and 1 and the
+        ///   destination one, which are respectively the start/end for
+        ///   [`TweeningDirection::Forward`], or the end/start for
+        ///   [`TweeningDirection::Backward`]. The exact value 1.0 is never reached,
+        ///   since the tweenable loops over to 0.0 immediately when it changes
+        ///   direction at either endpoint.
         ///
-        /// For sequences, the progress is measured over the entire sequence, from 0 at the start of the first
-        /// child tweenable to 1 at the end of the last one.
+        /// For sequences, the progress is measured over the entire sequence, from 0 at
+        /// the start of the first child tweenable to 1 at the end of the last one.
         ///
-        /// For tracks (parallel execution), the progress is measured like a sequence over the longest "path" of
-        /// child tweenables. In other words, this is the current elapsed time over the total tweenable duration.
+        /// For tracks (parallel execution), the progress is measured like a sequence
+        /// over the longest "path" of child tweenables. In other words, this is the
+        /// current elapsed time over the total tweenable duration.
         #[must_use]
         pub fn progress(&self) -> f32 {
             if let Some(tweenable) = &self.tweenable {
@@ -407,7 +427,8 @@ macro_rules! animator_impl {
 
         /// Stop animation playback and rewind the animation.
         ///
-        /// This changes the animator state to [`AnimatorState::Paused`] and rewind its tweenable.
+        /// This changes the animator state to [`AnimatorState::Paused`] and rewind its
+        /// tweenable.
         pub fn stop(&mut self) {
             self.state = AnimatorState::Paused;
             self.rewind();

@@ -6,8 +6,8 @@ use crate::{EaseMethod, Lens, TweeningDirection, TweeningType};
 
 /// The dynamic tweenable type.
 ///
-/// When creating lists of tweenables, you will need to box them to create a homogeneous
-/// array like so:
+/// When creating lists of tweenables, you will need to box them to create a
+/// homogeneous array like so:
 /// ```no_run
 /// # use bevy::prelude::Transform;
 /// # use bevy_tweening::{BoxedTweenable, Delay, Sequence, Tween};
@@ -18,7 +18,8 @@ use crate::{EaseMethod, Lens, TweeningDirection, TweeningType};
 /// Sequence::new([Box::new(delay) as BoxedTweenable<Transform>, tween.into()]);
 /// ```
 ///
-/// When using your own [`Tweenable`] types, APIs will be easier to use if you implement [`From`]:
+/// When using your own [`Tweenable`] types, APIs will be easier to use if you
+/// implement [`From`]:
 /// ```no_run
 /// # use std::time::Duration;
 /// # use bevy::prelude::{Entity, EventWriter, Transform};
@@ -51,36 +52,44 @@ pub type BoxedTweenable<T> = Box<dyn Tweenable<T> + Send + Sync + 'static>;
 
 /// Playback state of a [`Tweenable`].
 ///
-/// This is returned by [`Tweenable::tick()`] to allow the caller to execute some logic based on the
-/// updated state of the tweenable, like advanding a sequence to its next child tweenable.
+/// This is returned by [`Tweenable::tick()`] to allow the caller to execute
+/// some logic based on the updated state of the tweenable, like advanding a
+/// sequence to its next child tweenable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TweenState {
     /// The tweenable is still active, and did not reach its end state yet.
     Active,
-    /// Animation reached its end state. The tweenable is idling at its latest time. This can only happen
-    /// for [`TweeningType::Once`], since other types loop indefinitely.
+    /// Animation reached its end state. The tweenable is idling at its latest
+    /// time. This can only happen for [`TweeningType::Once`], since other
+    /// types loop indefinitely.
     Completed,
 }
 
 /// Event raised when a tween completed.
 ///
-/// This event is raised when a tween completed. For non-looping tweens, this is raised once at the
-/// end of the animation. For looping animations, this is raised once per iteration. In case the animation
-/// direction changes ([`TweeningType::PingPong`]), an iteration corresponds to a single progress from
-/// one endpoint to the other, whatever the direction. Therefore a complete cycle start -> end -> start
-/// counts as 2 iterations and raises 2 events (one when reaching the end, one when reaching back the start).
+/// This event is raised when a tween completed. For non-looping tweens, this is
+/// raised once at the end of the animation. For looping animations, this is
+/// raised once per iteration. In case the animation direction changes
+/// ([`TweeningType::PingPong`]), an iteration corresponds to a single progress
+/// from one endpoint to the other, whatever the direction. Therefore a complete
+/// cycle start -> end -> start counts as 2 iterations and raises 2 events (one
+/// when reaching the end, one when reaching back the start).
 ///
 /// # Note
 ///
-/// The semantic is slightly different from [`TweenState::Completed`], which indicates that the tweenable
-/// has finished ticking and do not need to be updated anymore, a state which is never reached for looping
-/// animation. Here the [`TweenCompleted`] event instead marks the end of a single loop iteration.
+/// The semantic is slightly different from [`TweenState::Completed`], which
+/// indicates that the tweenable has finished ticking and do not need to be
+/// updated anymore, a state which is never reached for looping animation. Here
+/// the [`TweenCompleted`] event instead marks the end of a single loop
+/// iteration.
 #[derive(Copy, Clone)]
 pub struct TweenCompleted {
-    /// The [`Entity`] the tween which completed and its animator are attached to.
+    /// The [`Entity`] the tween which completed and its animator are attached
+    /// to.
     pub entity: Entity,
-    /// An opaque value set by the user when activating event raising, used to identify the particular
-    /// tween which raised this event. The value is passed unmodified from a call to [`with_completed_event()`]
+    /// An opaque value set by the user when activating event raising, used to
+    /// identify the particular tween which raised this event. The value is
+    /// passed unmodified from a call to [`with_completed_event()`]
     /// or [`set_completed_event()`].
     ///
     /// [`with_completed_event()`]: Tween::with_completed_event
@@ -148,18 +157,20 @@ impl AnimClock {
 pub trait Tweenable<T>: Send + Sync {
     /// Get the total duration of the animation.
     ///
-    /// For non-looping tweenables ([`TweeningType::Once`]), this is the total animation duration.
-    /// For looping ones, this is the duration of a single iteration, since the total animation
-    /// duration is infinite.
+    /// For non-looping tweenables ([`TweeningType::Once`]), this is the total
+    /// animation duration. For looping ones, this is the duration of a
+    /// single iteration, since the total animation duration is infinite.
     ///
-    /// Note that for [`TweeningType::PingPong`], this is the duration of a single way, either from
-    /// start to end or back from end to start. The total "loop" duration start -> end -> start to
-    /// reach back the same state in this case is the double of the returned value.
+    /// Note that for [`TweeningType::PingPong`], this is the duration of a
+    /// single way, either from start to end or back from end to start. The
+    /// total "loop" duration start -> end -> start to reach back the same
+    /// state in this case is the double of the returned value.
     fn duration(&self) -> Duration;
 
     /// Return `true` if the animation is looping.
     ///
-    /// Looping tweenables are of type [`TweeningType::Loop`] or [`TweeningType::PingPong`].
+    /// Looping tweenables are of type [`TweeningType::Loop`] or
+    /// [`TweeningType::PingPong`].
     fn is_looping(&self) -> bool;
 
     /// Set the current animation playback progress.
@@ -169,27 +180,35 @@ pub trait Tweenable<T>: Send + Sync {
     /// [`progress()`]: Tweenable::progress
     fn set_progress(&mut self, progress: f32);
 
-    /// Get the current progress in \[0:1\] (non-looping) or \[0:1\[ (looping) of the animation.
+    /// Get the current progress in \[0:1\] (non-looping) or \[0:1\[ (looping)
+    /// of the animation.
     ///
-    /// For looping animations, this reports the progress of the current iteration, in the current
-    /// direction:
-    /// - [`TweeningType::Loop`] is `0` at start and `1` at end. The exact value `1.0` is never reached,
-    ///   since the tweenable loops over to `0.0` immediately.
-    /// - [`TweeningType::PingPong`] is `0` at the source endpoint and `1` and the destination one,
-    ///   which are respectively the start/end for [`TweeningDirection::Forward`], or the end/start
-    ///   for [`TweeningDirection::Backward`]. The exact value `1.0` is never reached, since the tweenable
-    ///   loops over to `0.0` immediately when it changes direction at either endpoint.
+    /// For looping animations, this reports the progress of the current
+    /// iteration, in the current direction:
+    /// - [`TweeningType::Loop`] is `0` at start and `1` at end. The exact value
+    ///   `1.0` is never reached, since the tweenable loops over to `0.0`
+    ///   immediately.
+    /// - [`TweeningType::PingPong`] is `0` at the source endpoint and `1` and
+    ///   the destination one, which are respectively the start/end for
+    ///   [`TweeningDirection::Forward`], or the end/start for
+    ///   [`TweeningDirection::Backward`]. The exact value `1.0` is never
+    ///   reached, since the tweenable loops over to `0.0` immediately when it
+    ///   changes direction at either endpoint.
     fn progress(&self) -> f32;
 
-    /// Tick the animation, advancing it by the given delta time and mutating the given target component or asset.
+    /// Tick the animation, advancing it by the given delta time and mutating
+    /// the given target component or asset.
     ///
-    /// This returns [`TweenState::Active`] if the tweenable didn't reach its final state yet (progress < `1.0`),
-    /// or [`TweenState::Completed`] if the tweenable completed this tick. Only non-looping tweenables return
+    /// This returns [`TweenState::Active`] if the tweenable didn't reach its
+    /// final state yet (progress < `1.0`), or [`TweenState::Completed`] if
+    /// the tweenable completed this tick. Only non-looping tweenables return
     /// a completed state, since looping ones continue forever.
     ///
-    /// Calling this method with a duration of [`Duration::ZERO`] is valid, and updates the target to the current
-    /// state of the tweenable without actually modifying the tweenable state. This is useful after certain operations
-    /// like [`rewind()`] or [`set_progress()`] whose effect is otherwise only visible on target on next frame.
+    /// Calling this method with a duration of [`Duration::ZERO`] is valid, and
+    /// updates the target to the current state of the tweenable without
+    /// actually modifying the tweenable state. This is useful after certain
+    /// operations like [`rewind()`] or [`set_progress()`] whose effect is
+    /// otherwise only visible on target on next frame.
     ///
     /// [`rewind()`]: Tweenable::rewind
     /// [`set_progress()`]: Tweenable::set_progress
@@ -203,15 +222,18 @@ pub trait Tweenable<T>: Send + Sync {
 
     /// Get the number of times this tweenable completed.
     ///
-    /// For looping animations, this returns the number of times a single playback was completed. In the
-    /// case of [`TweeningType::PingPong`] this corresponds to a playback in a single direction, so tweening
-    /// from start to end and back to start counts as two completed times (one forward, one backward).
+    /// For looping animations, this returns the number of times a single
+    /// playback was completed. In the case of [`TweeningType::PingPong`]
+    /// this corresponds to a playback in a single direction, so tweening
+    /// from start to end and back to start counts as two completed times (one
+    /// forward, one backward).
     fn times_completed(&self) -> u32;
 
     /// Rewind the animation to its starting state.
     ///
-    /// Note that the starting state depends on the current direction. For [`TweeningDirection::Forward`]
-    /// this is the start point of the lens, whereas for [`TweeningDirection::Backward`] this is the end one.
+    /// Note that the starting state depends on the current direction. For
+    /// [`TweeningDirection::Forward`] this is the start point of the lens,
+    /// whereas for [`TweeningDirection::Backward`] this is the end one.
     fn rewind(&mut self);
 }
 
@@ -257,7 +279,8 @@ pub struct Tween<T> {
 }
 
 impl<T: 'static> Tween<T> {
-    /// Chain another [`Tweenable`] after this tween, making a [`Sequence`] with the two.
+    /// Chain another [`Tweenable`] after this tween, making a [`Sequence`] with
+    /// the two.
     ///
     /// # Example
     /// ```
@@ -332,8 +355,9 @@ impl<T> Tween<T> {
 
     /// Enable or disable raising a completed event.
     ///
-    /// If enabled, the tween will raise a [`TweenCompleted`] event when the animation completed.
-    /// This is similar to the [`set_completed()`] callback, but uses Bevy events instead.
+    /// If enabled, the tween will raise a [`TweenCompleted`] event when the
+    /// animation completed. This is similar to the [`set_completed()`]
+    /// callback, but uses Bevy events instead.
     ///
     /// # Example
     /// ```
@@ -369,15 +393,17 @@ impl<T> Tween<T> {
 
     /// Set the playback direction of the tween.
     ///
-    /// The playback direction influences the mapping of the progress ratio (in \[0:1\]) to the
-    /// actual ratio passed to the lens. [`TweeningDirection::Forward`] maps the `0` value of
-    /// progress to the `0` value of the lens ratio. Conversely, [`TweeningDirection::Backward`]
-    /// reverses the mapping, which effectively makes the tween play reversed, going from end to
-    /// start.
+    /// The playback direction influences the mapping of the progress ratio (in
+    /// \[0:1\]) to the actual ratio passed to the lens.
+    /// [`TweeningDirection::Forward`] maps the `0` value of progress to the
+    /// `0` value of the lens ratio. Conversely, [`TweeningDirection::Backward`]
+    /// reverses the mapping, which effectively makes the tween play reversed,
+    /// going from end to start.
     ///
-    /// Changing the direction doesn't change any target state, nor any progress of the tween. Only
-    /// the direction of animation from this moment potentially changes. To force a target state
-    /// change, call [`Tweenable::tick()`] with a zero delta (`Duration::ZERO`).
+    /// Changing the direction doesn't change any target state, nor any progress
+    /// of the tween. Only the direction of animation from this moment
+    /// potentially changes. To force a target state change, call
+    /// [`Tweenable::tick()`] with a zero delta (`Duration::ZERO`).
     pub fn set_direction(&mut self, direction: TweeningDirection) {
         self.direction = direction;
     }
@@ -401,8 +427,9 @@ impl<T> Tween<T> {
 
     /// Set a callback invoked when the animation completed.
     ///
-    /// The callback when invoked receives as parameters the [`Entity`] on which the target and the
-    /// animator are, as well as a reference to the current [`Tween`].
+    /// The callback when invoked receives as parameters the [`Entity`] on which
+    /// the target and the animator are, as well as a reference to the
+    /// current [`Tween`].
     ///
     /// Only non-looping tweenables can complete.
     pub fn set_completed<C>(&mut self, callback: C)
@@ -419,8 +446,9 @@ impl<T> Tween<T> {
 
     /// Enable or disable raising a completed event.
     ///
-    /// If enabled, the tween will raise a [`TweenCompleted`] event when the animation completed.
-    /// This is similar to the [`set_completed()`] callback, but uses Bevy events instead.
+    /// If enabled, the tween will raise a [`TweenCompleted`] event when the
+    /// animation completed. This is similar to the [`set_completed()`]
+    /// callback, but uses Bevy events instead.
     ///
     /// See [`with_completed_event()`] for details.
     ///
@@ -472,7 +500,8 @@ impl<T> Tweenable<T> for Tween<T> {
         };
         let progress = self.clock.progress();
 
-        // Apply the lens, even if the animation finished, to ensure the state is consistent
+        // Apply the lens, even if the animation finished, to ensure the state is
+        // consistent
         let mut factor = progress;
         if self.direction.is_backward() {
             factor = 1. - factor;
@@ -674,7 +703,8 @@ pub struct Tracks<T> {
 }
 
 impl<T> Tracks<T> {
-    /// Create a new [`Tracks`] from an iterator over a collection of [`Tweenable`].
+    /// Create a new [`Tracks`] from an iterator over a collection of
+    /// [`Tweenable`].
     #[must_use]
     pub fn new(items: impl IntoIterator<Item = impl Into<BoxedTweenable<T>>>) -> Self {
         let tracks: Vec<_> = items.into_iter().map(Into::into).collect();
@@ -753,9 +783,10 @@ impl<T> Tweenable<T> for Tracks<T> {
 
 /// A time delay that doesn't animate anything.
 ///
-/// This is generally useful for combining with other tweenables into sequences and tracks,
-/// for example to delay the start of a tween in a track relative to another track. The `menu`
-/// example (`examples/menu.rs`) uses this technique to delay the animation of its buttons.
+/// This is generally useful for combining with other tweenables into sequences
+/// and tracks, for example to delay the start of a tween in a track relative to
+/// another track. The `menu` example (`examples/menu.rs`) uses this technique
+/// to delay the animation of its buttons.
 pub struct Delay {
     timer: Timer,
 }
@@ -769,7 +800,8 @@ impl Delay {
         }
     }
 
-    /// Chain another [`Tweenable`] after this tween, making a sequence with the two.
+    /// Chain another [`Tweenable`] after this tween, making a sequence with the
+    /// two.
     #[must_use]
     pub fn then<T>(self, tween: impl Tweenable<T> + Send + Sync + 'static) -> Sequence<T> {
         Sequence::with_capacity(2).then(self).then(tween)
@@ -829,8 +861,10 @@ impl<T> Tweenable<T> for Delay {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::{Arc, Mutex};
-    use std::time::Duration;
+    use std::{
+        sync::{Arc, Mutex},
+        time::Duration,
+    };
 
     use bevy::ecs::{event::Events, system::SystemState};
 
