@@ -404,24 +404,24 @@ impl<T> Tween<T> {
         self
     }
 
-    /// TODO
+    /// Set the number of times to repeat the animation.
     pub fn set_repeat_count(&mut self, count: RepeatCount) {
         self.completion.count = count;
     }
 
-    /// TODO
+    /// Set the number of times to repeat the animation.
     #[must_use]
     pub fn with_repeat_count(mut self, count: RepeatCount) -> Self {
         self.completion.count = count;
         self
     }
 
-    /// TODO
+    /// Choose how the animation behaves upon a repetition.
     pub fn set_repeat_strategy(&mut self, strategy: RepeatStrategy) {
         self.completion.strategy = strategy;
     }
 
-    /// TODO
+    /// Choose how the animation behaves upon a repetition.
     #[must_use]
     pub fn with_repeat_strategy(mut self, strategy: RepeatStrategy) -> Self {
         self.completion.strategy = strategy;

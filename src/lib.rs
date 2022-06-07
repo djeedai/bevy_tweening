@@ -570,14 +570,14 @@ mod tests {
 
     #[test]
     fn repeat_count() {
-        let tweening_type = RepeatCount::default();
-        assert_eq!(tweening_type, RepeatCount::Finite(1));
+        let count = RepeatCount::default();
+        assert_eq!(count, RepeatCount::Finite(1));
     }
 
     #[test]
     fn repeat_strategy() {
-        let tweening_type = RepeatStrategy::default();
-        assert_eq!(tweening_type, RepeatStrategy::Teleport);
+        let strategy = RepeatStrategy::default();
+        assert_eq!(strategy, RepeatStrategy::Teleport);
     }
 
     #[test]
