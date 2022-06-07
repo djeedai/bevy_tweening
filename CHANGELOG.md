@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `Tween::set_direction()` and `Tween::with_direction()` which allow configuring the playback direction of a tween, allowing to play it backward from end to start.
 - Support dynamically changing an animation's speed with `Animator::set_speed`
 - Add `AnimationSystem` label to tweening tick systems
+- A `BoxedTweenable` type to make working with `Box<dyn Tweenable + ...>` easier
+
+### Changed
+
+- Double boxing in `Sequence` and `Tracks` was fixed. As a result, any custom tweenables
+  should implement `From` for `BoxedTweenable` to make those APIs easier to use.
 
 ## [0.4.0] - 2022-04-16
 

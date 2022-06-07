@@ -3,6 +3,51 @@ use std::time::Duration;
 
 use crate::{EaseMethod, Lens, RepeatCount, RepeatStrategy, TweeningDirection};
 
+/// The dynamic tweenable type.
+///
+/// When creating lists of tweenables, you will need to box them to create a homogeneous
+/// array like so:
+/// ```no_run
+/// # use bevy::prelude::Transform;
+/// # use bevy_tweening::{BoxedTweenable, Delay, Sequence, Tween};
+/// #
+/// # let delay: Delay = unimplemented!();
+/// # let tween: Tween<Transform> = unimplemented!();
+///
+/// Sequence::new([Box::new(delay) as BoxedTweenable<Transform>, tween.into()]);
+/// ```
+///
+/// When using your own [`Tweenable`] types, APIs will be easier to use if you implement [`From`]:
+/// ```no_run
+/// # use std::time::Duration;
+/// # use bevy::prelude::{Entity, EventWriter, Transform};
+/// # use bevy_tweening::{BoxedTweenable, Sequence, Tweenable, TweenCompleted, TweenState};
+/// #
+/// # struct MyTweenable;
+/// # impl Tweenable<Transform> for MyTweenable {
+/// #     fn duration(&self) -> Duration  { unimplemented!() }
+/// #     fn is_looping(&self) -> bool  { unimplemented!() }
+/// #     fn set_progress(&mut self, progress: f32)  { unimplemented!() }
+/// #     fn progress(&self) -> f32  { unimplemented!() }
+/// #     fn tick(&mut self, delta: Duration, target: &mut Transform, entity: Entity, event_writer: &mut EventWriter<TweenCompleted>) -> TweenState  { unimplemented!() }
+/// #     fn times_completed(&self) -> u32  { unimplemented!() }
+/// #     fn rewind(&mut self) { unimplemented!() }
+/// # }
+///
+/// Sequence::new([Box::new(MyTweenable) as BoxedTweenable<_>]);
+///
+/// // OR
+///
+/// Sequence::new([MyTweenable]);
+///
+/// impl From<MyTweenable> for BoxedTweenable<Transform> {
+///     fn from(t: MyTweenable) -> Self {
+///         Box::new(t)
+///     }
+/// }
+/// ```
+pub type BoxedTweenable<T> = Box<dyn Tweenable<T> + Send + Sync + 'static>;
+
 /// Playback state of a [`Tweenable`].
 ///
 /// This is returned by [`Tweenable::tick()`] to allow the caller to execute some logic based on the
@@ -51,7 +96,7 @@ struct AnimClock {
 
 impl AnimClock {
     fn new(duration: Duration, is_looping: bool) -> Self {
-        AnimClock {
+        Self {
             elapsed: Duration::ZERO,
             duration,
             is_looping,
@@ -169,45 +214,27 @@ pub trait Tweenable<T>: Send + Sync {
     fn rewind(&mut self);
 }
 
-impl<T> Tweenable<T> for Box<dyn Tweenable<T> + Send + Sync + 'static> {
-    fn duration(&self) -> Duration {
-        self.as_ref().duration()
-    }
-    fn is_looping(&self) -> bool {
-        self.as_ref().is_looping()
-    }
-    fn set_progress(&mut self, progress: f32) {
-        self.as_mut().set_progress(progress);
-    }
-    fn progress(&self) -> f32 {
-        self.as_ref().progress()
-    }
-    fn tick(
-        &mut self,
-        delta: Duration,
-        target: &mut T,
-        entity: Entity,
-        event_writer: &mut EventWriter<TweenCompleted>,
-    ) -> TweenState {
-        self.as_mut().tick(delta, target, entity, event_writer)
-    }
-    fn times_completed(&self) -> u32 {
-        self.as_ref().times_completed()
-    }
-    fn rewind(&mut self) {
-        self.as_mut().rewind();
+impl<T> From<Delay> for BoxedTweenable<T> {
+    fn from(d: Delay) -> Self {
+        Box::new(d)
     }
 }
 
-/// Trait for boxing a [`Tweenable`] trait object.
-pub trait IntoBoxDynTweenable<T> {
-    /// Convert the current object into a boxed [`Tweenable`].
-    fn into_box_dyn(this: Self) -> Box<dyn Tweenable<T> + Send + Sync + 'static>;
+impl<T: 'static> From<Sequence<T>> for BoxedTweenable<T> {
+    fn from(s: Sequence<T>) -> Self {
+        Box::new(s)
+    }
 }
 
-impl<T, U: Tweenable<T> + Send + Sync + 'static> IntoBoxDynTweenable<T> for U {
-    fn into_box_dyn(this: U) -> Box<dyn Tweenable<T> + Send + Sync + 'static> {
-        Box::new(this)
+impl<T: 'static> From<Tracks<T>> for BoxedTweenable<T> {
+    fn from(t: Tracks<T>) -> Self {
+        Box::new(t)
+    }
+}
+
+impl<T: 'static> From<Tween<T>> for BoxedTweenable<T> {
+    fn from(t: Tween<T>) -> Self {
+        Box::new(t)
     }
 }
 
@@ -255,6 +282,7 @@ impl<T: 'static> Tween<T> {
     /// );
     /// let seq = tween1.then(tween2);
     /// ```
+    #[must_use]
     pub fn then(self, tween: impl Tweenable<T> + Send + Sync + 'static) -> Sequence<T> {
         Sequence::with_capacity(2).then(self).then(tween)
     }
@@ -277,11 +305,12 @@ impl<T> Tween<T> {
     ///     },
     /// );
     /// ```
+    #[must_use]
     pub fn new<L>(ease_function: impl Into<EaseMethod>, duration: Duration, lens: L) -> Self
     where
         L: Lens<T> + Send + Sync + 'static,
     {
-        Tween {
+        Self {
             ease_function: ease_function.into(),
             clock: AnimClock::new(duration, RepeatCount::default() != RepeatCount::Finite(1)),
             times_completed: 0,
@@ -324,6 +353,7 @@ impl<T> Tween<T> {
     /// ```
     ///
     /// [`set_completed()`]: Tween::set_completed
+    #[must_use]
     pub fn with_completed_event(mut self, enabled: bool, user_data: u64) -> Self {
         self.event_data = if enabled { Some(user_data) } else { None };
         self
@@ -347,6 +377,7 @@ impl<T> Tween<T> {
     /// Set the playback direction of the tween.
     ///
     /// See [`Tween::set_direction()`].
+    #[must_use]
     pub fn with_direction(mut self, direction: TweeningDirection) -> Self {
         self.direction = direction;
         self
@@ -378,6 +409,7 @@ impl<T> Tween<T> {
     /// The current animation direction.
     ///
     /// See [`TweeningDirection`] for details.
+    #[must_use]
     pub fn direction(&self) -> TweeningDirection {
         self.direction
     }
@@ -390,7 +422,7 @@ impl<T> Tween<T> {
     /// Only non-looping tweenables can complete.
     pub fn set_completed<C>(&mut self, callback: C)
     where
-        C: Fn(Entity, &Tween<T>) + Send + Sync + 'static,
+        C: Fn(Entity, &Self) + Send + Sync + 'static,
     {
         self.on_completed = Some(Box::new(callback));
     }
@@ -494,7 +526,7 @@ impl<T> Tweenable<T> for Tween<T> {
 
 /// A sequence of tweens played back in order one after the other.
 pub struct Sequence<T> {
-    tweens: Vec<Box<dyn Tweenable<T> + Send + Sync + 'static>>,
+    tweens: Vec<BoxedTweenable<T>>,
     index: usize,
     duration: Duration,
     time: Duration,
@@ -505,14 +537,16 @@ impl<T> Sequence<T> {
     /// Create a new sequence of tweens.
     ///
     /// This method panics if the input collection is empty.
-    pub fn new(items: impl IntoIterator<Item = impl IntoBoxDynTweenable<T>>) -> Self {
-        let tweens: Vec<_> = items
-            .into_iter()
-            .map(IntoBoxDynTweenable::into_box_dyn)
-            .collect();
+    #[must_use]
+    pub fn new(items: impl IntoIterator<Item = impl Into<BoxedTweenable<T>>>) -> Self {
+        let tweens: Vec<_> = items.into_iter().map(Into::into).collect();
         assert!(!tweens.is_empty());
-        let duration = tweens.iter().map(|t| t.duration()).sum();
-        Sequence {
+        let duration = tweens
+            .iter()
+            .map(AsRef::as_ref)
+            .map(Tweenable::duration)
+            .sum();
+        Self {
             tweens,
             index: 0,
             duration,
@@ -522,10 +556,12 @@ impl<T> Sequence<T> {
     }
 
     /// Create a new sequence containing a single tween.
+    #[must_use]
     pub fn from_single(tween: impl Tweenable<T> + Send + Sync + 'static) -> Self {
         let duration = tween.duration();
-        Sequence {
-            tweens: vec![Box::new(tween)],
+        let boxed: BoxedTweenable<T> = Box::new(tween);
+        Self {
+            tweens: vec![boxed],
             index: 0,
             duration,
             time: Duration::ZERO,
@@ -534,8 +570,9 @@ impl<T> Sequence<T> {
     }
 
     /// Create a new sequence with the specified capacity.
+    #[must_use]
     pub fn with_capacity(capacity: usize) -> Self {
-        Sequence {
+        Self {
             tweens: Vec::with_capacity(capacity),
             index: 0,
             duration: Duration::ZERO,
@@ -545,6 +582,7 @@ impl<T> Sequence<T> {
     }
 
     /// Append a [`Tweenable`] to this sequence.
+    #[must_use]
     pub fn then(mut self, tween: impl Tweenable<T> + Send + Sync + 'static) -> Self {
         self.duration += tween.duration();
         self.tweens.push(Box::new(tween));
@@ -552,11 +590,13 @@ impl<T> Sequence<T> {
     }
 
     /// Index of the current active tween in the sequence.
+    #[must_use]
     pub fn index(&self) -> usize {
         self.index.min(self.tweens.len() - 1)
     }
 
     /// Get the current active tween in the sequence.
+    #[must_use]
     pub fn current(&self) -> &dyn Tweenable<T> {
         self.tweens[self.index()].as_ref()
     }
@@ -645,7 +685,7 @@ impl<T> Tweenable<T> for Sequence<T> {
 
 /// A collection of [`Tweenable`] executing in parallel.
 pub struct Tracks<T> {
-    tracks: Vec<Box<dyn Tweenable<T> + Send + Sync + 'static>>,
+    tracks: Vec<BoxedTweenable<T>>,
     duration: Duration,
     time: Duration,
     times_completed: u32,
@@ -653,13 +693,16 @@ pub struct Tracks<T> {
 
 impl<T> Tracks<T> {
     /// Create a new [`Tracks`] from an iterator over a collection of [`Tweenable`].
-    pub fn new(items: impl IntoIterator<Item = impl IntoBoxDynTweenable<T>>) -> Self {
-        let tracks: Vec<_> = items
-            .into_iter()
-            .map(IntoBoxDynTweenable::into_box_dyn)
-            .collect();
-        let duration = tracks.iter().map(|t| t.duration()).max().unwrap();
-        Tracks {
+    #[must_use]
+    pub fn new(items: impl IntoIterator<Item = impl Into<BoxedTweenable<T>>>) -> Self {
+        let tracks: Vec<_> = items.into_iter().map(Into::into).collect();
+        let duration = tracks
+            .iter()
+            .map(AsRef::as_ref)
+            .map(Tweenable::duration)
+            .max()
+            .unwrap();
+        Self {
             tracks,
             duration,
             time: Duration::ZERO,
@@ -737,13 +780,15 @@ pub struct Delay {
 
 impl Delay {
     /// Create a new [`Delay`] with a given duration.
+    #[must_use]
     pub fn new(duration: Duration) -> Self {
-        Delay {
+        Self {
             timer: Timer::new(duration, false),
         }
     }
 
     /// Chain another [`Tweenable`] after this tween, making a sequence with the two.
+    #[must_use]
     pub fn then<T>(self, tween: impl Tweenable<T> + Send + Sync + 'static) -> Sequence<T> {
         Sequence::with_capacity(2).then(self).then(tween)
     }
@@ -802,11 +847,14 @@ impl<T> Tweenable<T> for Delay {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::lens::*;
-    use bevy::ecs::{event::Events, system::SystemState};
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
+
+    use bevy::ecs::{event::Events, system::SystemState};
+
+    use crate::lens::*;
+
+    use super::*;
 
     /// Utility to compare floating-point values with a tolerance.
     fn abs_diff_eq(a: f32, b: f32, tol: f32) -> bool {

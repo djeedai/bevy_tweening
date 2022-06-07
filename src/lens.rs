@@ -167,7 +167,7 @@ pub struct TransformRotateXLens {
 
 impl Lens<Transform> for TransformRotateXLens {
     fn lerp(&mut self, target: &mut Transform, ratio: f32) {
-        let angle = self.start + (self.end - self.start) * ratio;
+        let angle = (self.end - self.start).mul_add(ratio, self.start);
         target.rotation = Quat::from_rotation_x(angle);
     }
 }
@@ -193,7 +193,7 @@ pub struct TransformRotateYLens {
 
 impl Lens<Transform> for TransformRotateYLens {
     fn lerp(&mut self, target: &mut Transform, ratio: f32) {
-        let angle = self.start + (self.end - self.start) * ratio;
+        let angle = (self.end - self.start).mul_add(ratio, self.start);
         target.rotation = Quat::from_rotation_y(angle);
     }
 }
@@ -219,7 +219,7 @@ pub struct TransformRotateZLens {
 
 impl Lens<Transform> for TransformRotateZLens {
     fn lerp(&mut self, target: &mut Transform, ratio: f32) {
-        let angle = self.start + (self.end - self.start) * ratio;
+        let angle = (self.end - self.start).mul_add(ratio, self.start);
         target.rotation = Quat::from_rotation_z(angle);
     }
 }
@@ -251,7 +251,7 @@ pub struct TransformRotateAxisLens {
 
 impl Lens<Transform> for TransformRotateAxisLens {
     fn lerp(&mut self, target: &mut Transform, ratio: f32) {
-        let angle = self.start + (self.end - self.start) * ratio;
+        let angle = (self.end - self.start).mul_add(ratio, self.start);
         target.rotation = Quat::from_axis_angle(self.axis, angle);
     }
 }
@@ -291,8 +291,10 @@ pub struct UiPositionLens {
 #[cfg(feature = "bevy_ui")]
 fn lerp_val(start: &Val, end: &Val, ratio: f32) -> Val {
     match (start, end) {
-        (Val::Percent(start), Val::Percent(end)) => Val::Percent(start + (end - start) * ratio),
-        (Val::Px(start), Val::Px(end)) => Val::Px(start + (end - start) * ratio),
+        (Val::Percent(start), Val::Percent(end)) => {
+            Val::Percent((end - start).mul_add(ratio, *start))
+        }
+        (Val::Px(start), Val::Px(end)) => Val::Px((end - start).mul_add(ratio, *start)),
         _ => *start,
     }
 }
@@ -370,7 +372,7 @@ mod tests {
             end: Color::BLUE,
             section: 0,
         };
-        let mut text = Text::with_section("", Default::default(), Default::default());
+        let mut text = Text::with_section("", default(), default());
 
         lens.lerp(&mut text, 0.);
         assert_eq!(text.sections[0].style.color, Color::RED);
@@ -623,7 +625,7 @@ mod tests {
         };
         let mut sprite = Sprite {
             color: Color::WHITE,
-            ..Default::default()
+            ..default()
         };
 
         lens.lerp(&mut sprite, 0.);

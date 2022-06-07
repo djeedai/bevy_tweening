@@ -156,7 +156,9 @@ pub use lens::Lens;
 pub use plugin::{
     asset_animator_system, component_animator_system, AnimationSystem, TweeningPlugin,
 };
-pub use tweenable::{Delay, Sequence, Tracks, Tween, TweenCompleted, TweenState, Tweenable};
+pub use tweenable::{
+    BoxedTweenable, Delay, Sequence, Tracks, Tween, TweenCompleted, TweenState, Tweenable,
+};
 
 /// How many times to repeat a tween animation. See also: [`RepeatMode`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -205,17 +207,17 @@ pub enum AnimatorState {
 
 impl Default for AnimatorState {
     fn default() -> Self {
-        AnimatorState::Playing
+        Self::Playing
     }
 }
 
 impl std::ops::Not for AnimatorState {
-    type Output = AnimatorState;
+    type Output = Self;
 
     fn not(self) -> Self::Output {
         match self {
-            AnimatorState::Paused => AnimatorState::Playing,
-            AnimatorState::Playing => AnimatorState::Paused,
+            Self::Paused => Self::Playing,
+            Self::Playing => Self::Paused,
         }
     }
 }
@@ -235,31 +237,32 @@ pub enum EaseMethod {
 }
 
 impl EaseMethod {
+    #[must_use]
     fn sample(self, x: f32) -> f32 {
         match self {
-            EaseMethod::EaseFunction(function) => x.calc(function),
-            EaseMethod::Linear => x,
-            EaseMethod::Discrete(limit) => {
+            Self::EaseFunction(function) => x.calc(function),
+            Self::Linear => x,
+            Self::Discrete(limit) => {
                 if x > limit {
                     1.
                 } else {
                     0.
                 }
             }
-            EaseMethod::CustomFunction(function) => function(x),
+            Self::CustomFunction(function) => function(x),
         }
     }
 }
 
 impl Default for EaseMethod {
     fn default() -> Self {
-        EaseMethod::Linear
+        Self::Linear
     }
 }
 
 impl From<EaseFunction> for EaseMethod {
     fn from(ease_function: EaseFunction) -> Self {
-        EaseMethod::EaseFunction(ease_function)
+        Self::EaseFunction(ease_function)
     }
 }
 
@@ -286,31 +289,151 @@ pub enum TweeningDirection {
 
 impl TweeningDirection {
     /// Is the direction equal to [`TweeningDirection::Forward`]?
+    #[must_use]
     pub fn is_forward(&self) -> bool {
-        *self == TweeningDirection::Forward
+        *self == Self::Forward
     }
 
     /// Is the direction equal to [`TweeningDirection::Backward`]?
+    #[must_use]
     pub fn is_backward(&self) -> bool {
-        *self == TweeningDirection::Backward
+        *self == Self::Backward
     }
 }
 
 impl Default for TweeningDirection {
     fn default() -> Self {
-        TweeningDirection::Forward
+        Self::Forward
     }
 }
 
 impl std::ops::Not for TweeningDirection {
-    type Output = TweeningDirection;
+    type Output = Self;
 
     fn not(self) -> Self::Output {
         match self {
-            TweeningDirection::Forward => TweeningDirection::Backward,
-            TweeningDirection::Backward => TweeningDirection::Forward,
+            Self::Forward => Self::Backward,
+            Self::Backward => Self::Forward,
         }
     }
+}
+
+macro_rules! animator_impl {
+    () => {
+        /// Set the initial playback state of the animator.
+        #[must_use]
+        pub fn with_state(mut self, state: AnimatorState) -> Self {
+            self.state = state;
+            self
+        }
+
+        /// Set the initial speed of the animator. See [`Animator::set_speed`] for details.
+        #[must_use]
+        pub fn with_speed(mut self, speed: f32) -> Self {
+            self.speed = speed;
+            self
+        }
+
+        /// Set the animation speed. Defaults to 1.
+        ///
+        /// A speed of 2 means the animation will run twice as fast while a speed of 0.1 will result in
+        /// a 10x slowed animation.
+        pub fn set_speed(&mut self, speed: f32) {
+            self.speed = speed;
+        }
+
+        /// Set the top-level tweenable item this animator controls.
+        pub fn set_tweenable(&mut self, tween: impl Tweenable<T> + Send + Sync + 'static) {
+            self.tweenable = Some(Box::new(tween));
+        }
+
+        /// Get the top-level tweenable this animator is currently controlling.
+        #[must_use]
+        pub fn tweenable(&self) -> Option<&(dyn Tweenable<T> + Send + Sync + 'static)> {
+            if let Some(tweenable) = &self.tweenable {
+                Some(tweenable.as_ref())
+            } else {
+                None
+            }
+        }
+
+        /// Get the top-level mutable tweenable this animator is currently controlling.
+        #[must_use]
+        pub fn tweenable_mut(&mut self) -> Option<&mut (dyn Tweenable<T> + Send + Sync + 'static)> {
+            if let Some(tweenable) = &mut self.tweenable {
+                Some(tweenable.as_mut())
+            } else {
+                None
+            }
+        }
+
+        /// Set the current animation playback progress.
+        ///
+        /// See [`progress()`] for details on the meaning.
+        ///
+        /// [`progress()`]: Animator::progress
+        pub fn set_progress(&mut self, progress: f32) {
+            if let Some(tweenable) = &mut self.tweenable {
+                tweenable.set_progress(progress)
+            }
+        }
+
+        /// Get the current progress in \[0:1\] (non-looping) or \[0:1\[ (looping) of the animation.
+        ///
+        /// For looping animations, this reports the progress of the current iteration, in the current direction:
+        /// - [`TweeningType::Loop`] is 0 at start and 1 at end. The exact value 1.0 is never reached,
+        ///   since the tweenable loops over to 0.0 immediately.
+        /// - [`TweeningType::PingPong`] is 0 at the source endpoint and 1 and the destination one,
+        ///   which are respectively the start/end for [`TweeningDirection::Forward`], or the end/start
+        ///   for [`TweeningDirection::Backward`]. The exact value 1.0 is never reached, since the tweenable
+        ///   loops over to 0.0 immediately when it changes direction at either endpoint.
+        ///
+        /// For sequences, the progress is measured over the entire sequence, from 0 at the start of the first
+        /// child tweenable to 1 at the end of the last one.
+        ///
+        /// For tracks (parallel execution), the progress is measured like a sequence over the longest "path" of
+        /// child tweenables. In other words, this is the current elapsed time over the total tweenable duration.
+        #[must_use]
+        pub fn progress(&self) -> f32 {
+            if let Some(tweenable) = &self.tweenable {
+                tweenable.progress()
+            } else {
+                0.
+            }
+        }
+
+        /// Ticks the tween, if present. See [`Tweenable::tick`] for details.
+        pub fn tick(
+            &mut self,
+            delta: Duration,
+            target: &mut T,
+            entity: Entity,
+            event_writer: &mut EventWriter<TweenCompleted>,
+        ) -> Option<TweenState> {
+            if let Some(tweenable) = &mut self.tweenable {
+                Some(tweenable.tick(delta.mul_f32(self.speed), target, entity, event_writer))
+            } else {
+                None
+            }
+        }
+
+        /// Stop animation playback and rewind the animation.
+        ///
+        /// This changes the animator state to [`AnimatorState::Paused`] and rewind its tweenable.
+        pub fn stop(&mut self) {
+            self.state = AnimatorState::Paused;
+            self.rewind();
+        }
+
+        /// Rewind animation playback to its initial state.
+        ///
+        /// This does not change the playback state (playing/paused).
+        pub fn rewind(&mut self) {
+            if let Some(tweenable) = &mut self.tweenable {
+                tweenable.rewind();
+            }
+        }
+    };
 }
 
 /// Component to control the animation of another component.
@@ -318,7 +441,7 @@ impl std::ops::Not for TweeningDirection {
 pub struct Animator<T: Component> {
     /// Control if this animation is played or not.
     pub state: AnimatorState,
-    tweenable: Option<Box<dyn Tweenable<T> + Send + Sync + 'static>>,
+    tweenable: Option<BoxedTweenable<T>>,
     speed: f32,
 }
 
@@ -332,8 +455,8 @@ impl<T: Component + std::fmt::Debug> std::fmt::Debug for Animator<T> {
 
 impl<T: Component> Default for Animator<T> {
     fn default() -> Self {
-        Animator {
-            state: Default::default(),
+        Self {
+            state: default(),
             tweenable: None,
             speed: 1.,
         }
@@ -342,121 +465,15 @@ impl<T: Component> Default for Animator<T> {
 
 impl<T: Component> Animator<T> {
     /// Create a new animator component from a single tweenable.
+    #[must_use]
     pub fn new(tween: impl Tweenable<T> + Send + Sync + 'static) -> Self {
-        Animator {
+        Self {
             tweenable: Some(Box::new(tween)),
-            ..Default::default()
+            ..default()
         }
     }
 
-    /// Set the initial playback state of the animator.
-    pub fn with_state(mut self, state: AnimatorState) -> Self {
-        self.state = state;
-        self
-    }
-
-    /// Set the initial speed of the animator. See [`Animator::set_speed`] for details.
-    pub fn with_speed(mut self, speed: f32) -> Self {
-        self.speed = speed;
-        self
-    }
-
-    /// Set the animation speed. Defaults to 1.
-    ///
-    /// A speed of 2 means the animation will run twice as fast while a speed of 0.1 will result in
-    /// a 10x slowed animation.
-    pub fn set_speed(&mut self, speed: f32) {
-        self.speed = speed;
-    }
-
-    /// Set the top-level tweenable item this animator controls.
-    pub fn set_tweenable(&mut self, tween: impl Tweenable<T> + Send + Sync + 'static) {
-        self.tweenable = Some(Box::new(tween));
-    }
-
-    /// Get the top-level tweenable this animator is currently controlling.
-    pub fn tweenable(&self) -> Option<&(dyn Tweenable<T> + Send + Sync + 'static)> {
-        if let Some(tweenable) = &self.tweenable {
-            Some(tweenable.as_ref())
-        } else {
-            None
-        }
-    }
-
-    /// Get the top-level mutable tweenable this animator is currently controlling.
-    pub fn tweenable_mut(&mut self) -> Option<&mut (dyn Tweenable<T> + Send + Sync + 'static)> {
-        if let Some(tweenable) = &mut self.tweenable {
-            Some(tweenable.as_mut())
-        } else {
-            None
-        }
-    }
-
-    /// Set the current animation playback progress.
-    ///
-    /// See [`progress()`] for details on the meaning.
-    ///
-    /// [`progress()`]: Animator::progress
-    pub fn set_progress(&mut self, progress: f32) {
-        if let Some(tweenable) = &mut self.tweenable {
-            tweenable.set_progress(progress)
-        }
-    }
-
-    /// Get the current progress in \[0:1\] (non-looping) or \[0:1\[ (looping) of the animation.
-    ///
-    /// For looping animations, this reports the progress of the current iteration, in the current direction:
-    /// - [`TweeningType::Loop`] is 0 at start and 1 at end. The exact value 1.0 is never reached,
-    ///   since the tweenable loops over to 0.0 immediately.
-    /// - [`TweeningType::PingPong`] is 0 at the source endpoint and 1 and the destination one,
-    ///   which are respectively the start/end for [`TweeningDirection::Forward`], or the end/start
-    ///   for [`TweeningDirection::Backward`]. The exact value 1.0 is never reached, since the tweenable
-    ///   loops over to 0.0 immediately when it changes direction at either endpoint.
-    ///
-    /// For sequences, the progress is measured over the entire sequence, from 0 at the start of the first
-    /// child tweenable to 1 at the end of the last one.
-    ///
-    /// For tracks (parallel execution), the progress is measured like a sequence over the longest "path" of
-    /// child tweenables. In other words, this is the current elapsed time over the total tweenable duration.
-    pub fn progress(&self) -> f32 {
-        if let Some(tweenable) = &self.tweenable {
-            tweenable.progress()
-        } else {
-            0.
-        }
-    }
-
-    /// Ticks the tween, if present. See [`Tweenable::tick`] for details.
-    pub fn tick(
-        &mut self,
-        delta: Duration,
-        target: &mut T,
-        entity: Entity,
-        event_writer: &mut EventWriter<TweenCompleted>,
-    ) -> Option<TweenState> {
-        if let Some(tweenable) = &mut self.tweenable {
-            Some(tweenable.tick(delta.mul_f32(self.speed), target, entity, event_writer))
-        } else {
-            None
-        }
-    }
-
-    /// Stop animation playback and rewind the animation.
-    ///
-    /// This changes the animator state to [`AnimatorState::Paused`] and rewind its tweenable.
-    pub fn stop(&mut self) {
-        self.state = AnimatorState::Paused;
-        self.rewind();
-    }
-
-    /// Rewind animation playback to its initial state.
-    ///
-    /// This does not change the playback state (playing/paused).
-    pub fn rewind(&mut self) {
-        if let Some(tweenable) = &mut self.tweenable {
-            tweenable.rewind();
-        }
-    }
+    animator_impl!();
 }
 
 /// Component to control the animation of an asset.
@@ -464,7 +481,7 @@ impl<T: Component> Animator<T> {
 pub struct AssetAnimator<T: Asset> {
     /// Control if this animation is played or not.
     pub state: AnimatorState,
-    tweenable: Option<Box<dyn Tweenable<T> + Send + Sync + 'static>>,
+    tweenable: Option<BoxedTweenable<T>>,
     handle: Handle<T>,
     speed: f32,
 }
@@ -479,10 +496,10 @@ impl<T: Asset + std::fmt::Debug> std::fmt::Debug for AssetAnimator<T> {
 
 impl<T: Asset> Default for AssetAnimator<T> {
     fn default() -> Self {
-        AssetAnimator {
-            state: Default::default(),
+        Self {
+            state: default(),
             tweenable: None,
-            handle: Default::default(),
+            handle: default(),
             speed: 1.,
         }
     }
@@ -490,123 +507,18 @@ impl<T: Asset> Default for AssetAnimator<T> {
 
 impl<T: Asset> AssetAnimator<T> {
     /// Create a new asset animator component from a single tweenable.
+    #[must_use]
     pub fn new(handle: Handle<T>, tween: impl Tweenable<T> + Send + Sync + 'static) -> Self {
-        AssetAnimator {
+        Self {
             tweenable: Some(Box::new(tween)),
             handle,
-            ..Default::default()
+            ..default()
         }
     }
 
-    /// Set the initial playback state of the animator.
-    pub fn with_state(mut self, state: AnimatorState) -> Self {
-        self.state = state;
-        self
-    }
+    animator_impl!();
 
-    /// Set the initial speed of the animator. See [`Animator::set_speed`] for details.
-    pub fn with_speed(mut self, speed: f32) -> Self {
-        self.speed = speed;
-        self
-    }
-
-    /// Set the animation speed. Defaults to 1.
-    ///
-    /// A speed of 2 means the animation will run twice as fast while a speed of 0.1 will result in
-    /// a 10x slowed animation.
-    pub fn set_speed(&mut self, speed: f32) {
-        self.speed = speed;
-    }
-
-    /// Set the top-level tweenable item this animator controls.
-    pub fn set_tweenable(&mut self, tween: impl Tweenable<T> + Send + Sync + 'static) {
-        self.tweenable = Some(Box::new(tween));
-    }
-
-    /// Get the top-level tweenable this animator is currently controlling.
-    pub fn tweenable(&self) -> Option<&(dyn Tweenable<T> + Send + Sync + 'static)> {
-        if let Some(tweenable) = &self.tweenable {
-            Some(tweenable.as_ref())
-        } else {
-            None
-        }
-    }
-
-    /// Get the top-level mutable tweenable this animator is currently controlling.
-    pub fn tweenable_mut(&mut self) -> Option<&mut (dyn Tweenable<T> + Send + Sync + 'static)> {
-        if let Some(tweenable) = &mut self.tweenable {
-            Some(tweenable.as_mut())
-        } else {
-            None
-        }
-    }
-
-    /// Set the current animation playback progress.
-    ///
-    /// See [`progress()`] for details on the meaning.
-    ///
-    /// [`progress()`]: Animator::progress
-    pub fn set_progress(&mut self, progress: f32) {
-        if let Some(tweenable) = &mut self.tweenable {
-            tweenable.set_progress(progress)
-        }
-    }
-
-    /// Get the current progress in \[0:1\] (non-looping) or \[0:1\[ (looping) of the animation.
-    ///
-    /// For looping animations, this reports the progress of the current iteration, in the current direction:
-    /// - [`TweeningType::Loop`] is 0 at start and 1 at end. The exact value 1.0 is never reached,
-    ///   since the tweenable loops over to 0.0 immediately.
-    /// - [`TweeningType::PingPong`] is 0 at the source endpoint and 1 and the destination one,
-    ///   which are respectively the start/end for [`TweeningDirection::Forward`], or the end/start
-    ///   for [`TweeningDirection::Backward`]. The exact value 1.0 is never reached, since the tweenable
-    ///   loops over to 0.0 immediately when it changes direction at either endpoint.
-    ///
-    /// For sequences, the progress is measured over the entire sequence, from 0 at the start of the first
-    /// child tweenable to 1 at the end of the last one.
-    ///
-    /// For tracks (parallel execution), the progress is measured like a sequence over the longest "path" of
-    /// child tweenables. In other words, this is the current elapsed time over the total tweenable duration.
-    pub fn progress(&self) -> f32 {
-        if let Some(tweenable) = &self.tweenable {
-            tweenable.progress()
-        } else {
-            0.
-        }
-    }
-
-    /// Ticks the tween, if present. See [`Tweenable::tick`] for details.
-    pub fn tick(
-        &mut self,
-        delta: Duration,
-        target: &mut T,
-        entity: Entity,
-        event_writer: &mut EventWriter<TweenCompleted>,
-    ) -> Option<TweenState> {
-        if let Some(tweenable) = &mut self.tweenable {
-            Some(tweenable.tick(delta.mul_f32(self.speed), target, entity, event_writer))
-        } else {
-            None
-        }
-    }
-
-    /// Stop animation playback and rewind the animation.
-    ///
-    /// This changes the animator state to [`AnimatorState::Paused`] and rewind its tweenable.
-    pub fn stop(&mut self) {
-        self.state = AnimatorState::Paused;
-        self.rewind();
-    }
-
-    /// Rewind animation playback to its initial state.
-    ///
-    /// This does not change the playback state (playing/paused).
-    pub fn rewind(&mut self) {
-        if let Some(tweenable) = &mut self.tweenable {
-            tweenable.rewind();
-        }
-    }
-
+    #[must_use]
     fn handle(&self) -> Handle<T> {
         self.handle.clone()
     }
@@ -704,7 +616,7 @@ mod tests {
     fn animator_new() {
         let tween = Tween::new(
             EaseFunction::QuadraticInOut,
-            std::time::Duration::from_secs(1),
+            Duration::from_secs(1),
             DummyLens { start: 0., end: 1. },
         );
         let animator = Animator::<DummyComponent>::new(tween);
@@ -719,7 +631,7 @@ mod tests {
         for state in [AnimatorState::Playing, AnimatorState::Paused] {
             let tween = Tween::<DummyComponent>::new(
                 EaseFunction::QuadraticInOut,
-                std::time::Duration::from_secs(1),
+                Duration::from_secs(1),
                 DummyLens { start: 0., end: 1. },
             );
             let animator = Animator::new(tween).with_state(state);
@@ -736,7 +648,7 @@ mod tests {
 
         let tween = Tween::<DummyComponent>::new(
             EaseFunction::QuadraticInOut,
-            std::time::Duration::from_secs(1),
+            Duration::from_secs(1),
             DummyLens { start: 0., end: 1. },
         );
         animator.set_tweenable(tween);
@@ -749,7 +661,7 @@ mod tests {
     fn animator_controls() {
         let tween = Tween::<DummyComponent>::new(
             EaseFunction::QuadraticInOut,
-            std::time::Duration::from_secs(1),
+            Duration::from_secs(1),
             DummyLens { start: 0., end: 1. },
         );
         let mut animator = Animator::new(tween);
@@ -787,7 +699,7 @@ mod tests {
     fn asset_animator_new() {
         let tween = Tween::<DummyAsset>::new(
             EaseFunction::QuadraticInOut,
-            std::time::Duration::from_secs(1),
+            Duration::from_secs(1),
             DummyLens { start: 0., end: 1. },
         );
         let animator = AssetAnimator::new(Handle::<DummyAsset>::default(), tween);
@@ -802,7 +714,7 @@ mod tests {
         for state in [AnimatorState::Playing, AnimatorState::Paused] {
             let tween = Tween::<DummyAsset>::new(
                 EaseFunction::QuadraticInOut,
-                std::time::Duration::from_secs(1),
+                Duration::from_secs(1),
                 DummyLens { start: 0., end: 1. },
             );
             let animator =
@@ -821,7 +733,7 @@ mod tests {
 
         let tween = Tween::new(
             EaseFunction::QuadraticInOut,
-            std::time::Duration::from_secs(1),
+            Duration::from_secs(1),
             DummyLens { start: 0., end: 1. },
         );
         animator.set_tweenable(tween);
@@ -835,7 +747,7 @@ mod tests {
     fn asset_animator_controls() {
         let tween = Tween::new(
             EaseFunction::QuadraticInOut,
-            std::time::Duration::from_secs(1),
+            Duration::from_secs(1),
             DummyLens { start: 0., end: 1. },
         );
         let mut animator = AssetAnimator::new(Handle::<DummyAsset>::default(), tween);
