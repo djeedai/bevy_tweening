@@ -118,7 +118,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 end: pair[1] - center,
             },
         )
-        .with_completed_event(true, index as u64) // Get an event after each segment
+        // Get an event after each segment
+        .with_completed_event(true, index as u64)
     }));
 
     commands
@@ -133,8 +134,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         .insert(RedSprite)
         .insert(Animator::new(seq));
 
-    // First move from left to right, then rotate around self 180 degrees while scaling
-    // size at the same time.
+    // First move from left to right, then rotate around self 180 degrees while
+    // scaling size at the same time.
     let tween_move = Tween::new(
         EaseFunction::QuadraticInOut,
         TweeningType::Once,
@@ -163,10 +164,11 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             end: Vec3::splat(2.0),
         },
     );
-    // Build parallel tracks executing two tweens at the same time : rotate and scale.
+    // Build parallel tracks executing two tweens at the same time: rotate and
+    // scale.
     let tracks = Tracks::new([tween_rotate, tween_scale]);
-    // Build a sequence from an heterogeneous list of tweenables by casting them manually
-    // to a boxed Tweenable<Transform> : first move, then { rotate + scale }.
+    // Build a sequence from an heterogeneous list of tweenables by casting them
+    // manually to a BoxedTweenable: first move, then { rotate + scale }.
     let seq2 = Sequence::new([Box::new(tween_move) as BoxedTweenable<_>, tracks.into()]);
 
     commands
