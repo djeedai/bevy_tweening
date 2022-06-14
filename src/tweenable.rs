@@ -175,7 +175,8 @@ pub trait Tweenable<T>: Send + Sync {
     ///
     /// Note that for [`RepeatStrategy::Bounce`], this is the duration of a
     /// single way, either from start to end or back from end to start. The
-    /// total "loop" duration start -> end -> start to reach back the same state
+    /// total "loop" duration start -> end -> start to reach back the same
+    /// state
     /// in this case is the double of the returned value.
     fn duration(&self) -> Duration;
 
@@ -221,9 +222,11 @@ pub trait Tweenable<T>: Send + Sync {
     /// Get the number of times this tweenable completed.
     ///
     /// For looping animations, this returns the number of times a single
-    /// playback was completed. In the case of [`RepeatStrategy::Bounce`] this
+    /// playback was completed. In the case of [`RepeatStrategy::Bounce`]
+    /// this
     /// corresponds to a playback in a single direction, so tweening from start
-    /// to end and back to start counts as two completed times (one forward, one
+    /// to end and back to start counts as two completed times (one
+    /// forward, one
     /// backward).
     fn times_completed(&self) -> u32;
 

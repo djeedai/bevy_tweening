@@ -290,8 +290,9 @@ impl From<EaseFunction> for EaseMethod {
 /// For all but [`RepeatStrategy::Bounce`] this is always
 /// [`TweeningDirection::Forward`], unless manually configured with
 /// [`Tween::set_direction()`] in which case the value is constant equal to the
-/// value set. When using [`RepeatStrategy::Bounce`], this is either forward
-/// (from start to end; ping) or backward (from end to start; pong), depending
+/// value set. When using [`RepeatStrategy::Bounce`], this is
+/// either forward (from start to end; ping) or backward (from end to start;
+/// pong), depending
 /// on the current iteration of the loop.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TweeningDirection {
@@ -393,7 +394,8 @@ macro_rules! animator_impl {
             }
         }
 
-        /// Get the current progress of the tweenable. See [`Tweenable::progress`] for
+        /// Get the current progress of
+        /// the tweenable. See [`Tweenable::progress`] for
         /// details.
         ///
         /// For sequences, the progress is measured over the entire sequence, from 0 at
