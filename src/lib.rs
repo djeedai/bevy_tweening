@@ -184,7 +184,7 @@ pub enum RepeatCount {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RepeatStrategy {
     /// Reset the animation back to its starting position.
-    Teleport,
+    Repeat,
     /// Follow a ping-pong pattern, changing the direction each time an endpoint
     /// is reached.
     ///
@@ -192,7 +192,7 @@ pub enum RepeatStrategy {
     /// iterations for the various operations where looping matters. That
     /// is, a 1 second animation will take 2 seconds to end up back where it
     /// started.
-    Bounce,
+    MirroredRepeat,
 }
 
 impl Default for RepeatCount {
@@ -203,7 +203,7 @@ impl Default for RepeatCount {
 
 impl Default for RepeatStrategy {
     fn default() -> Self {
-        Self::Teleport
+        Self::Repeat
     }
 }
 
@@ -287,12 +287,12 @@ impl From<EaseFunction> for EaseMethod {
 /// that target at the start bound of the lens, effectively making the animation
 /// play backward.
 ///
-/// For all but [`RepeatStrategy::Bounce`] this is always
+/// For all but [`RepeatStrategy::MirroredRepeat`] this is always
 /// [`TweeningDirection::Forward`], unless manually configured with
 /// [`Tween::set_direction()`] in which case the value is constant equal to the
-/// value set. When using [`RepeatStrategy::Bounce`], this is either forward
-/// (from start to end; ping) or backward (from end to start; pong), depending
-/// on the current iteration of the loop.
+/// value set. When using [`RepeatStrategy::MirroredRepeat`], this is either
+/// forward (from start to end; ping) or backward (from end to start; pong),
+/// depending on the current iteration of the loop.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TweeningDirection {
     /// Animation playing from start to end.
@@ -577,7 +577,7 @@ mod tests {
     #[test]
     fn repeat_strategy() {
         let strategy = RepeatStrategy::default();
-        assert_eq!(strategy, RepeatStrategy::Teleport);
+        assert_eq!(strategy, RepeatStrategy::Repeat);
     }
 
     #[test]

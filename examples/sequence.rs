@@ -119,7 +119,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 },
             )
             .with_repeat_count(RepeatCount::Finite(4))
-            .with_repeat_strategy(RepeatStrategy::Bounce),
+            .with_repeat_strategy(RepeatStrategy::MirroredRepeat),
             Tween::new(
                 EaseFunction::QuadraticInOut,
                 Duration::from_secs(1),

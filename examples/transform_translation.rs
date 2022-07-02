@@ -83,7 +83,7 @@ fn setup(mut commands: Commands) {
             },
         )
         .with_repeat_count(RepeatCount::Infinite)
-        .with_repeat_strategy(RepeatStrategy::Bounce);
+        .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
         commands
             .spawn_bundle(SpriteBundle {

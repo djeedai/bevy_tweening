@@ -69,10 +69,10 @@ pub enum TweenState {
 ///
 /// This event is raised when a tween completed. When looping, this is raised
 /// once per iteration. In case the animation direction changes
-/// ([`RepeatStrategy::Bounce`]), an iteration corresponds to a single progress
-/// from one endpoint to the other, whatever the direction. Therefore a complete
-/// cycle start -> end -> start counts as 2 iterations and raises 2 events (one
-/// when reaching the end, one when reaching back the start).
+/// ([`RepeatStrategy::MirroredRepeat`]), an iteration corresponds to a single
+/// progress from one endpoint to the other, whatever the direction. Therefore a
+/// complete cycle start -> end -> start counts as 2 iterations and raises 2
+/// events (one when reaching the end, one when reaching back the start).
 ///
 /// # Note
 ///
@@ -173,10 +173,10 @@ pub trait Tweenable<T>: Send + Sync {
     ///
     /// This is always the duration of a single iteration, even when looping.
     ///
-    /// Note that for [`RepeatStrategy::Bounce`], this is the duration of a
-    /// single way, either from start to end or back from end to start. The
-    /// total "loop" duration start -> end -> start to reach back the same state
-    /// in this case is the double of the returned value.
+    /// Note that for [`RepeatStrategy::MirroredRepeat`], this is the duration
+    /// of a single way, either from start to end or back from end to start.
+    /// The total "loop" duration start -> end -> start to reach back the
+    /// same state in this case is the double of the returned value.
     fn duration(&self) -> Duration;
 
     /// Set the current animation playback progress.
@@ -221,10 +221,10 @@ pub trait Tweenable<T>: Send + Sync {
     /// Get the number of times this tweenable completed.
     ///
     /// For looping animations, this returns the number of times a single
-    /// playback was completed. In the case of [`RepeatStrategy::Bounce`] this
-    /// corresponds to a playback in a single direction, so tweening from start
-    /// to end and back to start counts as two completed times (one forward, one
-    /// backward).
+    /// playback was completed. In the case of
+    /// [`RepeatStrategy::MirroredRepeat`] this corresponds to a playback in
+    /// a single direction, so tweening from start to end and back to start
+    /// counts as two completed times (one forward, one backward).
     fn times_completed(&self) -> u32;
 
     /// Rewind the animation to its starting state.
@@ -501,7 +501,7 @@ impl<T> Tweenable<T> for Tween<T> {
         // Tick the animation clock
         let times_completed = self.clock.tick(delta);
         self.completion.record_completions(times_completed);
-        if self.completion.strategy == RepeatStrategy::Bounce && times_completed & 1 != 0 {
+        if self.completion.strategy == RepeatStrategy::MirroredRepeat && times_completed & 1 != 0 {
             self.direction = !self.direction;
         }
         let progress = self.progress();
@@ -913,10 +913,10 @@ mod tests {
         for tweening_direction in &[TweeningDirection::Forward, TweeningDirection::Backward] {
             for (count, strategy) in &[
                 (RepeatCount::Finite(1), RepeatStrategy::default()),
-                (RepeatCount::Infinite, RepeatStrategy::Teleport),
-                (RepeatCount::Finite(2), RepeatStrategy::Teleport),
-                (RepeatCount::Infinite, RepeatStrategy::Bounce),
-                (RepeatCount::Finite(2), RepeatStrategy::Bounce),
+                (RepeatCount::Infinite, RepeatStrategy::Repeat),
+                (RepeatCount::Finite(2), RepeatStrategy::Repeat),
+                (RepeatCount::Infinite, RepeatStrategy::MirroredRepeat),
+                (RepeatCount::Finite(2), RepeatStrategy::MirroredRepeat),
             ] {
                 println!(
                     "TweeningType: count={count:?} strategy={strategy:?} dir={tweening_direction:?}",
@@ -992,7 +992,7 @@ mod tests {
                                 )
                             }
                             RepeatCount::Finite(_) => {
-                                if *strategy == RepeatStrategy::Teleport {
+                                if *strategy == RepeatStrategy::Repeat {
                                     let progress =
                                         if i < 10 { (i as f32 * 0.2).fract() } else { 1. };
                                     let times_completed = i / 5;
@@ -1033,7 +1033,7 @@ mod tests {
                                 }
                             }
                             RepeatCount::Infinite => {
-                                if *strategy == RepeatStrategy::Teleport {
+                                if *strategy == RepeatStrategy::Repeat {
                                     let progress = (i as f32 * 0.2).fract();
                                     let times_completed = i / 5;
                                     let just_completed = i % 5 == 0;
