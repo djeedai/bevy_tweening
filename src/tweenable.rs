@@ -404,6 +404,14 @@ impl<T> Tween<T> {
         self
     }
 
+    /// The current animation direction.
+    ///
+    /// See [`TweeningDirection`] for details.
+    #[must_use]
+    pub fn direction(&self) -> TweeningDirection {
+        self.direction
+    }
+
     /// Set the number of times to repeat the animation.
     pub fn set_repeat_count(&mut self, count: RepeatCount) {
         self.completion.count = count;
@@ -426,14 +434,6 @@ impl<T> Tween<T> {
     pub fn with_repeat_strategy(mut self, strategy: RepeatStrategy) -> Self {
         self.completion.strategy = strategy;
         self
-    }
-
-    /// The current animation direction.
-    ///
-    /// See [`TweeningDirection`] for details.
-    #[must_use]
-    pub fn direction(&self) -> TweeningDirection {
-        self.direction
     }
 
     /// Set a callback invoked when the animation completed.
