@@ -374,7 +374,7 @@ impl<T> Tween<T> {
     /// #        end: Vec3::new(3.5, 0., 0.),
     /// #    },
     /// )
-    /// .with_completed_event(true, 42);
+    /// .with_completed_event(42);
     ///
     /// fn my_system(mut reader: EventReader<TweenCompleted>) {
     ///   for ev in reader.iter() {
@@ -386,8 +386,8 @@ impl<T> Tween<T> {
     ///
     /// [`set_completed()`]: Tween::set_completed
     #[must_use]
-    pub fn with_completed_event(mut self, enabled: bool, user_data: u64) -> Self {
-        self.event_data = if enabled { Some(user_data) } else { None };
+    pub fn with_completed_event(mut self, user_data: u64) -> Self {
+        self.event_data = Some(user_data);
         self
     }
 
@@ -425,7 +425,7 @@ impl<T> Tween<T> {
         self.direction
     }
 
-    /// Set a callback invoked when the animation completed.
+    /// Set a callback invoked when the animation completes.
     ///
     /// The callback when invoked receives as parameters the [`Entity`] on which
     /// the target and the animator are, as well as a reference to the
@@ -439,7 +439,7 @@ impl<T> Tween<T> {
         self.on_completed = Some(Box::new(callback));
     }
 
-    /// Clear the callback invoked when the animation completed.
+    /// Clear the callback invoked when the animation completes.
     pub fn clear_completed(&mut self) {
         self.on_completed = None;
     }
@@ -454,8 +454,13 @@ impl<T> Tween<T> {
     ///
     /// [`set_completed()`]: Tween::set_completed
     /// [`with_completed_event()`]: Tween::with_completed_event
-    pub fn set_completed_event(&mut self, enabled: bool, user_data: u64) {
-        self.event_data = if enabled { Some(user_data) } else { None };
+    pub fn set_completed_event(&mut self, user_data: u64) {
+        self.event_data = Some(user_data);
+    }
+
+    /// Clear the event sent when the animation completes.
+    pub fn clear_completed_event(&mut self) {
+        self.event_data = None;
     }
 }
 
@@ -959,7 +964,7 @@ mod tests {
 
                 // Activate event sending
                 const USER_DATA: u64 = 54789; // dummy
-                tween.set_completed_event(true, USER_DATA);
+                tween.set_completed_event(USER_DATA);
                 assert!(tween.event_data.is_some());
                 assert_eq!(tween.event_data.unwrap(), USER_DATA);
 
