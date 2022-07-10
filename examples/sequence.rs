@@ -119,7 +119,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             },
         )
         // Get an event after each segment
-        .with_completed_event(true, index as u64)
+        .with_completed_event(index as u64)
     }));
 
     commands
@@ -145,7 +145,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             end: Vec3::new(200., 100., 0.),
         },
     )
-    .with_completed_event(true, 99); // Get an event once move completed
+    .with_completed_event(99); // Get an event once move completed
     let tween_rotate = Tween::new(
         EaseFunction::QuadraticInOut,
         TweeningType::Once,
