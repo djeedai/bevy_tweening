@@ -125,6 +125,9 @@ impl AnimClock {
 
         let before = self.elapsed.as_nanos() / duration;
         self.elapsed = self.elapsed.saturating_add(tick);
+        if let TotalDuration::Finite(duration) = self.total_duration {
+            self.elapsed = self.elapsed.min(duration);
+        }
         (self.elapsed.as_nanos() / duration - before) as u32
     }
 
@@ -871,6 +874,7 @@ mod tests {
     fn anim_clock_precision() {
         let duration = Duration::from_millis(1);
         let mut clock = AnimClock::new(duration);
+        clock.total_duration = TotalDuration::Infinite;
 
         let test_ticks = [
             Duration::from_micros(123),
@@ -1344,6 +1348,10 @@ mod tests {
                 assert_eq!(tracks.times_completed(), 1);
                 assert!((tracks.progress() - 1.).abs() < 1e-5);
                 assert!(transform.translation.abs_diff_eq(Vec3::ONE, 1e-5));
+                dbg!(
+                    transform.rotation,
+                    Quat::from_rotation_x(90_f32.to_radians())
+                );
                 assert!(transform
                     .rotation
                     .abs_diff_eq(Quat::from_rotation_x(90_f32.to_radians()), 1e-5));
