@@ -1348,10 +1348,6 @@ mod tests {
                 assert_eq!(tracks.times_completed(), 1);
                 assert!((tracks.progress() - 1.).abs() < 1e-5);
                 assert!(transform.translation.abs_diff_eq(Vec3::ONE, 1e-5));
-                dbg!(
-                    transform.rotation,
-                    Quat::from_rotation_x(90_f32.to_radians())
-                );
                 assert!(transform
                     .rotation
                     .abs_diff_eq(Quat::from_rotation_x(90_f32.to_radians()), 1e-5));
