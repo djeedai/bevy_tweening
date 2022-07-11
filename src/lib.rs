@@ -174,6 +174,8 @@ mod tweenable;
 pub enum RepeatCount {
     /// Run the animation N times.
     Finite(u32),
+    /// Run the animation for some amount of time.
+    Until(Duration),
     /// Loop the animation indefinitely.
     Infinite,
 }
