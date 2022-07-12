@@ -68,14 +68,15 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     ] {
         let tween = Tween::new(
             *ease_function,
-            TweeningType::PingPong,
             std::time::Duration::from_secs(1),
             TextColorLens {
                 start: Color::RED,
                 end: Color::BLUE,
                 section: 0,
             },
-        );
+        )
+        .with_repeat_count(RepeatCount::Infinite)
+        .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
         commands
             .spawn_bundle(TextBundle {

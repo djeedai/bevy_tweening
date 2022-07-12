@@ -76,13 +76,14 @@ fn setup(mut commands: Commands) {
     ] {
         let tween = Tween::new(
             *ease_function,
-            TweeningType::PingPong,
             std::time::Duration::from_secs(1),
             TransformPositionLens {
                 start: Vec3::new(x, screen_y, 0.),
                 end: Vec3::new(x, -screen_y, 0.),
             },
-        );
+        )
+        .with_repeat_count(RepeatCount::Infinite)
+        .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
         commands
             .spawn_bundle(SpriteBundle {

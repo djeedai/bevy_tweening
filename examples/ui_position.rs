@@ -76,7 +76,6 @@ fn setup(mut commands: Commands) {
     ] {
         let tween = Tween::new(
             *ease_function,
-            TweeningType::PingPong,
             std::time::Duration::from_secs(1),
             UiPositionLens {
                 start: Rect {
@@ -92,7 +91,9 @@ fn setup(mut commands: Commands) {
                     bottom: Val::Auto,
                 },
             },
-        );
+        )
+        .with_repeat_count(RepeatCount::Infinite)
+        .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
         commands
             .spawn_bundle(NodeBundle {

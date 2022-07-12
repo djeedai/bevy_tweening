@@ -1,6 +1,8 @@
-use bevy::prelude::*;
-use bevy_tweening::{lens::*, *};
 use std::time::Duration;
+
+use bevy::prelude::*;
+
+use bevy_tweening::{lens::*, *};
 
 fn main() {
     App::default()
@@ -107,19 +109,31 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         Vec3::new(margin, screen_y - margin, 0.),
         Vec3::new(margin, margin, 0.),
     ];
-    // Build a sequence from an iterator over a Tweenable (here, a Tween<Transform>)
+    // Build a sequence from an iterator over a Tweenable (here, a
+    // Tracks<Transform>)
     let seq = Sequence::new(dests.windows(2).enumerate().map(|(index, pair)| {
-        Tween::new(
-            EaseFunction::QuadraticInOut,
-            TweeningType::Once,
-            Duration::from_secs(1),
-            TransformPositionLens {
-                start: pair[0] - center,
-                end: pair[1] - center,
-            },
-        )
-        // Get an event after each segment
-        .with_completed_event(index as u64)
+        Tracks::new([
+            Tween::new(
+                EaseFunction::QuadraticInOut,
+                Duration::from_millis(250),
+                TransformRotateZLens {
+                    start: 0.,
+                    end: 180_f32.to_radians(),
+                },
+            )
+            .with_repeat_count(RepeatCount::Finite(4))
+            .with_repeat_strategy(RepeatStrategy::MirroredRepeat),
+            Tween::new(
+                EaseFunction::QuadraticInOut,
+                Duration::from_secs(1),
+                TransformPositionLens {
+                    start: pair[0] - center,
+                    end: pair[1] - center,
+                },
+            )
+            // Get an event after each segment
+            .with_completed_event(index as u64),
+        ])
     }));
 
     commands
@@ -138,7 +152,6 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     // scaling size at the same time.
     let tween_move = Tween::new(
         EaseFunction::QuadraticInOut,
-        TweeningType::Once,
         Duration::from_secs(1),
         TransformPositionLens {
             start: Vec3::new(-200., 100., 0.),
@@ -148,7 +161,6 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     .with_completed_event(99); // Get an event once move completed
     let tween_rotate = Tween::new(
         EaseFunction::QuadraticInOut,
-        TweeningType::Once,
         Duration::from_secs(1),
         TransformRotationLens {
             start: Quat::IDENTITY,
@@ -157,7 +169,6 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     );
     let tween_scale = Tween::new(
         EaseFunction::QuadraticInOut,
-        TweeningType::Once,
         Duration::from_secs(1),
         TransformScaleLens {
             start: Vec3::ONE,
