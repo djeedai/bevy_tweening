@@ -167,7 +167,7 @@ enum TotalDuration {
 fn compute_total_duration(duration: Duration, count: RepeatCount) -> TotalDuration {
     match count {
         RepeatCount::Finite(times) => TotalDuration::Finite(duration.saturating_mul(times)),
-        RepeatCount::Until(duration) => TotalDuration::Finite(duration),
+        RepeatCount::For(duration) => TotalDuration::Finite(duration),
         RepeatCount::Infinite => TotalDuration::Infinite,
     }
 }
@@ -1055,7 +1055,7 @@ mod tests {
                                     )
                                 }
                             }
-                            RepeatCount::Until(_) => panic!("Untested"),
+                            RepeatCount::For(_) => panic!("Untested"),
                         };
                     let factor = if tweening_direction.is_backward() {
                         direction = !direction;

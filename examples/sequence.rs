@@ -1,6 +1,8 @@
-use bevy::prelude::*;
-use bevy_tweening::{lens::*, *};
 use std::time::Duration;
+
+use bevy::prelude::*;
+
+use bevy_tweening::{lens::*, *};
 
 fn main() {
     App::default()
@@ -107,15 +109,16 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         Vec3::new(margin, screen_y - margin, 0.),
         Vec3::new(margin, margin, 0.),
     ];
-    // Build a sequence from an iterator over a Tweenable (here, a Tween<Transform>)
+    // Build a sequence from an iterator over a Tweenable (here, a
+    // Tracks<Transform>)
     let seq = Sequence::new(dests.windows(2).enumerate().map(|(index, pair)| {
         Tracks::new([
             Tween::new(
                 EaseFunction::QuadraticInOut,
                 Duration::from_millis(250),
-                TransformRotationLens {
-                    start: Quat::IDENTITY,
-                    end: Quat::from_rotation_z(180_f32.to_radians()),
+                TransformRotateZLens {
+                    start: 0.,
+                    end: 180_f32.to_radians(),
                 },
             )
             .with_repeat_count(RepeatCount::Finite(4))

@@ -175,14 +175,14 @@ pub enum RepeatCount {
     /// Run the animation N times.
     Finite(u32),
     /// Run the animation for some amount of time.
-    Until(Duration),
+    For(Duration),
     /// Loop the animation indefinitely.
     Infinite,
 }
 
 /// What to do when a tween animation needs to be repeated.
 ///
-/// Only applicable when [`RepeatCount`] is greater than 1.
+/// Only applicable when [`RepeatCount`] is greater than the animation duration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RepeatStrategy {
     /// Reset the animation back to its starting position.
