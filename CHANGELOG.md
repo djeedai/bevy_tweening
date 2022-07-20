@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added a new feature `bevy_asset` for animating assets (Bevy's `Asset` trait). This change is motivated by the new Bevy default features not containing Bevy's own `bevy_asset` feature itself anymore. Without this new `bevy_asset` feature of 🍃 Bevy Tweening, only components (Bevy's `Component` trait) can be animated. However this feature is enabled by default, which keeps the previous behaviour of being able to animate assets out of the box.
 - Added `is_forward()` and `is_backward()` convenience helpers to `TweeningDirection`.
 - Added `Tween::set_direction()` and `Tween::with_direction()` which allow configuring the playback direction of a tween, allowing to play it backward from end to start.
 - Added support for dynamically changing an animation's speed with `Animator::set_speed`.
@@ -17,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Compatible with Bevy 0.8
 - Double boxing in `Sequence` and `Tracks` was fixed. As a result, any custom tweenables.
   should implement `From` for `BoxedTweenable` to make those APIs easier to use.
 - Removed the `tweening_type` parameter from the signature of `Tween<T>::new()`; use `with_repeat_count()` and `with_repeat_strategy()` instead.
