@@ -1,4 +1,5 @@
-use bevy::{asset::Asset, ecs::component::Component, prelude::*};
+use bevy::asset::Asset;
+use bevy::{ecs::component::Component, prelude::*};
 
 use crate::{Animator, AnimatorState, AssetAnimator, TweenCompleted};
 
@@ -86,7 +87,7 @@ pub fn asset_animator_system<T: Asset>(
 ) {
     for (entity, ref mut animator) in query.iter_mut() {
         if animator.state != AnimatorState::Paused {
-            if let Some(target) = assets.get_mut(animator.handle()) {
+            if let Some(target) = assets.get_mut(&animator.handle()) {
                 animator.tick(time.delta(), target, entity, &mut event_writer);
             }
         }

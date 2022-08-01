@@ -293,9 +293,9 @@ impl Lens<Transform> for TransformScaleLens {
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct UiPositionLens {
     /// Start position.
-    pub start: Rect<Val>,
+    pub start: UiRect<Val>,
     /// End position.
-    pub end: Rect<Val>,
+    pub end: UiRect<Val>,
 }
 
 #[cfg(feature = "bevy_ui")]
@@ -312,7 +312,7 @@ fn lerp_val(start: &Val, end: &Val, ratio: f32) -> Val {
 #[cfg(feature = "bevy_ui")]
 impl Lens<Style> for UiPositionLens {
     fn lerp(&mut self, target: &mut Style, ratio: f32) {
-        target.position = Rect {
+        target.position = UiRect {
             left: lerp_val(&self.start.left, &self.end.left, ratio),
             right: lerp_val(&self.start.right, &self.end.right, ratio),
             top: lerp_val(&self.start.top, &self.end.top, ratio),
