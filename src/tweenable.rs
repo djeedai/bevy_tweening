@@ -929,9 +929,7 @@ mod tests {
             Entity::from_raw(0),
             &mut event_writer,
         );
-        assert!(transform
-            .translation
-            .abs_diff_eq(Vec3::new(0.5, 0.5, 0.5), 1e-5));
+        assert!(transform.translation.abs_diff_eq(Vec3::splat(0.5), 1e-5));
 
         // Rewind
         tween.rewind();
@@ -987,13 +985,6 @@ mod tests {
         for (delta, (progress, times_completed, direction, expected_state, expected_transform)) in
             expected_values
         {
-            let just_completed = prev_times_completed != times_completed;
-            prev_times_completed = times_completed;
-            println!(
-                "Expected: progress={} times_completed={} direction={:?} state={:?} just_completed={} translation={:?}",
-                progress, times_completed, direction, expected_state, just_completed, expected_transform
-            );
-
             // Tick the tween
             let actual_state = {
                 let mut event_writer = event_writer_system_state.get_mut(&mut world);
@@ -1007,27 +998,56 @@ mod tests {
             }
 
             // Check actual values
-            assert_eq!(tween.direction(), direction);
-            assert_eq!(actual_state, expected_state);
-            assert!(abs_diff_eq(tween.progress(), progress, 1e-5));
-            assert_eq!(tween.times_completed(), times_completed);
-            assert!(transform
-                .translation
-                .abs_diff_eq(expected_transform.translation, 1e-5));
-            assert!(transform
-                .rotation
-                .abs_diff_eq(expected_transform.rotation, 1e-5));
-            assert!(transform.scale.abs_diff_eq(expected_transform.scale, 1e-5));
+            assert_eq!(direction, tween.direction());
+            assert_eq!(expected_state, actual_state);
+            assert!(
+                abs_diff_eq(tween.progress(), progress, 1e-5),
+                "progress: expected={progress}, actual={}",
+                tween.progress()
+            );
+            assert_eq!(times_completed, tween.times_completed(), "times_completed");
+            assert!(
+                transform
+                    .translation
+                    .abs_diff_eq(expected_transform.translation, 1e-5),
+                "translation: expected={}, actual={}",
+                expected_transform.translation,
+                transform.translation
+            );
+            assert!(
+                transform
+                    .rotation
+                    .abs_diff_eq(expected_transform.rotation, 1e-5),
+                "rotation: expected={}, actual={}",
+                expected_transform.rotation,
+                transform.rotation
+            );
+            assert!(
+                transform.scale.abs_diff_eq(expected_transform.scale, 1e-5),
+                "scale: expected={}, actual={}",
+                expected_transform.scale,
+                transform.scale
+            );
             let cb_mon = callback_monitor.lock().unwrap();
-            assert_eq!(cb_mon.invoke_count, times_completed as u64);
-            assert_eq!(cb_mon.last_reported_count, times_completed);
+            assert_eq!(
+                times_completed as u64, cb_mon.invoke_count,
+                "times_completed"
+            );
+            assert_eq!(
+                times_completed, cb_mon.last_reported_count,
+                "times_completed"
+            );
+
             {
+                let just_completed = prev_times_completed != times_completed;
+                prev_times_completed = times_completed;
+
                 let mut event_reader = event_reader_system_state.get_mut(&mut world);
                 if just_completed {
                     assert!(!event_reader.is_empty());
                     for event in event_reader.iter() {
-                        assert_eq!(event.entity, dummy_entity);
-                        assert_eq!(event.user_data, USER_DATA);
+                        assert_eq!(dummy_entity, event.entity);
+                        assert_eq!(USER_DATA, event.user_data, "user_data");
                     }
                 } else {
                     assert!(event_reader.is_empty());
@@ -1037,7 +1057,7 @@ mod tests {
     }
 
     #[rstest]
-    fn tween_tick_forward(
+    fn tween_tick_with_defaults_and_directions(
         #[values(TweeningDirection::Forward, TweeningDirection::Backward)]
         direction: TweeningDirection,
     ) {
@@ -1049,9 +1069,7 @@ mod tests {
                 end: Vec3::ONE,
             },
         )
-        .with_direction(direction)
-        .with_repeat_count(RepeatCount::Finite(1))
-        .with_repeat_strategy(RepeatStrategy::Repeat);
+        .with_direction(direction);
 
         let expected_values = once(Duration::ZERO)
             .chain(repeat(Duration::from_millis(200)).take(6))
@@ -1066,7 +1084,7 @@ mod tests {
                     successors(Some(Transform::default()), |transform| {
                         Some(Transform::from_translation(Vec3::min(
                             Vec3::ONE,
-                            transform.translation + Vec3::new(0.2, 0.2, 0.2),
+                            transform.translation + Vec3::splat(0.2),
                         )))
                     })
                     .take(7)
@@ -1075,7 +1093,7 @@ mod tests {
                     successors(Some(Transform::from_translation(Vec3::ONE)), |transform| {
                         Some(Transform::from_translation(Vec3::max(
                             Vec3::ZERO,
-                            transform.translation - Vec3::new(0.2, 0.2, 0.2),
+                            transform.translation - Vec3::splat(0.2),
                         )))
                     })
                     .take(7)
@@ -1084,11 +1102,44 @@ mod tests {
             ));
 
         validate_tween(tween, expected_values);
+    }
+
+    #[rstest]
+    fn tween_tick_loop_finite() {
+        let tween = Tween::new(
+            EaseMethod::Linear,
+            Duration::from_secs(1),
+            TransformPositionLens {
+                start: Vec3::ZERO,
+                end: Vec3::ONE,
+            },
+        )
+        .with_direction(TweeningDirection::Forward)
+        .with_repeat_count(RepeatCount::Finite(3))
+        .with_repeat_strategy(RepeatStrategy::Repeat);
+
+        let expected_values = once(Duration::ZERO)
+            .chain(repeat(Duration::from_secs_f32(1. / 3.)).take(10))
+            .zip(izip!(
+                successors(Some(0.), |progress| Some(f32::min(3., progress + 1. / 3.))),
+                [0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3],
+                repeat(TweeningDirection::Forward),
+                repeat(TweenState::Active)
+                    .take(9)
+                    .chain(repeat(TweenState::Completed)),
+                successors(Some(Transform::default()), |transform| {
+                    Some(Transform::from_translation(Vec3::min(
+                        Vec3::splat(3.),
+                        transform.translation + Vec3::splat(1. / 3.),
+                    )))
+                })
+            ));
+
+        validate_tween(tween, expected_values);
 
         // TODO
         // for (count, strategy) in &[
         //     (RepeatCount::Infinite, RepeatStrategy::Repeat),
-        //     (RepeatCount::Finite(2), RepeatStrategy::Repeat),
         //     (RepeatCount::Infinite, RepeatStrategy::MirroredRepeat),
         //     (RepeatCount::Finite(2), RepeatStrategy::MirroredRepeat),
         // ] {
