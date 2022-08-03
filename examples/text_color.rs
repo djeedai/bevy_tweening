@@ -95,15 +95,13 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     justify_content: JustifyContent::Center,
                     ..default()
                 },
-                text: Text::with_section(
+                text: Text::from_section(
                     *ease_name,
                     TextStyle {
                         font: font.clone(),
                         font_size: 24.0,
                         color: Color::WHITE,
                     },
-                    // you can still use Default
-                    default(),
                 ),
                 ..default()
             })

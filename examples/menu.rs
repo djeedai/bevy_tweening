@@ -63,8 +63,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                         },
                         style: Style {
                             min_size: Size::new(Val::Px(300.), Val::Px(80.)),
-                            margin: Rect::all(Val::Px(8.)),
-                            padding: Rect::all(Val::Px(8.)),
+                            margin: UiRect::all(Val::Px(8.)),
+                            padding: UiRect::all(Val::Px(8.)),
                             align_content: AlignContent::Center,
                             align_items: AlignItems::Center,
                             align_self: AlignSelf::Center,
@@ -78,49 +78,21 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     .insert(Name::new(format!("button:{}", text)))
                     .insert(Animator::new(seq))
                     .with_children(|parent| {
-                        parent
-                            .spawn_bundle(TextBundle {
-                                text: Text::with_section(
-                                    text.to_string(),
-                                    TextStyle {
-                                        font: font.clone(),
-                                        font_size: 48.0,
-                                        color: Color::rgb_u8(83, 163, 130),
-                                    },
-                                ),
-                                style: Style {
-                                    min_size: Size::new(Val::Px(300.), Val::Px(80.)),
-                                    margin: UiRect::all(Val::Px(8.)),
-                                    padding: UiRect::all(Val::Px(8.)),
-                                    align_content: AlignContent::Center,
-                                    align_items: AlignItems::Center,
-                                    align_self: AlignSelf::Center,
-                                    justify_content: JustifyContent::Center,
-                                    ..default()
+                        parent.spawn_bundle(TextBundle {
+                            text: Text::from_section(
+                                text.to_string(),
+                                TextStyle {
+                                    font: font.clone(),
+                                    font_size: 48.0,
+                                    color: Color::rgb_u8(83, 163, 130),
                                 },
-                                color: UiColor(Color::rgb_u8(162, 226, 95)),
-                                transform: Transform::from_scale(Vec3::splat(0.01)),
-                                ..default()
-                            })
-                            .insert(Name::new(format!("button:{}", text)))
-                            .insert(Animator::new(seq))
-                            .with_children(|parent| {
-                                parent.spawn_bundle(TextBundle {
-                                    text: Text::with_section(
-                                        text.to_string(),
-                                        TextStyle {
-                                            font: font.clone(),
-                                            font_size: 48.0,
-                                            color: Color::rgb_u8(83, 163, 130),
-                                        },
-                                        TextAlignment {
-                                            vertical: VerticalAlign::Center,
-                                            horizontal: HorizontalAlign::Center,
-                                        },
-                                    ),
-                                    ..default()
-                                });
-                            });
+                            )
+                            .with_alignment(TextAlignment {
+                                vertical: VerticalAlign::Center,
+                                horizontal: HorizontalAlign::Center,
+                            }),
+                            ..default()
+                        });
                     });
             }
         });
