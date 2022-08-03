@@ -660,28 +660,26 @@ impl<T> Tweenable<T> for Sequence<T> {
 
     fn tick(
         &mut self,
-        delta: Duration,
+        mut delta: Duration,
         target: &mut T,
         entity: Entity,
         event_writer: &mut EventWriter<TweenCompleted>,
     ) -> TweenState {
-        if self.index < self.tweens.len() {
-            let mut state = TweenState::Active;
-            self.time = (self.time + delta).min(self.duration);
+        self.time = (self.time + delta).min(self.duration);
+        while self.index < self.tweens.len() {
             let tween = &mut self.tweens[self.index];
-            let tween_state = tween.tick(delta, target, entity, event_writer);
-            if tween_state == TweenState::Completed {
-                tween.rewind();
-                self.index += 1;
-                if self.index >= self.tweens.len() {
-                    state = TweenState::Completed;
-                    self.times_completed = 1;
-                }
+            let tween_remaining = tween.duration().mul_f32(1.0 - tween.progress());
+            if let TweenState::Active = tween.tick(delta, target, entity, event_writer) {
+                return TweenState::Active;
             }
-            state
-        } else {
-            TweenState::Completed
+
+            tween.rewind();
+            delta -= tween_remaining;
+            self.index += 1;
         }
+
+        self.times_completed = 1;
+        TweenState::Completed
     }
 
     fn times_completed(&self) -> u32 {
