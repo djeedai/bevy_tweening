@@ -906,37 +906,47 @@ mod tests {
 
     #[test]
     fn tween_rewind() {
-        // TODO
+        let mut tween = Tween::new(
+            EaseMethod::Linear,
+            Duration::from_secs(1),
+            TransformPositionLens {
+                start: Vec3::ZERO,
+                end: Vec3::ONE,
+            },
+        );
+        let mut transform = Transform::default();
 
-        // // Rewind
-        // tween.rewind();
-        // assert!(abs_diff_eq(tween.progress(), 0., 1e-5));
-        // assert_eq!(tween.times_completed(), 0);
-        //
-        // // Dummy tick to update target
-        // let actual_state = {
-        //     let mut event_writer = event_writer_system_state.get_mut(&mut
-        // world);     tween.tick(
-        //         Duration::ZERO,
-        //         &mut transform,
-        //         Entity::from_raw(0),
-        //         &mut event_writer,
-        //     )
-        // };
-        // assert_eq!(actual_state, TweenState::Active);
-        // let expected_translation = if tween.direction().is_backward() {
-        //     Vec3::ONE
-        // } else {
-        //     Vec3::ZERO
-        // };
-        // assert!(transform
-        //     .translation
-        //     .abs_diff_eq(expected_translation, 1e-5));
-        // assert!(transform.rotation.abs_diff_eq(Quat::IDENTITY, 1e-5));
-        //
-        // // Clear callback
-        // tween.clear_completed();
-        // assert!(tween.on_completed.is_none());
+        let mut world = World::new();
+        world.insert_resource(Events::<TweenCompleted>::default());
+        let mut event_writer_system_state: SystemState<EventWriter<TweenCompleted>> =
+            SystemState::new(&mut world);
+        let mut event_writer = event_writer_system_state.get_mut(&mut world);
+
+        tween.set_progress(0.5);
+        tween.tick(
+            Duration::ZERO,
+            &mut transform,
+            Entity::from_raw(0),
+            &mut event_writer,
+        );
+        assert!(transform
+            .translation
+            .abs_diff_eq(Vec3::new(0.5, 0.5, 0.5), 1e-5));
+
+        // Rewind
+        tween.rewind();
+        assert!(abs_diff_eq(tween.progress(), 0., 1e-5));
+        assert_eq!(
+            tween.tick(
+                Duration::ZERO,
+                &mut transform,
+                Entity::from_raw(0),
+                &mut event_writer,
+            ),
+            TweenState::Active
+        );
+        assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
+        assert_eq!(tween.times_completed(), 0);
     }
 
     fn validate_tween(
