@@ -849,11 +849,14 @@ impl<T> Tweenable<T> for Delay {
 #[cfg(test)]
 mod tests {
     use std::{
+        iter::{once, repeat, successors},
         sync::{Arc, Mutex},
         time::Duration,
     };
 
     use bevy::ecs::{event::Events, system::SystemState};
+    use itertools::izip;
+    use rstest::rstest;
 
     use crate::lens::*;
 
@@ -901,255 +904,184 @@ mod tests {
         );
     }
 
-    /// Test ticking of a single tween in isolation.
     #[test]
-    fn tween_tick() {
-        for tweening_direction in &[TweeningDirection::Forward, TweeningDirection::Backward] {
-            for (count, strategy) in &[
-                (RepeatCount::Finite(1), RepeatStrategy::default()),
-                (RepeatCount::Infinite, RepeatStrategy::Repeat),
-                (RepeatCount::Finite(2), RepeatStrategy::Repeat),
-                (RepeatCount::Infinite, RepeatStrategy::MirroredRepeat),
-                (RepeatCount::Finite(2), RepeatStrategy::MirroredRepeat),
-            ] {
-                println!(
-                    "TweeningType: count={count:?} strategy={strategy:?} dir={tweening_direction:?}",
-                );
+    fn tween_rewind() {
+        // TODO
 
-                // Create a linear tween over 1 second
-                let mut tween = Tween::new(
-                    EaseMethod::Linear,
-                    Duration::from_secs_f32(1.0),
-                    TransformPositionLens {
-                        start: Vec3::ZERO,
-                        end: Vec3::ONE,
-                    },
-                )
-                .with_direction(*tweening_direction)
-                .with_repeat_count(*count)
-                .with_repeat_strategy(*strategy);
-                assert_eq!(tween.direction(), *tweening_direction);
-                assert!(tween.on_completed.is_none());
-                assert!(tween.event_data.is_none());
+        // // Rewind
+        // tween.rewind();
+        // assert!(abs_diff_eq(tween.progress(), 0., 1e-5));
+        // assert_eq!(tween.times_completed(), 0);
+        //
+        // // Dummy tick to update target
+        // let actual_state = {
+        //     let mut event_writer = event_writer_system_state.get_mut(&mut
+        // world);     tween.tick(
+        //         Duration::ZERO,
+        //         &mut transform,
+        //         Entity::from_raw(0),
+        //         &mut event_writer,
+        //     )
+        // };
+        // assert_eq!(actual_state, TweenState::Active);
+        // let expected_translation = if tween.direction().is_backward() {
+        //     Vec3::ONE
+        // } else {
+        //     Vec3::ZERO
+        // };
+        // assert!(transform
+        //     .translation
+        //     .abs_diff_eq(expected_translation, 1e-5));
+        // assert!(transform.rotation.abs_diff_eq(Quat::IDENTITY, 1e-5));
+        //
+        // // Clear callback
+        // tween.clear_completed();
+        // assert!(tween.on_completed.is_none());
+    }
 
-                let dummy_entity = Entity::from_raw(42);
+    fn validate_tween(
+        mut tween: Tween<Transform>,
+        expected_values: impl Iterator<
+            Item = (
+                Duration,
+                (f32, u32, TweeningDirection, TweenState, Transform),
+            ),
+        >,
+    ) {
+        dbg!(&tween.clock);
 
-                // Register callbacks to count started/ended events
-                let callback_monitor = Arc::new(Mutex::new(CallbackMonitor::default()));
-                let cb_mon_ptr = Arc::clone(&callback_monitor);
-                tween.set_completed(move |entity, tween| {
-                    assert_eq!(dummy_entity, entity);
-                    let mut cb_mon = cb_mon_ptr.lock().unwrap();
-                    cb_mon.invoke_count += 1;
-                    cb_mon.last_reported_count = tween.times_completed();
-                });
-                assert!(tween.on_completed.is_some());
-                assert!(tween.event_data.is_none());
-                assert_eq!(callback_monitor.lock().unwrap().invoke_count, 0);
+        let dummy_entity = Entity::from_raw(42);
 
-                // Activate event sending
-                const USER_DATA: u64 = 54789; // dummy
-                tween.set_completed_event(USER_DATA);
-                assert!(tween.event_data.is_some());
-                assert_eq!(tween.event_data.unwrap(), USER_DATA);
+        const USER_DATA: u64 = 54789;
+        tween.set_completed_event(USER_DATA);
 
-                // Dummy world and event writer
-                let mut world = World::new();
-                world.insert_resource(Events::<TweenCompleted>::default());
-                let mut event_writer_system_state: SystemState<EventWriter<TweenCompleted>> =
-                    SystemState::new(&mut world);
-                let mut event_reader_system_state: SystemState<EventReader<TweenCompleted>> =
-                    SystemState::new(&mut world);
+        // Register callbacks to count started/ended events
+        let callback_monitor = Arc::new(Mutex::new(CallbackMonitor::default()));
+        let cb_mon_ptr = Arc::clone(&callback_monitor);
+        tween.set_completed(move |entity, tween| {
+            assert_eq!(dummy_entity, entity);
+            let mut cb_mon = cb_mon_ptr.lock().unwrap();
+            cb_mon.invoke_count += 1;
+            cb_mon.last_reported_count = tween.times_completed();
+        });
 
-                // Loop over 2.2 seconds, so greater than one ping-pong loop
-                let mut transform = Transform::default();
-                let tick_duration = Duration::from_secs_f32(0.2);
-                for i in 1..=11 {
-                    // Calculate expected values
-                    let (progress, times_completed, mut direction, expected_state, just_completed) =
-                        match count {
-                            RepeatCount::Finite(1) => {
-                                let progress = (i as f32 * 0.2).min(1.0);
-                                let times_completed = if i >= 5 { 1 } else { 0 };
-                                let state = if i < 5 {
-                                    TweenState::Active
-                                } else {
-                                    TweenState::Completed
-                                };
-                                let just_completed = i == 5;
-                                (
-                                    progress,
-                                    times_completed,
-                                    TweeningDirection::Forward,
-                                    state,
-                                    just_completed,
-                                )
-                            }
-                            RepeatCount::Finite(count) => {
-                                let progress = (i as f32 * 0.2).min(1.0 * *count as f32);
-                                if *strategy == RepeatStrategy::Repeat {
-                                    let times_completed = i / 5;
-                                    let just_completed = i % 5 == 0;
-                                    (
-                                        progress,
-                                        times_completed,
-                                        TweeningDirection::Forward,
-                                        if i < 10 {
-                                            TweenState::Active
-                                        } else {
-                                            TweenState::Completed
-                                        },
-                                        just_completed,
-                                    )
-                                } else {
-                                    let i5 = i % 5;
-                                    let times_completed = i / 5;
-                                    let i10 = i % 10;
-                                    let direction = if i10 >= 5 {
-                                        TweeningDirection::Backward
-                                    } else {
-                                        TweeningDirection::Forward
-                                    };
-                                    let just_completed = i5 == 0;
-                                    (
-                                        progress,
-                                        times_completed,
-                                        direction,
-                                        if i < 10 {
-                                            TweenState::Active
-                                        } else {
-                                            TweenState::Completed
-                                        },
-                                        just_completed,
-                                    )
-                                }
-                            }
-                            RepeatCount::Infinite => {
-                                let progress = i as f32 * 0.2;
-                                if *strategy == RepeatStrategy::Repeat {
-                                    let times_completed = i / 5;
-                                    let just_completed = i % 5 == 0;
-                                    (
-                                        progress,
-                                        times_completed,
-                                        TweeningDirection::Forward,
-                                        TweenState::Active,
-                                        just_completed,
-                                    )
-                                } else {
-                                    let i5 = i % 5;
-                                    let times_completed = i / 5;
-                                    let i10 = i % 10;
-                                    let direction = if i10 >= 5 {
-                                        TweeningDirection::Backward
-                                    } else {
-                                        TweeningDirection::Forward
-                                    };
-                                    let just_completed = i5 == 0;
-                                    (
-                                        progress,
-                                        times_completed,
-                                        direction,
-                                        TweenState::Active,
-                                        just_completed,
-                                    )
-                                }
-                            }
-                            RepeatCount::For(_) => panic!("Untested"),
-                        };
-                    let factor = if tweening_direction.is_backward() {
-                        direction = !direction;
-                        1. - progress
-                    } else {
-                        progress
-                    };
-                    let expected_translation = if direction.is_forward() {
-                        Vec3::splat(progress)
-                    } else {
-                        Vec3::splat(1. - progress)
-                    };
-                    println!(
-                        "Expected: progress={} factor={} times_completed={} direction={:?} state={:?} just_completed={} translation={:?}",
-                        progress, factor, times_completed, direction, expected_state, just_completed, expected_translation
-                    );
+        let mut world = World::new();
+        world.insert_resource(Events::<TweenCompleted>::default());
+        let mut event_writer_system_state: SystemState<EventWriter<TweenCompleted>> =
+            SystemState::new(&mut world);
+        let mut event_reader_system_state: SystemState<EventReader<TweenCompleted>> =
+            SystemState::new(&mut world);
 
-                    // Tick the tween
-                    let actual_state = {
-                        let mut event_writer = event_writer_system_state.get_mut(&mut world);
-                        tween.tick(
-                            tick_duration,
-                            &mut transform,
-                            dummy_entity,
-                            &mut event_writer,
-                        )
-                    };
+        let mut transform = Transform::default();
+        let mut prev_times_completed = 0;
+        for (delta, (progress, times_completed, direction, expected_state, expected_transform)) in
+            expected_values
+        {
+            let just_completed = prev_times_completed != times_completed;
+            prev_times_completed = times_completed;
+            println!(
+                "Expected: progress={} times_completed={} direction={:?} state={:?} just_completed={} translation={:?}",
+                progress, times_completed, direction, expected_state, just_completed, expected_transform
+            );
 
-                    // Propagate events
-                    {
-                        let mut events =
-                            world.get_resource_mut::<Events<TweenCompleted>>().unwrap();
-                        events.update();
+            // Tick the tween
+            let actual_state = {
+                let mut event_writer = event_writer_system_state.get_mut(&mut world);
+                tween.tick(delta, &mut transform, dummy_entity, &mut event_writer)
+            };
+
+            // Propagate events
+            {
+                let mut events = world.get_resource_mut::<Events<TweenCompleted>>().unwrap();
+                events.update();
+            }
+
+            // Check actual values
+            assert_eq!(tween.direction(), direction);
+            assert_eq!(actual_state, expected_state);
+            assert!(abs_diff_eq(tween.progress(), progress, 1e-5));
+            assert_eq!(tween.times_completed(), times_completed);
+            assert!(transform
+                .translation
+                .abs_diff_eq(expected_transform.translation, 1e-5));
+            assert!(transform
+                .rotation
+                .abs_diff_eq(expected_transform.rotation, 1e-5));
+            assert!(transform.scale.abs_diff_eq(expected_transform.scale, 1e-5));
+            let cb_mon = callback_monitor.lock().unwrap();
+            assert_eq!(cb_mon.invoke_count, times_completed as u64);
+            assert_eq!(cb_mon.last_reported_count, times_completed);
+            {
+                let mut event_reader = event_reader_system_state.get_mut(&mut world);
+                if just_completed {
+                    assert!(!event_reader.is_empty());
+                    for event in event_reader.iter() {
+                        assert_eq!(event.entity, dummy_entity);
+                        assert_eq!(event.user_data, USER_DATA);
                     }
-
-                    // Check actual values
-                    assert_eq!(tween.direction(), direction);
-                    assert_eq!(actual_state, expected_state);
-                    assert!(abs_diff_eq(tween.progress(), progress, 1e-5));
-                    assert_eq!(tween.times_completed(), times_completed);
-                    assert!(transform
-                        .translation
-                        .abs_diff_eq(expected_translation, 1e-5));
-                    assert!(transform.rotation.abs_diff_eq(Quat::IDENTITY, 1e-5));
-                    let cb_mon = callback_monitor.lock().unwrap();
-                    assert_eq!(cb_mon.invoke_count, times_completed as u64);
-                    assert_eq!(cb_mon.last_reported_count, times_completed);
-                    {
-                        let mut event_reader = event_reader_system_state.get_mut(&mut world);
-                        let event = event_reader.iter().next();
-                        if just_completed {
-                            assert!(event.is_some());
-                            if let Some(event) = event {
-                                assert_eq!(event.entity, dummy_entity);
-                                assert_eq!(event.user_data, USER_DATA);
-                            }
-                        } else {
-                            assert!(event.is_none());
-                        }
-                    }
-                }
-
-                // Rewind
-                tween.rewind();
-                assert_eq!(tween.direction(), *tweening_direction); // does not change
-                assert!(abs_diff_eq(tween.progress(), 0., 1e-5));
-                assert_eq!(tween.times_completed(), 0);
-
-                // Dummy tick to update target
-                let actual_state = {
-                    let mut event_writer = event_writer_system_state.get_mut(&mut world);
-                    tween.tick(
-                        Duration::ZERO,
-                        &mut transform,
-                        Entity::from_raw(0),
-                        &mut event_writer,
-                    )
-                };
-                assert_eq!(actual_state, TweenState::Active);
-                let expected_translation = if tweening_direction.is_backward() {
-                    Vec3::ONE
                 } else {
-                    Vec3::ZERO
-                };
-                assert!(transform
-                    .translation
-                    .abs_diff_eq(expected_translation, 1e-5));
-                assert!(transform.rotation.abs_diff_eq(Quat::IDENTITY, 1e-5));
-
-                // Clear callback
-                tween.clear_completed();
-                assert!(tween.on_completed.is_none());
+                    assert!(event_reader.is_empty());
+                }
             }
         }
+    }
+
+    #[rstest]
+    fn tween_tick_forward(
+        #[values(TweeningDirection::Forward, TweeningDirection::Backward)]
+        direction: TweeningDirection,
+    ) {
+        let tween = Tween::new(
+            EaseMethod::Linear,
+            Duration::from_secs(1),
+            TransformPositionLens {
+                start: Vec3::ZERO,
+                end: Vec3::ONE,
+            },
+        )
+        .with_direction(direction)
+        .with_repeat_count(RepeatCount::Finite(1))
+        .with_repeat_strategy(RepeatStrategy::Repeat);
+
+        let expected_values = once(Duration::ZERO)
+            .chain(repeat(Duration::from_millis(200)).take(6))
+            .zip(izip!(
+                successors(Some(0.), |progress| Some(f32::min(progress + 0.2, 1.))),
+                [0, 0, 0, 0, 0, 1, 1],
+                repeat(direction),
+                repeat(TweenState::Active)
+                    .take(5)
+                    .chain(repeat(TweenState::Completed)),
+                if direction == TweeningDirection::Forward {
+                    successors(Some(Transform::default()), |transform| {
+                        Some(Transform::from_translation(Vec3::min(
+                            Vec3::ONE,
+                            transform.translation + Vec3::new(0.2, 0.2, 0.2),
+                        )))
+                    })
+                    .take(7)
+                    .collect::<Vec<_>>()
+                } else {
+                    successors(Some(Transform::from_translation(Vec3::ONE)), |transform| {
+                        Some(Transform::from_translation(Vec3::max(
+                            Vec3::ZERO,
+                            transform.translation - Vec3::new(0.2, 0.2, 0.2),
+                        )))
+                    })
+                    .take(7)
+                    .collect::<Vec<_>>()
+                }
+            ));
+
+        validate_tween(tween, expected_values);
+
+        // TODO
+        // for (count, strategy) in &[
+        //     (RepeatCount::Infinite, RepeatStrategy::Repeat),
+        //     (RepeatCount::Finite(2), RepeatStrategy::Repeat),
+        //     (RepeatCount::Infinite, RepeatStrategy::MirroredRepeat),
+        //     (RepeatCount::Finite(2), RepeatStrategy::MirroredRepeat),
+        // ] {
     }
 
     #[test]
