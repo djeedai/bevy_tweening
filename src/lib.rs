@@ -151,7 +151,10 @@
 //! [`Sprite`]: https://docs.rs/bevy/0.7.0/bevy/sprite/struct.Sprite.html
 //! [`Transform`]: https://docs.rs/bevy/0.7.0/bevy/transform/components/struct.Transform.html
 
-use std::time::Duration;
+use std::{
+    ops::{Deref, DerefMut},
+    time::Duration,
+};
 
 use bevy::{asset::Asset, prelude::*};
 use interpolation::Ease as IEase;
@@ -364,25 +367,13 @@ macro_rules! animator_impl {
             self.tweenable = Box::new(tween);
         }
 
-        /// Get the top-level tweenable this animator is currently controlling.
-        #[must_use]
-        pub fn tweenable(&self) -> &(dyn Tweenable<T> + Send + Sync + 'static) {
-            self.tweenable.as_ref()
-        }
-
-        /// Get the top-level mutable tweenable this animator is currently controlling.
-        #[must_use]
-        pub fn tweenable_mut(&mut self) -> &mut (dyn Tweenable<T> + Send + Sync + 'static) {
-            self.tweenable.as_mut()
-        }
-
         /// Stop animation playback and rewind the animation.
         ///
         /// This changes the animator state to [`AnimatorState::Paused`] and rewind its
         /// tweenable.
         pub fn stop(&mut self) {
             self.state = AnimatorState::Paused;
-            self.tweenable_mut().rewind();
+            self.rewind();
         }
     };
 }
@@ -394,6 +385,20 @@ pub struct Animator<T: Component> {
     pub state: AnimatorState,
     tweenable: BoxedTweenable<T>,
     speed: f32,
+}
+
+impl<T: Component> Deref for Animator<T> {
+    type Target = dyn Tweenable<T> + Send + Sync + 'static;
+
+    fn deref(&self) -> &Self::Target {
+        self.tweenable.as_ref()
+    }
+}
+
+impl<T: Component> DerefMut for Animator<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.tweenable.as_mut()
+    }
 }
 
 impl<T: Component + std::fmt::Debug> std::fmt::Debug for Animator<T> {
@@ -426,6 +431,20 @@ pub struct AssetAnimator<T: Asset> {
     tweenable: BoxedTweenable<T>,
     handle: Handle<T>,
     speed: f32,
+}
+
+impl<T: Asset> Deref for AssetAnimator<T> {
+    type Target = dyn Tweenable<T> + Send + Sync + 'static;
+
+    fn deref(&self) -> &Self::Target {
+        self.tweenable.as_ref()
+    }
+}
+
+impl<T: Asset> DerefMut for AssetAnimator<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.tweenable.as_mut()
+    }
 }
 
 impl<T: Asset + std::fmt::Debug> std::fmt::Debug for AssetAnimator<T> {
@@ -553,8 +572,7 @@ mod tests {
         );
         let animator = Animator::<DummyComponent>::new(tween);
         assert_eq!(animator.state, AnimatorState::default());
-        let tween = animator.tweenable();
-        assert_eq!(tween.progress(), 0.);
+        assert_eq!(animator.progress(), 0.);
     }
 
     #[test]
@@ -579,32 +597,32 @@ mod tests {
         );
         let mut animator = Animator::new(tween);
         assert_eq!(animator.state, AnimatorState::Playing);
-        assert!(animator.tweenable().progress().abs() <= 1e-5);
+        assert!(animator.progress().abs() <= 1e-5);
 
         animator.stop();
         assert_eq!(animator.state, AnimatorState::Paused);
-        assert!(animator.tweenable().progress().abs() <= 1e-5);
+        assert!(animator.progress().abs() <= 1e-5);
 
-        animator.tweenable_mut().set_progress(0.5);
+        animator.set_progress(0.5);
         assert_eq!(animator.state, AnimatorState::Paused);
-        assert!((animator.tweenable().progress() - 0.5).abs() <= 1e-5);
+        assert!((animator.progress() - 0.5).abs() <= 1e-5);
 
-        animator.tweenable_mut().rewind();
+        animator.rewind();
         assert_eq!(animator.state, AnimatorState::Paused);
-        assert!(animator.tweenable().progress().abs() <= 1e-5);
+        assert!(animator.progress().abs() <= 1e-5);
 
-        animator.tweenable_mut().set_progress(0.5);
+        animator.set_progress(0.5);
         animator.state = AnimatorState::Playing;
         assert_eq!(animator.state, AnimatorState::Playing);
-        assert!((animator.tweenable().progress() - 0.5).abs() <= 1e-5);
+        assert!((animator.progress() - 0.5).abs() <= 1e-5);
 
-        animator.tweenable_mut().rewind();
+        animator.rewind();
         assert_eq!(animator.state, AnimatorState::Playing);
-        assert!(animator.tweenable().progress().abs() <= 1e-5);
+        assert!(animator.progress().abs() <= 1e-5);
 
         animator.stop();
         assert_eq!(animator.state, AnimatorState::Paused);
-        assert!(animator.tweenable().progress().abs() <= 1e-5);
+        assert!(animator.progress().abs() <= 1e-5);
     }
 
     #[test]
@@ -617,7 +635,7 @@ mod tests {
         let animator = AssetAnimator::new(Handle::<DummyAsset>::default(), tween);
         assert_eq!(animator.state, AnimatorState::default());
         assert_eq!(animator.handle(), Handle::<DummyAsset>::default());
-        let tween = animator.tweenable();
+        let tween = animator;
         assert_eq!(tween.progress(), 0.);
     }
 
@@ -644,31 +662,31 @@ mod tests {
         );
         let mut animator = AssetAnimator::new(Handle::<DummyAsset>::default(), tween);
         assert_eq!(animator.state, AnimatorState::Playing);
-        assert!(animator.tweenable().progress().abs() <= 1e-5);
+        assert!(animator.progress().abs() <= 1e-5);
 
         animator.stop();
         assert_eq!(animator.state, AnimatorState::Paused);
-        assert!(animator.tweenable().progress().abs() <= 1e-5);
+        assert!(animator.progress().abs() <= 1e-5);
 
-        animator.tweenable_mut().set_progress(0.5);
+        animator.set_progress(0.5);
         assert_eq!(animator.state, AnimatorState::Paused);
-        assert!((animator.tweenable().progress() - 0.5).abs() <= 1e-5);
+        assert!((animator.progress() - 0.5).abs() <= 1e-5);
 
-        animator.tweenable_mut().rewind();
+        animator.rewind();
         assert_eq!(animator.state, AnimatorState::Paused);
-        assert!(animator.tweenable().progress().abs() <= 1e-5);
+        assert!(animator.progress().abs() <= 1e-5);
 
-        animator.tweenable_mut().set_progress(0.5);
+        animator.set_progress(0.5);
         animator.state = AnimatorState::Playing;
         assert_eq!(animator.state, AnimatorState::Playing);
-        assert!((animator.tweenable().progress() - 0.5).abs() <= 1e-5);
+        assert!((animator.progress() - 0.5).abs() <= 1e-5);
 
-        animator.tweenable_mut().rewind();
+        animator.rewind();
         assert_eq!(animator.state, AnimatorState::Playing);
-        assert!(animator.tweenable().progress().abs() <= 1e-5);
+        assert!(animator.progress().abs() <= 1e-5);
 
         animator.stop();
         assert_eq!(animator.state, AnimatorState::Paused);
-        assert!(animator.tweenable().progress().abs() <= 1e-5);
+        assert!(animator.progress().abs() <= 1e-5);
     }
 }

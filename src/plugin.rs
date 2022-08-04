@@ -69,9 +69,7 @@ pub fn component_animator_system<T: Component>(
 ) {
     for (entity, ref mut target, ref mut animator) in query.iter_mut() {
         if animator.state != AnimatorState::Paused {
-            animator
-                .tweenable_mut()
-                .tick(time.delta(), target, entity, &mut event_writer);
+            animator.tick(time.delta(), target, entity, &mut event_writer);
         }
     }
 }
@@ -89,9 +87,7 @@ pub fn asset_animator_system<T: Asset>(
     for (entity, ref mut animator) in query.iter_mut() {
         if animator.state != AnimatorState::Paused {
             if let Some(target) = assets.get_mut(animator.handle()) {
-                animator
-                    .tweenable_mut()
-                    .tick(time.delta(), target, entity, &mut event_writer);
+                animator.tick(time.delta(), target, entity, &mut event_writer);
             }
         }
     }
