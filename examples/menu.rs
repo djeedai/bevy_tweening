@@ -50,6 +50,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         start_time_ms += 500;
         let tween_scale = Tween::new(
             EaseFunction::BounceOut,
+            TweeningType::Once,
             Duration::from_secs(2),
             TransformScaleLens {
                 start: Vec3::splat(0.01),
