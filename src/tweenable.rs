@@ -650,28 +650,26 @@ impl<T> Tweenable<T> for Sequence<T> {
 
     fn tick(
         &mut self,
-        delta: Duration,
+        mut delta: Duration,
         target: &mut T,
         entity: Entity,
         event_writer: &mut EventWriter<TweenCompleted>,
     ) -> TweenState {
-        if self.index < self.tweens.len() {
-            let mut state = TweenState::Active;
-            self.time = (self.time + delta).min(self.duration);
+        self.time = (self.time + delta).min(self.duration);
+        while self.index < self.tweens.len() {
             let tween = &mut self.tweens[self.index];
-            let tween_state = tween.tick(delta, target, entity, event_writer);
-            if tween_state == TweenState::Completed {
-                tween.rewind();
-                self.index += 1;
-                if self.index >= self.tweens.len() {
-                    state = TweenState::Completed;
-                    self.times_completed = 1;
-                }
+            let tween_remaining = tween.duration().mul_f32(1.0 - tween.progress());
+            if let TweenState::Active = tween.tick(delta, target, entity, event_writer) {
+                return TweenState::Active;
             }
-            state
-        } else {
-            TweenState::Completed
+
+            tween.rewind();
+            delta -= tween_remaining;
+            self.index += 1;
         }
+
+        self.times_completed = 1;
+        TweenState::Completed
     }
 
     fn times_completed(&self) -> u32 {
@@ -1263,6 +1261,45 @@ mod tests {
                     .abs_diff_eq(Quat::from_rotation_x(90_f32.to_radians()), 1e-5));
             }
         }
+    }
+
+    /// Test crossing tween boundaries in one tick.
+    #[test]
+    fn seq_tick_boundaries() {
+        let mut seq = Sequence::new((0..3).map(|i| {
+            Tween::new(
+                EaseMethod::Linear,
+                TweeningType::Once,
+                Duration::from_secs(1),
+                TransformPositionLens {
+                    start: Vec3::splat(i as f32),
+                    end: Vec3::splat((i + 1) as f32),
+                },
+            )
+        }));
+        let mut transform = Transform::default();
+
+        // Dummy world and event writer
+        let mut world = World::new();
+        world.insert_resource(Events::<TweenCompleted>::default());
+        let mut system_state: SystemState<EventWriter<TweenCompleted>> =
+            SystemState::new(&mut world);
+        let mut event_writer = system_state.get_mut(&mut world);
+
+        // Tick halfway through the first tween, then in one tick:
+        // - Finish the first tween
+        // - Start and finish the second tween
+        // - Start the third tween
+        for delta in [0.5, 2.0] {
+            seq.tick(
+                Duration::from_secs_f32(delta),
+                &mut transform,
+                Entity::from_raw(0),
+                &mut event_writer,
+            );
+        }
+        assert_eq!(seq.index(), 2);
+        assert!(transform.translation.abs_diff_eq(Vec3::splat(2.5), 1e-5));
     }
 
     /// Sequence::new() and various Sequence-specific methods
