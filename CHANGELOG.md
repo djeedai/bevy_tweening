@@ -3,6 +3,13 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Added `RepeatCount` and `RepeatStrategy` for more granular control over animation looping.
+- Added `with_repeat_count()` and `with_repeat_strategy()` builder methods to `Tween<T>`.
+
 ## [0.5.0] - 2022-08-04
 
 ### Added
@@ -18,6 +25,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Compatible with Bevy 0.8
 - Double boxing in `Sequence` and `Tracks` was fixed. As a result, any custom tweenables
   should implement `From` for `BoxedTweenable` to make those APIs easier to use.
+- Removed the `tweening_type` parameter from the signature of `Tween<T>::new()`; use `with_repeat_count()` and `with_repeat_strategy()` instead.
+
+### Removed
+
+- Removed `Tweenable::is_looping()`, which was not implemented for most tweenables.
+- Removed `TweeningType` in favor of `RepeatCount` and `RepeatStrategy`.
 
 ## [0.4.0] - 2022-04-16
 
