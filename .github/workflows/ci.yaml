@@ -56,6 +56,10 @@ jobs:
         run: cargo test --no-default-features --features="bevy_sprite"
         env:
           CARGO_INCREMENTAL: 1
+      - name: Build & run tests (asset)
+        run: cargo test --no-default-features --features="bevy_asset"
+        env:
+          CARGO_INCREMENTAL: 1
       - name: Build & run tests (all)
         run: cargo test --all-features
         env:
