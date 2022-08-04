@@ -31,7 +31,7 @@ struct RedSprite;
 struct BlueSprite;
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+    commands.spawn_bundle(Camera2dBundle::default());
 
     let font = asset_server.load("fonts/FiraMono-Regular.ttf");
     let text_style_red = TextStyle {

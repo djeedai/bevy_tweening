@@ -20,7 +20,7 @@ fn main() {
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn_bundle(UiCameraBundle::default());
+    commands.spawn_bundle(Camera2dBundle::default());
 
     let font = asset_server.load("fonts/FiraMono-Regular.ttf");
 
@@ -81,7 +81,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             .spawn_bundle(TextBundle {
                 style: Style {
                     size: Size::new(Val::Px(size_x), Val::Px(size_y)),
-                    position: Rect {
+                    position: UiRect {
                         left: Val::Px(x),
                         top: Val::Px(y),
                         right: Val::Auto,
@@ -94,15 +94,13 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     justify_content: JustifyContent::Center,
                     ..default()
                 },
-                text: Text::with_section(
+                text: Text::from_section(
                     *ease_name,
                     TextStyle {
                         font: font.clone(),
                         font_size: 24.0,
                         color: Color::WHITE,
                     },
-                    // you can still use Default
-                    default(),
                 ),
                 ..default()
             })

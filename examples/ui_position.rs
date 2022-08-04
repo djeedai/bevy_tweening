@@ -33,7 +33,7 @@ impl Default for Options {
 }
 
 fn setup(mut commands: Commands) {
-    commands.spawn_bundle(UiCameraBundle::default());
+    commands.spawn_bundle(Camera2dBundle::default());
 
     let size = 25.;
 
@@ -79,13 +79,13 @@ fn setup(mut commands: Commands) {
             TweeningType::PingPong,
             std::time::Duration::from_secs(1),
             UiPositionLens {
-                start: Rect {
+                start: UiRect {
                     left: Val::Px(x),
                     top: Val::Px(10.),
                     right: Val::Auto,
                     bottom: Val::Auto,
                 },
-                end: Rect {
+                end: UiRect {
                     left: Val::Px(x),
                     top: Val::Px(screen_y - 10. - size),
                     right: Val::Auto,
@@ -98,7 +98,7 @@ fn setup(mut commands: Commands) {
             .spawn_bundle(NodeBundle {
                 style: Style {
                     size: Size::new(Val::Px(size), Val::Px(size)),
-                    position: Rect {
+                    position: UiRect {
                         left: Val::Px(x),
                         top: Val::Px(10.),
                         right: Val::Auto,

@@ -1,6 +1,6 @@
 [package]
 name = "bevy_tweening"
-version = "0.4.0"
+version = "0.5.0-dev"
 authors = ["François Mockers <mockersf@gmail.com>", "Jerome Humbert <djeedai@gmail.com>"]
 edition = "2021"
 description = "Tweening animation plugin for the Bevy game engine"
@@ -13,7 +13,9 @@ readme = "README.md"
 exclude = ["examples/*.gif", ".github", "release.md"]
 
 [features]
-default = ["bevy_sprite", "bevy_ui"]
+default = ["bevy_sprite", "bevy_ui", "bevy_asset"]
+# Enable support for Asset animation
+bevy_asset = ["bevy/bevy_asset"]
 # Enable built-in lenses for Bevy sprites
 bevy_sprite = ["bevy/bevy_sprite", "bevy/bevy_render"]
 # Enable built-in lenses for Bevy UI
@@ -21,10 +23,10 @@ bevy_ui = ["bevy/bevy_ui", "bevy/bevy_text", "bevy/bevy_render"]
 
 [dependencies]
 interpolation = "0.2"
-bevy = { version = "0.7", default-features = false }
+bevy = { version = "0.8", default-features = false }
 
 [dev-dependencies]
-bevy-inspector-egui = "0.10"
+bevy-inspector-egui = "0.12"
 
 [[example]]
 name = "menu"
@@ -32,7 +34,7 @@ required-features = [ "bevy/bevy_winit" ]
 
 [[example]]
 name = "colormaterial_color"
-required-features = [ "bevy_sprite", "bevy/bevy_winit" ]
+required-features = [ "bevy_asset", "bevy_sprite", "bevy/bevy_winit" ]
 
 [[example]]
 name = "sprite_color"
