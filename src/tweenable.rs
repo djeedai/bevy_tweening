@@ -865,6 +865,20 @@ mod tests {
         (a - b).abs() < tol
     }
 
+    macro_rules! create_event_reader_writer {
+        () => {{
+            let mut world = World::new();
+            world.insert_resource(Events::<TweenCompleted>::default());
+
+            let event_reader_system_state: SystemState<EventReader<TweenCompleted>> =
+                SystemState::new(&mut world);
+            let event_writer_system_state: SystemState<EventWriter<TweenCompleted>> =
+                SystemState::new(&mut world);
+
+            (world, event_reader_system_state, event_writer_system_state)
+        }};
+    }
+
     #[derive(Default, Copy, Clone)]
     struct CallbackMonitor {
         invoke_count: u64,
@@ -914,18 +928,14 @@ mod tests {
         );
         let mut transform = Transform::default();
 
-        let mut world = World::new();
-        world.insert_resource(Events::<TweenCompleted>::default());
-        let mut event_writer_system_state: SystemState<EventWriter<TweenCompleted>> =
-            SystemState::new(&mut world);
-        let mut event_writer = event_writer_system_state.get_mut(&mut world);
+        let (mut world, _, mut event_writer) = create_event_reader_writer!();
 
         tween.set_progress(0.5);
         tween.tick(
             Duration::ZERO,
             &mut transform,
             Entity::from_raw(0),
-            &mut event_writer,
+            &mut event_writer.get_mut(&mut world),
         );
         assert!(transform.translation.abs_diff_eq(Vec3::splat(0.5), 1e-5));
 
@@ -937,7 +947,7 @@ mod tests {
                 Duration::ZERO,
                 &mut transform,
                 Entity::from_raw(0),
-                &mut event_writer,
+                &mut event_writer.get_mut(&mut world),
             ),
             TweenState::Active
         );
@@ -971,12 +981,7 @@ mod tests {
             cb_mon.last_reported_count = tween.times_completed();
         });
 
-        let mut world = World::new();
-        world.insert_resource(Events::<TweenCompleted>::default());
-        let mut event_writer_system_state: SystemState<EventWriter<TweenCompleted>> =
-            SystemState::new(&mut world);
-        let mut event_reader_system_state: SystemState<EventReader<TweenCompleted>> =
-            SystemState::new(&mut world);
+        let (mut world, mut event_reader, mut event_writer) = create_event_reader_writer!();
 
         let mut transform = Transform::default();
         let mut prev_times_completed = 0;
@@ -984,10 +989,12 @@ mod tests {
             expected_values
         {
             // Tick the tween
-            let actual_state = {
-                let mut event_writer = event_writer_system_state.get_mut(&mut world);
-                tween.tick(delta, &mut transform, dummy_entity, &mut event_writer)
-            };
+            let actual_state = tween.tick(
+                delta,
+                &mut transform,
+                dummy_entity,
+                &mut event_writer.get_mut(&mut world),
+            );
 
             // Propagate events
             {
@@ -1040,7 +1047,7 @@ mod tests {
                 let just_completed = prev_times_completed != times_completed;
                 prev_times_completed = times_completed;
 
-                let mut event_reader = event_reader_system_state.get_mut(&mut world);
+                let mut event_reader = event_reader.get_mut(&mut world);
                 if just_completed {
                     assert!(!event_reader.is_empty());
                     for event in event_reader.iter() {
@@ -1177,23 +1184,18 @@ mod tests {
         // progress is independent of direction
         assert!(abs_diff_eq(tween.progress(), 0.3, 1e-5));
 
-        // Dummy world and event writer
-        let mut world = World::new();
-        world.insert_resource(Events::<TweenCompleted>::default());
-        let mut event_writer_system_state: SystemState<EventWriter<TweenCompleted>> =
-            SystemState::new(&mut world);
+        let (mut world, _, mut event_writer) = create_event_reader_writer!();
 
         // Progress always increases alongside the current direction
         let dummy_entity = Entity::from_raw(0);
         let mut transform = Transform::default();
-        let mut event_writer = event_writer_system_state.get_mut(&mut world);
         tween.set_direction(TweeningDirection::Backward);
         assert!(abs_diff_eq(tween.progress(), 0.3, 1e-5));
         tween.tick(
             Duration::from_secs_f32(0.1),
             &mut transform,
             dummy_entity,
-            &mut event_writer,
+            &mut event_writer.get_mut(&mut world),
         );
         assert!(abs_diff_eq(tween.progress(), 0.4, 1e-5));
         assert!(transform.translation.abs_diff_eq(Vec3::splat(0.6), 1e-5));
