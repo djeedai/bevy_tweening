@@ -1269,13 +1269,13 @@ mod tests {
         let mut seq = Sequence::new((0..3).map(|i| {
             Tween::new(
                 EaseMethod::Linear,
+                TweeningType::Once,
                 Duration::from_secs(1),
                 TransformPositionLens {
                     start: Vec3::splat(i as f32),
                     end: Vec3::splat((i + 1) as f32),
                 },
             )
-            .with_repeat_count(RepeatCount::Finite(1))
         }));
         let mut transform = Transform::default();
 
