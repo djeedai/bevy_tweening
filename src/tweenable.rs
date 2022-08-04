@@ -204,11 +204,9 @@ pub trait Tweenable<T>: Send + Sync {
     /// the given target component or asset.
     ///
     /// This returns [`TweenState::Active`] if the tweenable didn't reach its
-    /// final state yet (progress < `1.0`), or [`TweenState::Completed`] if
-    /// the tweenable completed this tick. Only non-looping tweenables return
-    /// a completed state, since looping ones continue forever.
-    ///
-    /// TODO must return completed if duration has elapsed.
+    /// final state yet (elapsed < total_duration), or [`TweenState::Completed`]
+    /// if the tweenable completed this tick. Only non-looping tweenables
+    /// return a completed state, since looping ones continue forever.
     ///
     /// Calling this method with a duration of [`Duration::ZERO`] is valid, and
     /// updates the target to the current state of the tweenable without
@@ -262,6 +260,7 @@ impl<T, U: ?Sized + Tweenable<T>> TweenableExt<T> for U {
     fn set_progress(&mut self, progress: f32) {
         let progress = progress.max(0.);
         // TODO this should use try_from_secs_f64 and saturate once stable
+        //  Duration::try_from_secs_f32(self.duration().as_secs_f32() * progress)
         self.set_elapsed(self.duration().mul_f32(progress));
     }
 
@@ -581,7 +580,6 @@ impl<T> Sequence<T> {
     #[must_use]
     pub fn new(items: impl IntoIterator<Item = impl Into<BoxedTweenable<T>>>) -> Self {
         let tweens: Vec<_> = items.into_iter().map(Into::into).collect();
-        assert!(!tweens.is_empty());
         let duration = tweens
             .iter()
             .map(AsRef::as_ref)
