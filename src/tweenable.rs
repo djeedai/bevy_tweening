@@ -687,7 +687,7 @@ impl<T> Tweenable<T> for Sequence<T> {
         entity: Entity,
         event_writer: &mut EventWriter<TweenCompleted>,
     ) -> TweenState {
-        self.time = (self.time + delta).min(self.duration);
+        self.elapsed = (self.elapsed + delta).min(self.duration);
         while self.index < self.tweens.len() {
             let tween = &mut self.tweens[self.index];
             let tween_remaining = tween.duration().mul_f32(1.0 - tween.progress());
@@ -700,7 +700,6 @@ impl<T> Tweenable<T> for Sequence<T> {
             self.index += 1;
         }
 
-        self.times_completed = 1;
         TweenState::Completed
     }
 
