@@ -915,7 +915,7 @@ mod tests {
         }
 
         assert_eq!(
-            (total_duration.as_secs_f64() / duration.as_secs_f64()) as u32,
+            (total_duration.as_nanos() / duration.as_nanos()) as u32,
             times_completed
         );
     }
