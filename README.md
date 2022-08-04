@@ -24,7 +24,7 @@ Add to `Cargo.toml`:
 
 ```toml
 [dependencies]
-bevy_tweening = "0.4"
+bevy_tweening = "0.5"
 ```
 
 This crate supports the following features:
@@ -294,11 +294,12 @@ Compatibility of `bevy_tweening` versions:
 
 | `bevy_tweening` | `bevy` |
 | :--             | :--    |
+| `0.5`           | `0.8`  |
 | `0.4`           | `0.7`  |
 | `0.2`-`0.3`     | `0.6`  |
 | `0.1`           | `0.5`  |
 
-Due to the fast-moving nature of Bevy and frequent breaking changes, and the limited resources to maintan 🍃 Bevy Tweening, the `main` (unreleased) Bevy branch is not supported.
+Due to the fast-moving nature of Bevy and frequent breaking changes, and the limited resources to maintan 🍃 Bevy Tweening, the `main` (unreleased) Bevy branch is not supported. However the `bevy_tweening` crate is upgraded shortly after each new `bevy` release to support the newly released version.
 
 ## Comparison with `bevy_easings`
 
