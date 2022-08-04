@@ -33,7 +33,7 @@ impl Default for Options {
 }
 
 fn setup(mut commands: Commands) {
-    commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+    commands.spawn_bundle(Camera2dBundle::default());
 
     let size = 80.;
 
@@ -86,10 +86,10 @@ fn setup(mut commands: Commands) {
         );
 
         commands
-            .spawn_bundle((
-                Transform::from_translation(Vec3::new(x, y, 0.)),
-                GlobalTransform::default(),
-            ))
+            .spawn_bundle(SpatialBundle {
+                transform: Transform::from_translation(Vec3::new(x, y, 0.)),
+                ..default()
+            })
             .with_children(|parent| {
                 parent
                     .spawn_bundle(SpriteBundle {
