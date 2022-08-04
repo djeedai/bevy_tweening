@@ -1001,6 +1001,7 @@ mod tests {
                 dummy_entity,
                 &mut event_writer.get_mut(&mut world),
             );
+            dbg!(&tween.clock);
 
             // Propagate events
             {
@@ -1092,23 +1093,15 @@ mod tests {
                 .take(5)
                 .chain(repeat(TweenState::Completed)),
             if direction == TweeningDirection::Forward {
-                successors(Some(Transform::default()), |transform| {
-                    Some(Transform::from_translation(Vec3::min(
-                        Vec3::ONE,
-                        transform.translation + Vec3::splat(0.2),
-                    )))
-                })
-                .take(7)
-                .collect::<Vec<_>>()
+                successors(Some(0.), |progress| Some(f32::min(progress + 0.2, 1.)))
+                    .map(|progress| Transform::from_translation(Vec3::splat(progress)))
+                    .take(7)
+                    .collect::<Vec<_>>()
             } else {
-                successors(Some(Transform::from_translation(Vec3::ONE)), |transform| {
-                    Some(Transform::from_translation(Vec3::max(
-                        Vec3::ZERO,
-                        transform.translation - Vec3::splat(0.2),
-                    )))
-                })
-                .take(7)
-                .collect::<Vec<_>>()
+                successors(Some(1.), |progress| Some(f32::max(progress - 0.2, 0.)))
+                    .map(|progress| Transform::from_translation(Vec3::splat(progress)))
+                    .take(7)
+                    .collect::<Vec<_>>()
             },
         ));
         assert_eq!(deltas.count(), expected_values.clone().count());
@@ -1141,12 +1134,8 @@ mod tests {
             repeat(TweenState::Active)
                 .take(9)
                 .chain(repeat(TweenState::Completed)),
-            successors(Some(Transform::default()), |transform| {
-                Some(Transform::from_translation(Vec3::min(
-                    Vec3::splat(3.),
-                    transform.translation + Vec3::splat(1. / 3.),
-                )))
-            }),
+            successors(Some(0.), |progress| Some(f32::min(3., progress + 1. / 3.)))
+                .map(|progress| Transform::from_translation(Vec3::splat(progress))),
         ));
         assert_eq!(deltas.count(), expected_values.clone().count());
 
@@ -1254,7 +1243,47 @@ mod tests {
     }
 
     #[test]
-    fn tween_dir() {
+    fn tween_tick_loop_partial_completion() {
+        let duration = Duration::from_secs_f64(2. / 3.);
+        let max_duration = Duration::from_secs_f64(1.42);
+        let completions = max_duration.as_secs_f32() / duration.as_secs_f32();
+        let tween = Tween::new(
+            EaseMethod::Linear,
+            duration,
+            TransformPositionLens {
+                start: Vec3::ZERO,
+                end: Vec3::ONE,
+            },
+        )
+        .with_direction(TweeningDirection::Forward)
+        .with_repeat_count(RepeatCount::For(max_duration))
+        .with_repeat_strategy(RepeatStrategy::Repeat);
+
+        let deltas = repeat(Duration::from_millis(400)).take(4);
+        let expected_values = deltas.clone().zip(izip!(
+            successors(Some(0.6), |progress| Some(f32::min(
+                completions,
+                progress + 0.6
+            ))),
+            [0, 1, 1, 2],
+            [0, 1, 1, 2],
+            repeat(TweeningDirection::Forward),
+            repeat(TweenState::Active)
+                .take(3)
+                .chain([TweenState::Completed]),
+            successors(Some(0.6), |progress| Some(f32::min(
+                completions,
+                progress + 0.6
+            )))
+            .map(|progress| Transform::from_translation(Vec3::splat(progress))),
+        ));
+        assert_eq!(deltas.count(), expected_values.clone().count());
+
+        validate_tween(tween, expected_values);
+    }
+
+    #[test]
+    fn tween_direction() {
         let mut tween = Tween::new(
             EaseMethod::Linear,
             Duration::from_secs_f32(1.0),
