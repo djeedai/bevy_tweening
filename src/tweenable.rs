@@ -74,10 +74,14 @@ pub enum TweenState {
 /// complete cycle start -> end -> start counts as 2 iterations and raises 2
 /// events (one when reaching the end, one when reaching back the start).
 ///
+/// If the tick delta is high enough that multiple completions have occurred in
+/// its interval, only one event will be sent rather one event per completion
+/// that theoretically occurred.
+///
 /// # Note
 ///
 /// The semantic is slightly different from [`TweenState::Completed`], which
-/// indicates that the tweenable has finished ticking and do not need to be
+/// indicates that the tweenable has finished ticking and does not need to be
 /// updated anymore, a state which is never reached for looping animation. Here
 /// the [`TweenCompleted`] event instead marks the end of a single loop
 /// iteration.
@@ -960,7 +964,7 @@ mod tests {
         expected_values: impl Iterator<
             Item = (
                 Duration,
-                (f32, u32, TweeningDirection, TweenState, Transform),
+                (f32, u32, u32, TweeningDirection, TweenState, Transform),
             ),
         >,
     ) {
@@ -985,8 +989,10 @@ mod tests {
 
         let mut transform = Transform::default();
         let mut prev_times_completed = 0;
-        for (delta, (progress, times_completed, direction, expected_state, expected_transform)) in
-            expected_values
+        for (
+            delta,
+            (progress, times_completed, event_count, direction, expected_state, expected_transform),
+        ) in expected_values
         {
             // Tick the tween
             let actual_state = tween.tick(
@@ -1035,12 +1041,12 @@ mod tests {
             );
             let cb_mon = callback_monitor.lock().unwrap();
             assert_eq!(
-                times_completed as u64, cb_mon.invoke_count,
-                "times_completed"
+                event_count as u64, cb_mon.invoke_count,
+                "cb_mon.invoke_count"
             );
             assert_eq!(
                 times_completed, cb_mon.last_reported_count,
-                "times_completed"
+                "cb_mon.last_reported_count"
             );
 
             {
@@ -1076,40 +1082,41 @@ mod tests {
         )
         .with_direction(direction);
 
-        let expected_values = once(Duration::ZERO)
-            .chain(repeat(Duration::from_millis(200)).take(6))
-            .zip(izip!(
-                successors(Some(0.), |progress| Some(f32::min(progress + 0.2, 1.))),
-                [0, 0, 0, 0, 0, 1, 1],
-                repeat(direction),
-                repeat(TweenState::Active)
-                    .take(5)
-                    .chain(repeat(TweenState::Completed)),
-                if direction == TweeningDirection::Forward {
-                    successors(Some(Transform::default()), |transform| {
-                        Some(Transform::from_translation(Vec3::min(
-                            Vec3::ONE,
-                            transform.translation + Vec3::splat(0.2),
-                        )))
-                    })
-                    .take(7)
-                    .collect::<Vec<_>>()
-                } else {
-                    successors(Some(Transform::from_translation(Vec3::ONE)), |transform| {
-                        Some(Transform::from_translation(Vec3::max(
-                            Vec3::ZERO,
-                            transform.translation - Vec3::splat(0.2),
-                        )))
-                    })
-                    .take(7)
-                    .collect::<Vec<_>>()
-                }
-            ));
+        let deltas = once(Duration::ZERO).chain(repeat(Duration::from_millis(200)).take(6));
+        let expected_values = deltas.clone().zip(izip!(
+            successors(Some(0.), |progress| Some(f32::min(progress + 0.2, 1.))),
+            [0, 0, 0, 0, 0, 1, 1],
+            [0, 0, 0, 0, 0, 1, 1],
+            repeat(direction),
+            repeat(TweenState::Active)
+                .take(5)
+                .chain(repeat(TweenState::Completed)),
+            if direction == TweeningDirection::Forward {
+                successors(Some(Transform::default()), |transform| {
+                    Some(Transform::from_translation(Vec3::min(
+                        Vec3::ONE,
+                        transform.translation + Vec3::splat(0.2),
+                    )))
+                })
+                .take(7)
+                .collect::<Vec<_>>()
+            } else {
+                successors(Some(Transform::from_translation(Vec3::ONE)), |transform| {
+                    Some(Transform::from_translation(Vec3::max(
+                        Vec3::ZERO,
+                        transform.translation - Vec3::splat(0.2),
+                    )))
+                })
+                .take(7)
+                .collect::<Vec<_>>()
+            },
+        ));
+        assert_eq!(deltas.count(), expected_values.clone().count());
 
         validate_tween(tween, expected_values);
     }
 
-    #[rstest]
+    #[test]
     fn tween_tick_loop_finite() {
         let tween = Tween::new(
             EaseMethod::Linear,
@@ -1123,31 +1130,127 @@ mod tests {
         .with_repeat_count(RepeatCount::Finite(3))
         .with_repeat_strategy(RepeatStrategy::Repeat);
 
-        let expected_values = once(Duration::ZERO)
-            .chain(repeat(Duration::from_secs_f32(1. / 3.)).take(10))
-            .zip(izip!(
-                successors(Some(0.), |progress| Some(f32::min(3., progress + 1. / 3.))),
-                [0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3],
-                repeat(TweeningDirection::Forward),
-                repeat(TweenState::Active)
-                    .take(9)
-                    .chain(repeat(TweenState::Completed)),
-                successors(Some(Transform::default()), |transform| {
-                    Some(Transform::from_translation(Vec3::min(
-                        Vec3::splat(3.),
-                        transform.translation + Vec3::splat(1. / 3.),
-                    )))
-                })
-            ));
+        let deltas = once(Duration::ZERO).chain(repeat(Duration::from_secs_f32(1. / 3.)).take(10));
+        let expected_values = deltas.clone().zip(izip!(
+            successors(Some(0.), |progress| Some(f32::min(3., progress + 1. / 3.))),
+            // TODO this is totally wrong due to float precision, should be fixed in upcoming
+            //  PR
+            [0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3],
+            [0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3],
+            repeat(TweeningDirection::Forward),
+            repeat(TweenState::Active)
+                .take(9)
+                .chain(repeat(TweenState::Completed)),
+            successors(Some(Transform::default()), |transform| {
+                Some(Transform::from_translation(Vec3::min(
+                    Vec3::splat(3.),
+                    transform.translation + Vec3::splat(1. / 3.),
+                )))
+            }),
+        ));
+        assert_eq!(deltas.count(), expected_values.clone().count());
 
         validate_tween(tween, expected_values);
+    }
 
-        // TODO
-        // for (count, strategy) in &[
-        //     (RepeatCount::Infinite, RepeatStrategy::Repeat),
-        //     (RepeatCount::Infinite, RepeatStrategy::MirroredRepeat),
-        //     (RepeatCount::Finite(2), RepeatStrategy::MirroredRepeat),
-        // ] {
+    #[test]
+    fn tween_tick_loop_infinite_large_jump() {
+        let duration = Duration::from_secs_f64(4. / 3.);
+        let completions = Duration::MAX.as_secs_f64() / duration.as_secs_f64();
+        let tween = Tween::new(
+            EaseMethod::Linear,
+            duration,
+            TransformPositionLens {
+                start: Vec3::ZERO,
+                end: Vec3::ONE,
+            },
+        )
+        .with_direction(TweeningDirection::Forward)
+        .with_repeat_count(RepeatCount::Infinite)
+        .with_repeat_strategy(RepeatStrategy::Repeat);
+
+        let deltas = [duration * 10, Duration::MAX, Duration::MAX].into_iter();
+        let expected_values = deltas.clone().zip(izip!(
+            once(10.).chain(repeat(completions as f32)),
+            [10, 3458764514, 3458764514],
+            [1, 2, 2],
+            repeat(TweeningDirection::Forward),
+            repeat(TweenState::Active),
+            once(Transform::from_translation(Vec3::splat(10.))).chain(repeat(
+                Transform::from_translation(Vec3::splat(completions as f32)),
+            )),
+        ));
+        assert_eq!(deltas.count(), expected_values.clone().count());
+
+        validate_tween(tween, expected_values);
+    }
+
+    #[test]
+    fn tween_tick_loop_finite_large_jump() {
+        let duration = Duration::from_secs_f64(4. / 3.);
+        let tween = Tween::new(
+            EaseMethod::Linear,
+            duration,
+            TransformPositionLens {
+                start: Vec3::ZERO,
+                end: Vec3::ONE,
+            },
+        )
+        .with_direction(TweeningDirection::Forward)
+        .with_repeat_count(RepeatCount::Finite(100))
+        .with_repeat_strategy(RepeatStrategy::Repeat);
+
+        let deltas = [duration * 10, Duration::MAX, Duration::MAX].into_iter();
+        let expected_values = deltas.clone().zip(izip!(
+            [10., 100., 100.],
+            [10, 100, 100],
+            [1, 2, 2],
+            repeat(TweeningDirection::Forward),
+            once(TweenState::Active).chain(repeat(TweenState::Completed)),
+            once(Transform::from_translation(Vec3::splat(10.)))
+                .chain(repeat(Transform::from_translation(Vec3::splat(100.)))),
+        ));
+        assert_eq!(deltas.count(), expected_values.clone().count());
+
+        validate_tween(tween, expected_values);
+    }
+
+    #[test]
+    fn tween_tick_loop_ping_pong() {
+        let tween = Tween::new(
+            EaseMethod::Linear,
+            Duration::from_secs_f64(1. / 3.),
+            TransformPositionLens {
+                start: Vec3::ZERO,
+                end: Vec3::ONE,
+            },
+        )
+        .with_direction(TweeningDirection::Forward)
+        .with_repeat_count(RepeatCount::Infinite)
+        .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
+
+        let deltas = repeat(Duration::from_millis(200)).take(4);
+        let expected_values = deltas.clone().zip(izip!(
+            successors(Some(0.6), |progress| Some(progress + 0.6)),
+            [0, 1, 1, 2],
+            [0, 1, 1, 2],
+            [
+                TweeningDirection::Forward,
+                TweeningDirection::Backward,
+                TweeningDirection::Backward,
+                TweeningDirection::Forward,
+            ],
+            repeat(TweenState::Active),
+            [
+                Transform::from_translation(Vec3::splat(0.6)),
+                Transform::from_translation(Vec3::splat(-0.2)),
+                Transform::from_translation(Vec3::splat(-0.8)),
+                Transform::from_translation(Vec3::splat(2.4)),
+            ],
+        ));
+        assert_eq!(deltas.count(), expected_values.clone().count());
+
+        validate_tween(tween, expected_values);
     }
 
     #[test]
