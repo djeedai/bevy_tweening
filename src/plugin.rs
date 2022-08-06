@@ -1,12 +1,10 @@
+#[cfg(feature = "bevy_asset")]
+use bevy::asset::Asset;
 use bevy::{ecs::component::Component, prelude::*};
 
 #[cfg(feature = "bevy_asset")]
-use bevy::asset::Asset;
-
-use crate::{Animator, AnimatorState, TweenCompleted};
-
-#[cfg(feature = "bevy_asset")]
 use crate::AssetAnimator;
+use crate::{Animator, AnimatorState, TweenCompleted};
 
 /// Plugin to add systems related to tweening of common components and assets.
 ///

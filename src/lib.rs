@@ -159,22 +159,20 @@ use std::{
 #[cfg(feature = "bevy_asset")]
 use bevy::asset::Asset;
 use bevy::prelude::*;
-
 use interpolation::Ease as IEase;
 pub use interpolation::{EaseFunction, Lerp};
 
-pub mod lens;
-mod plugin;
-mod tweenable;
-
 pub use lens::Lens;
+#[cfg(feature = "bevy_asset")]
+pub use plugin::asset_animator_system;
 pub use plugin::{component_animator_system, AnimationSystem, TweeningPlugin};
 pub use tweenable::{
     BoxedTweenable, Delay, Sequence, Tracks, Tween, TweenCompleted, TweenState, Tweenable,
 };
 
-#[cfg(feature = "bevy_asset")]
-pub use plugin::asset_animator_system;
+pub mod lens;
+mod plugin;
+mod tweenable;
 
 /// How many times to repeat a tween animation. See also: [`RepeatStrategy`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
