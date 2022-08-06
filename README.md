@@ -48,7 +48,7 @@ App::default()
 
 ### Animate a component
 
-Animate the transform position of an entity by creating a `Tween` animation for the tranform, and adding an `Animator` component with that tween:
+Animate the transform position of an entity by creating a `Tween` animation for the transform, and adding an `Animator` component with that tween:
 
 ```rust
 // Create a single animation (tween) to move an entity.
