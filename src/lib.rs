@@ -127,7 +127,7 @@
 //! ## Assets animation
 //!
 //! Assets are animated in a similar way to component, via the [`AssetAnimator`]
-//! component.
+//! component. This requires the `bevy_asset` feature (enabled by default).
 //!
 //! Because assets are typically shared, and the animation applies to the asset
 //! itself, all users of the asset see the animation. For example, animating the
@@ -144,30 +144,34 @@
 //! lens can also be created by implementing the trait, allowing to animate
 //! virtually any field of any Bevy component or asset.
 //!
-//! [`Transform::translation`]: https://docs.rs/bevy/0.7.0/bevy/transform/components/struct.Transform.html#structfield.translation
-//! [`Entity`]: https://docs.rs/bevy/0.7.0/bevy/ecs/entity/struct.Entity.html
-//! [`Query`]: https://docs.rs/bevy/0.7.0/bevy/ecs/system/struct.Query.html
-//! [`ColorMaterial`]: https://docs.rs/bevy/0.7.0/bevy/sprite/struct.ColorMaterial.html
-//! [`Sprite`]: https://docs.rs/bevy/0.7.0/bevy/sprite/struct.Sprite.html
-//! [`Transform`]: https://docs.rs/bevy/0.7.0/bevy/transform/components/struct.Transform.html
+//! [`Transform::translation`]: https://docs.rs/bevy/0.8.0/bevy/transform/components/struct.Transform.html#structfield.translation
+//! [`Entity`]: https://docs.rs/bevy/0.8.0/bevy/ecs/entity/struct.Entity.html
+//! [`Query`]: https://docs.rs/bevy/0.8.0/bevy/ecs/system/struct.Query.html
+//! [`ColorMaterial`]: https://docs.rs/bevy/0.8.0/bevy/sprite/struct.ColorMaterial.html
+//! [`Sprite`]: https://docs.rs/bevy/0.8.0/bevy/sprite/struct.Sprite.html
+//! [`Transform`]: https://docs.rs/bevy/0.8.0/bevy/transform/components/struct.Transform.html
 
+use bevy::prelude::*;
 use std::time::Duration;
 
-use bevy::{asset::Asset, prelude::*};
+#[cfg(feature = "bevy_asset")]
+use bevy::asset::Asset;
+
 use interpolation::Ease as IEase;
 pub use interpolation::{EaseFunction, Lerp};
-
-pub use lens::Lens;
-pub use plugin::{
-    asset_animator_system, component_animator_system, AnimationSystem, TweeningPlugin,
-};
-pub use tweenable::{
-    BoxedTweenable, Delay, Sequence, Tracks, Tween, TweenCompleted, TweenState, Tweenable,
-};
 
 pub mod lens;
 mod plugin;
 mod tweenable;
+
+pub use lens::Lens;
+pub use plugin::{component_animator_system, AnimationSystem, TweeningPlugin};
+pub use tweenable::{
+    BoxedTweenable, Delay, Sequence, Tracks, Tween, TweenCompleted, TweenState, Tweenable,
+};
+
+#[cfg(feature = "bevy_asset")]
+pub use plugin::asset_animator_system;
 
 /// How many times to repeat a tween animation. See also: [`RepeatStrategy`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -489,6 +493,7 @@ impl<T: Component> Animator<T> {
 }
 
 /// Component to control the animation of an asset.
+#[cfg(feature = "bevy_asset")]
 #[derive(Component)]
 pub struct AssetAnimator<T: Asset> {
     /// Control if this animation is played or not.
@@ -498,6 +503,7 @@ pub struct AssetAnimator<T: Asset> {
     speed: f32,
 }
 
+#[cfg(feature = "bevy_asset")]
 impl<T: Asset + std::fmt::Debug> std::fmt::Debug for AssetAnimator<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AssetAnimator")
@@ -506,6 +512,7 @@ impl<T: Asset + std::fmt::Debug> std::fmt::Debug for AssetAnimator<T> {
     }
 }
 
+#[cfg(feature = "bevy_asset")]
 impl<T: Asset> Default for AssetAnimator<T> {
     fn default() -> Self {
         Self {
@@ -517,6 +524,7 @@ impl<T: Asset> Default for AssetAnimator<T> {
     }
 }
 
+#[cfg(feature = "bevy_asset")]
 impl<T: Asset> AssetAnimator<T> {
     /// Create a new asset animator component from a single tweenable.
     #[must_use]
@@ -538,6 +546,7 @@ impl<T: Asset> AssetAnimator<T> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(feature = "bevy_asset")]
     use bevy::reflect::TypeUuid;
 
     use super::{lens::*, *};
@@ -552,6 +561,7 @@ mod tests {
         value: f32,
     }
 
+    #[cfg(feature = "bevy_asset")]
     #[derive(Reflect, TypeUuid)]
     #[uuid = "a33abc11-264e-4bbb-82e8-b87226bb4383"]
     struct DummyAsset {
@@ -564,6 +574,7 @@ mod tests {
         }
     }
 
+    #[cfg(feature = "bevy_asset")]
     impl Lens<DummyAsset> for DummyLens {
         fn lerp(&mut self, target: &mut DummyAsset, ratio: f32) {
             target.value = self.start.lerp(&self.end, &ratio);
@@ -708,6 +719,7 @@ mod tests {
     }
 
     /// AssetAnimator::new()
+    #[cfg(feature = "bevy_asset")]
     #[test]
     fn asset_animator_new() {
         let tween = Tween::<DummyAsset>::new(
@@ -722,6 +734,7 @@ mod tests {
     }
 
     /// AssetAnimator::with_state()
+    #[cfg(feature = "bevy_asset")]
     #[test]
     fn asset_animator_with_state() {
         for state in [AnimatorState::Playing, AnimatorState::Paused] {
@@ -737,6 +750,7 @@ mod tests {
     }
 
     /// AssetAnimator::default() + AssetAnimator::set_tweenable()
+    #[cfg(feature = "bevy_asset")]
     #[test]
     fn asset_animator_default() {
         let mut animator = AssetAnimator::<DummyAsset>::default();
@@ -756,6 +770,7 @@ mod tests {
     }
 
     /// AssetAnimator control playback
+    #[cfg(feature = "bevy_asset")]
     #[test]
     fn asset_animator_controls() {
         let tween = Tween::new(
