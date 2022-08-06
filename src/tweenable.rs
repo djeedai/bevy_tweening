@@ -869,18 +869,20 @@ mod tests {
         (a - b).abs() < tol
     }
 
-    macro_rules! create_event_reader_writer {
-        () => {{
-            let mut world = World::new();
-            world.insert_resource(Events::<TweenCompleted>::default());
+    fn create_event_reader_writer<'w, 's>() -> (
+        World,
+        SystemState<EventReader<'w, 's, TweenCompleted>>,
+        SystemState<EventWriter<'w, 's, TweenCompleted>>,
+    ) {
+        let mut world = World::new();
+        world.insert_resource(Events::<TweenCompleted>::default());
 
-            let event_reader_system_state: SystemState<EventReader<TweenCompleted>> =
-                SystemState::new(&mut world);
-            let event_writer_system_state: SystemState<EventWriter<TweenCompleted>> =
-                SystemState::new(&mut world);
+        let event_reader_system_state: SystemState<EventReader<TweenCompleted>> =
+            SystemState::new(&mut world);
+        let event_writer_system_state: SystemState<EventWriter<TweenCompleted>> =
+            SystemState::new(&mut world);
 
-            (world, event_reader_system_state, event_writer_system_state)
-        }};
+        (world, event_reader_system_state, event_writer_system_state)
     }
 
     #[derive(Default, Copy, Clone)]
@@ -932,7 +934,7 @@ mod tests {
         );
         let mut transform = Transform::default();
 
-        let (mut world, _, mut event_writer) = create_event_reader_writer!();
+        let (mut world, _, mut event_writer) = create_event_reader_writer();
 
         tween.set_progress(0.5);
         tween.tick(
@@ -968,8 +970,6 @@ mod tests {
             ),
         >,
     ) {
-        dbg!(&tween.clock);
-
         let dummy_entity = Entity::from_raw(42);
 
         const USER_DATA: u64 = 54789;
@@ -985,7 +985,7 @@ mod tests {
             cb_mon.last_reported_count = tween.times_completed();
         });
 
-        let (mut world, mut event_reader, mut event_writer) = create_event_reader_writer!();
+        let (mut world, mut event_reader, mut event_writer) = create_event_reader_writer();
 
         let mut transform = Transform::default();
         let mut prev_times_completed = 0;
@@ -1001,7 +1001,6 @@ mod tests {
                 dummy_entity,
                 &mut event_writer.get_mut(&mut world),
             );
-            dbg!(&tween.clock);
 
             // Propagate events
             {
@@ -1312,7 +1311,7 @@ mod tests {
         // progress is independent of direction
         assert!(abs_diff_eq(tween.progress(), 0.3, 1e-5));
 
-        let (mut world, _, mut event_writer) = create_event_reader_writer!();
+        let (mut world, _, mut event_writer) = create_event_reader_writer();
 
         // Progress always increases alongside the current direction
         let dummy_entity = Entity::from_raw(0);
