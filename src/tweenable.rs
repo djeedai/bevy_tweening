@@ -922,8 +922,8 @@ mod tests {
         );
     }
 
-    #[test]
-    fn tween_rewind() {
+    #[rstest]
+    fn tween_rewind(#[values(1. / 3., 0.5, 1.)] starting_progress: f32) {
         let mut tween = Tween::new(
             EaseMethod::Linear,
             Duration::from_secs(1),
@@ -936,14 +936,19 @@ mod tests {
 
         let (mut world, _, mut event_writer) = create_event_reader_writer();
 
-        tween.set_progress(0.5);
+        tween.set_progress(starting_progress);
         tween.tick(
             Duration::ZERO,
             &mut transform,
             Entity::from_raw(0),
             &mut event_writer.get_mut(&mut world),
         );
-        assert!(transform.translation.abs_diff_eq(Vec3::splat(0.5), 1e-5));
+        // TODO(https://github.com/djeedai/bevy_tweening/issues/43) decide if this is acceptable behavior.
+        if starting_progress != 1. {
+            assert!(transform
+                .translation
+                .abs_diff_eq(Vec3::splat(starting_progress), 1e-5));
+        }
 
         // Rewind
         tween.rewind();
