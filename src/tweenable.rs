@@ -966,15 +966,45 @@ mod tests {
         assert_eq!(tween.times_completed(), 0);
     }
 
+    struct ExpectedValues<
+        Deltas: IntoIterator<Item = Duration>,
+        Progress: IntoIterator<Item = f32>,
+        TimesCompleted: IntoIterator<Item = u32>,
+        EventCounts: IntoIterator<Item = u32>,
+        Directions: IntoIterator<Item = TweeningDirection>,
+        States: IntoIterator<Item = TweenState>,
+        Transforms: IntoIterator<Item = Transform>,
+    > {
+        deltas: Deltas,
+        progress: Progress,
+        times_completed: TimesCompleted,
+        event_counts: EventCounts,
+        directions: Directions,
+        states: States,
+        transforms: Transforms,
+    }
+
     fn validate_tween(
         mut tween: Tween<Transform>,
-        expected_values: impl Iterator<
-            Item = (
-                Duration,
-                (f32, u32, u32, TweeningDirection, TweenState, Transform),
-            ),
+        expected_values: ExpectedValues<
+            impl IntoIterator<Item = Duration>,
+            impl IntoIterator<Item = f32>,
+            impl IntoIterator<Item = u32>,
+            impl IntoIterator<Item = u32>,
+            impl IntoIterator<Item = TweeningDirection>,
+            impl IntoIterator<Item = TweenState>,
+            impl IntoIterator<Item = Transform>,
         >,
     ) {
+        let expected_values = expected_values.deltas.into_iter().zip_eq(izip!(
+            expected_values.progress,
+            expected_values.times_completed,
+            expected_values.event_counts,
+            expected_values.directions,
+            expected_values.states,
+            expected_values.transforms,
+        ));
+
         let dummy_entity = Entity::from_raw(42);
 
         const USER_DATA: u64 = 54789;
@@ -1087,28 +1117,27 @@ mod tests {
         )
         .with_direction(direction);
 
-        let expected_values = once(Duration::ZERO)
-            .chain(repeat(Duration::from_millis(200)).take(6))
-            .zip_eq(izip!(
-                successors(Some(0.), |progress| Some(f32::min(progress + 0.2, 1.))),
-                [0, 0, 0, 0, 0, 1, 1],
-                [0, 0, 0, 0, 0, 1, 1],
-                repeat(direction),
-                repeat(TweenState::Active)
-                    .take(5)
-                    .chain(repeat(TweenState::Completed)),
-                if direction == TweeningDirection::Forward {
-                    successors(Some(0.), |progress| Some(f32::min(progress + 0.2, 1.)))
-                        .map(|progress| Transform::from_translation(Vec3::splat(progress)))
-                        .take(7)
-                        .collect::<Vec<_>>()
-                } else {
-                    successors(Some(1.), |progress| Some(f32::max(progress - 0.2, 0.)))
-                        .map(|progress| Transform::from_translation(Vec3::splat(progress)))
-                        .take(7)
-                        .collect::<Vec<_>>()
-                },
-            ));
+        let expected_values = ExpectedValues {
+            deltas: once(Duration::ZERO).chain(repeat(Duration::from_millis(200)).take(6)),
+            progress: successors(Some(0.), |progress| Some(f32::min(progress + 0.2, 1.))),
+            times_completed: [0, 0, 0, 0, 0, 1, 1],
+            event_counts: [0, 0, 0, 0, 0, 1, 1],
+            directions: repeat(direction),
+            states: repeat(TweenState::Active)
+                .take(5)
+                .chain(repeat(TweenState::Completed)),
+            transforms: if direction == TweeningDirection::Forward {
+                successors(Some(0.), |progress| Some(f32::min(progress + 0.2, 1.)))
+                    .map(|progress| Transform::from_translation(Vec3::splat(progress)))
+                    .take(7)
+                    .collect::<Vec<_>>()
+            } else {
+                successors(Some(1.), |progress| Some(f32::max(progress - 0.2, 0.)))
+                    .map(|progress| Transform::from_translation(Vec3::splat(progress)))
+                    .take(7)
+                    .collect::<Vec<_>>()
+            },
+        };
 
         validate_tween(tween, expected_values);
     }
@@ -1127,21 +1156,20 @@ mod tests {
         .with_repeat_count(RepeatCount::Finite(3))
         .with_repeat_strategy(RepeatStrategy::Repeat);
 
-        let expected_values = once(Duration::ZERO)
-            .chain(repeat(Duration::from_secs_f32(1. / 3.)).take(10))
-            .zip_eq(izip!(
-                successors(Some(0.), |progress| Some(f32::min(3., progress + 1. / 3.))),
-                // TODO this is totally wrong due to float precision, should be fixed in upcoming
-                //  PR
-                [0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3],
-                [0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3],
-                repeat(TweeningDirection::Forward),
-                repeat(TweenState::Active)
-                    .take(9)
-                    .chain(repeat(TweenState::Completed)),
-                successors(Some(0.), |progress| Some(f32::min(3., progress + 1. / 3.)))
-                    .map(|progress| Transform::from_translation(Vec3::splat(progress))),
-            ));
+        let expected_values = ExpectedValues {
+            deltas: once(Duration::ZERO).chain(repeat(Duration::from_secs_f32(1. / 3.)).take(10)),
+            progress: successors(Some(0.), |progress| Some(f32::min(3., progress + 1. / 3.))),
+            // TODO this is totally wrong due to float precision, should be fixed in upcoming
+            //  PR
+            times_completed: [0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3],
+            event_counts: [0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3],
+            directions: repeat(TweeningDirection::Forward),
+            states: repeat(TweenState::Active)
+                .take(9)
+                .chain(repeat(TweenState::Completed)),
+            transforms: successors(Some(0.), |progress| Some(f32::min(3., progress + 1. / 3.)))
+                .map(|progress| Transform::from_translation(Vec3::splat(progress))),
+        };
 
         validate_tween(tween, expected_values);
     }
@@ -1162,18 +1190,17 @@ mod tests {
         .with_repeat_count(RepeatCount::Infinite)
         .with_repeat_strategy(RepeatStrategy::Repeat);
 
-        let expected_values = [duration * 10, Duration::MAX, Duration::MAX]
-            .into_iter()
-            .zip_eq(izip!(
-                once(10.).chain(repeat(completions as f32)),
-                [10, 3458764514, 3458764514],
-                [1, 2, 2],
-                repeat(TweeningDirection::Forward),
-                repeat(TweenState::Active),
-                once(Transform::from_translation(Vec3::splat(10.))).chain(repeat(
-                    Transform::from_translation(Vec3::splat(completions as f32)),
-                )),
-            ));
+        let expected_values = ExpectedValues {
+            deltas: [duration * 10, Duration::MAX, Duration::MAX],
+            progress: once(10.).chain(repeat(completions as f32)),
+            times_completed: [10, 3458764514, 3458764514],
+            event_counts: [1, 2, 2],
+            directions: repeat(TweeningDirection::Forward),
+            states: repeat(TweenState::Active),
+            transforms: once(Transform::from_translation(Vec3::splat(10.))).chain(repeat(
+                Transform::from_translation(Vec3::splat(completions as f32)),
+            )),
+        };
 
         validate_tween(tween, expected_values);
     }
@@ -1193,17 +1220,16 @@ mod tests {
         .with_repeat_count(RepeatCount::Finite(100))
         .with_repeat_strategy(RepeatStrategy::Repeat);
 
-        let expected_values = [duration * 10, Duration::MAX, Duration::MAX]
-            .into_iter()
-            .zip_eq(izip!(
-                [10., 100., 100.],
-                [10, 100, 100],
-                [1, 2, 2],
-                repeat(TweeningDirection::Forward),
-                once(TweenState::Active).chain(repeat(TweenState::Completed)),
-                once(Transform::from_translation(Vec3::splat(10.)))
-                    .chain(repeat(Transform::from_translation(Vec3::splat(100.)))),
-            ));
+        let expected_values = ExpectedValues {
+            deltas: [duration * 10, Duration::MAX, Duration::MAX],
+            progress: [10., 100., 100.],
+            times_completed: [10, 100, 100],
+            event_counts: [1, 2, 2],
+            directions: repeat(TweeningDirection::Forward),
+            states: once(TweenState::Active).chain(repeat(TweenState::Completed)),
+            transforms: once(Transform::from_translation(Vec3::splat(10.)))
+                .chain(repeat(Transform::from_translation(Vec3::splat(100.)))),
+        };
 
         validate_tween(tween, expected_values);
     }
@@ -1222,24 +1248,25 @@ mod tests {
         .with_repeat_count(RepeatCount::Infinite)
         .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
-        let expected_values = repeat(Duration::from_millis(200)).take(4).zip_eq(izip!(
-            successors(Some(0.6), |progress| Some(progress + 0.6)),
-            [0, 1, 1, 2],
-            [0, 1, 1, 2],
-            [
+        let expected_values = ExpectedValues {
+            deltas: repeat(Duration::from_millis(200)).take(4),
+            progress: successors(Some(0.6), |progress| Some(progress + 0.6)),
+            times_completed: [0, 1, 1, 2],
+            event_counts: [0, 1, 1, 2],
+            directions: [
                 TweeningDirection::Forward,
                 TweeningDirection::Backward,
                 TweeningDirection::Backward,
                 TweeningDirection::Forward,
             ],
-            repeat(TweenState::Active),
-            [
+            states: repeat(TweenState::Active),
+            transforms: [
                 Transform::from_translation(Vec3::splat(0.6)),
                 Transform::from_translation(Vec3::splat(-0.2)),
                 Transform::from_translation(Vec3::splat(-0.8)),
                 Transform::from_translation(Vec3::splat(2.4)),
             ],
-        ));
+        };
 
         validate_tween(tween, expected_values);
     }
@@ -1261,23 +1288,22 @@ mod tests {
         .with_repeat_count(RepeatCount::For(max_duration))
         .with_repeat_strategy(RepeatStrategy::Repeat);
 
-        let expected_values = repeat(Duration::from_millis(400)).take(4).zip_eq(izip!(
-            successors(Some(0.6), |progress| Some(f32::min(
-                completions,
-                progress + 0.6
-            ))),
-            [0, 1, 1, 2],
-            [0, 1, 1, 2],
-            repeat(TweeningDirection::Forward),
-            repeat(TweenState::Active)
+        let expected_values = ExpectedValues {
+            deltas: repeat(Duration::from_millis(400)).take(4),
+            progress: successors(Some(0.6), |progress| {
+                Some(f32::min(completions, progress + 0.6))
+            }),
+            times_completed: [0, 1, 1, 2],
+            event_counts: [0, 1, 1, 2],
+            directions: repeat(TweeningDirection::Forward),
+            states: repeat(TweenState::Active)
                 .take(3)
                 .chain([TweenState::Completed]),
-            successors(Some(0.6), |progress| Some(f32::min(
-                completions,
-                progress + 0.6
-            )))
+            transforms: successors(Some(0.6), |progress| {
+                Some(f32::min(completions, progress + 0.6))
+            })
             .map(|progress| Transform::from_translation(Vec3::splat(progress))),
-        ));
+        };
 
         validate_tween(tween, expected_values);
     }
