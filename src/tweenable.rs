@@ -102,8 +102,6 @@ struct AnimClock {
     /// The total time elapsed playing this animation, within the range \[0,
     /// total_duration\].
     elapsed: Duration,
-    /// The time elapsed within one iteration of the animation.
-    progress: Duration,
     total_duration: TotalDuration,
     strategy: RepeatStrategy,
     direction: TweeningDirection,
@@ -114,7 +112,6 @@ impl AnimClock {
         Self {
             duration,
             elapsed: Duration::ZERO,
-            progress: Duration::ZERO,
             total_duration: compute_total_duration(duration, RepeatCount::default()),
             strategy: RepeatStrategy::default(),
             direction: TweeningDirection::default(),
@@ -139,12 +136,6 @@ impl AnimClock {
         if let TotalDuration::Finite(duration) = self.total_duration {
             self.elapsed = self.elapsed.min(duration);
         }
-
-        if let TotalDuration::Finite(duration) = self.total_duration && self.elapsed == duration {
-            self.progress = self.duration;
-        } else {
-            self.progress = Duration::from_nanos((self.elapsed.as_nanos() % self.duration.as_nanos()) as u64);
-        }
     }
 
     fn state(&self) -> TweenState {
@@ -160,9 +151,16 @@ impl AnimClock {
         }
     }
 
+    fn progress(&self) -> Duration {
+        if let TotalDuration::Finite(duration) = self.total_duration && self.elapsed == duration {
+            self.duration
+        } else {
+            Duration::from_nanos((self.elapsed.as_nanos() % self.duration.as_nanos()) as u64)
+        }
+    }
+
     fn reset(&mut self) {
         self.elapsed = Duration::ZERO;
-        self.progress = Duration::ZERO;
     }
 }
 
@@ -536,7 +534,7 @@ impl<T> Tweenable<T> for Tween<T> {
 
         // Apply the lens, even if the animation finished, to ensure the state is
         // consistent
-        let mut factor = self.clock.progress.as_secs_f32() / self.clock.duration.as_secs_f32();
+        let mut factor = self.clock.progress().as_secs_f32() / self.clock.duration.as_secs_f32();
         if self.clock.direction.is_backward() {
             factor = 1. - factor;
         }
@@ -646,7 +644,7 @@ impl<T> Tweenable<T> for Sequence<T> {
 
     fn set_elapsed(&mut self, mut time: Duration) {
         self.clock.set_elapsed(time);
-        time = self.clock.progress;
+        time = self.clock.progress();
 
         self.index = 0;
         for tween in &mut self.tweens {
@@ -871,7 +869,7 @@ mod tests {
         assert_eq!(total_duration, clock.elapsed);
         assert_eq!(
             total_duration.as_nanos() % duration.as_nanos(),
-            clock.progress.as_nanos()
+            clock.progress().as_nanos()
         );
         assert_eq!(
             times_completed,
