@@ -151,19 +151,18 @@
 //! [`Sprite`]: https://docs.rs/bevy/0.8.0/bevy/sprite/struct.Sprite.html
 //! [`Transform`]: https://docs.rs/bevy/0.8.0/bevy/transform/components/struct.Transform.html
 
-use bevy::prelude::*;
 use std::time::Duration;
 
 #[cfg(feature = "bevy_asset")]
 use bevy::asset::Asset;
-
+use bevy::prelude::*;
 use interpolation::Ease as IEase;
 pub use interpolation::{EaseFunction, Lerp};
 
 pub use lens::Lens;
-pub use plugin::{
-    asset_animator_system, component_animator_system, AnimationSystem, TweeningPlugin,
-};
+#[cfg(feature = "bevy_asset")]
+pub use plugin::asset_animator_system;
+pub use plugin::{component_animator_system, AnimationSystem, TweeningPlugin};
 pub use tweenable::{
     BoxedTweenable, Delay, Sequence, Tracks, Tween, TweenCompleted, TweenState, Tweenable,
 };
@@ -171,15 +170,6 @@ pub use tweenable::{
 pub mod lens;
 mod plugin;
 mod tweenable;
-
-pub use lens::Lens;
-pub use plugin::{component_animator_system, AnimationSystem, TweeningPlugin};
-pub use tweenable::{
-    BoxedTweenable, Delay, Sequence, Tracks, Tween, TweenCompleted, TweenState, Tweenable,
-};
-
-#[cfg(feature = "bevy_asset")]
-pub use plugin::asset_animator_system;
 
 /// How many times to repeat a tween animation. See also: [`RepeatStrategy`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -527,6 +517,8 @@ impl<T: Asset> AssetAnimator<T> {
 mod tests {
     #[cfg(feature = "bevy_asset")]
     use bevy::reflect::TypeUuid;
+
+    use crate::tweenable::TweenableExt;
 
     use super::{lens::*, *};
 
