@@ -1,6 +1,12 @@
-use bevy::{asset::Asset, ecs::component::Component, prelude::*};
+use bevy::{ecs::component::Component, prelude::*};
 
-use crate::{Animator, AnimatorState, AssetAnimator, TweenCompleted};
+#[cfg(feature = "bevy_asset")]
+use bevy::asset::Asset;
+
+use crate::{Animator, AnimatorState, TweenCompleted};
+
+#[cfg(feature = "bevy_asset")]
+use crate::AssetAnimator;
 
 /// Plugin to add systems related to tweening of common components and assets.
 ///
@@ -25,11 +31,11 @@ use crate::{Animator, AnimatorState, AssetAnimator, TweenCompleted};
 /// add manually the relevant systems for the exact set of components and assets
 /// actually animated.
 ///
-/// [`Transform`]: https://docs.rs/bevy/0.7.0/bevy/transform/components/struct.Transform.html
-/// [`Text`]: https://docs.rs/bevy/0.7.0/bevy/text/struct.Text.html
-/// [`Style`]: https://docs.rs/bevy/0.7.0/bevy/ui/struct.Style.html
-/// [`Sprite`]: https://docs.rs/bevy/0.7.0/bevy/sprite/struct.Sprite.html
-/// [`ColorMaterial`]: https://docs.rs/bevy/0.7.0/bevy/sprite/struct.ColorMaterial.html
+/// [`Transform`]: https://docs.rs/bevy/0.8.0/bevy/transform/components/struct.Transform.html
+/// [`Text`]: https://docs.rs/bevy/0.8.0/bevy/text/struct.Text.html
+/// [`Style`]: https://docs.rs/bevy/0.8.0/bevy/ui/struct.Style.html
+/// [`Sprite`]: https://docs.rs/bevy/0.8.0/bevy/sprite/struct.Sprite.html
+/// [`ColorMaterial`]: https://docs.rs/bevy/0.8.0/bevy/sprite/struct.ColorMaterial.html
 #[derive(Debug, Clone, Copy)]
 pub struct TweeningPlugin;
 
@@ -44,10 +50,12 @@ impl Plugin for TweeningPlugin {
             .add_system(component_animator_system::<Style>.label(AnimationSystem::AnimationUpdate));
 
         #[cfg(feature = "bevy_sprite")]
-        app.add_system(component_animator_system::<Sprite>.label(AnimationSystem::AnimationUpdate))
-            .add_system(
-                asset_animator_system::<ColorMaterial>.label(AnimationSystem::AnimationUpdate),
-            );
+        app.add_system(component_animator_system::<Sprite>.label(AnimationSystem::AnimationUpdate));
+
+        #[cfg(all(feature = "bevy_sprite", feature = "bevy_asset"))]
+        app.add_system(
+            asset_animator_system::<ColorMaterial>.label(AnimationSystem::AnimationUpdate),
+        );
     }
 }
 
@@ -78,6 +86,9 @@ pub fn component_animator_system<T: Component>(
 ///
 /// This system ticks all `AssetAnimator<T>` components to animate their
 /// associated asset.
+///
+/// This requires the `bevy_asset` feature (enabled by default).
+#[cfg(feature = "bevy_asset")]
 pub fn asset_animator_system<T: Asset>(
     time: Res<Time>,
     mut assets: ResMut<Assets<T>>,
@@ -86,7 +97,7 @@ pub fn asset_animator_system<T: Asset>(
 ) {
     for (entity, ref mut animator) in query.iter_mut() {
         if animator.state != AnimatorState::Paused {
-            if let Some(target) = assets.get_mut(animator.handle()) {
+            if let Some(target) = assets.get_mut(&animator.handle()) {
                 animator.tick(time.delta(), target, entity, &mut event_writer);
             }
         }
