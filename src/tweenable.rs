@@ -725,6 +725,7 @@ impl<T> Tweenable<T> for Tracks<T> {
 
     fn set_elapsed(&mut self, time: Duration) {
         self.clock.set_elapsed(time);
+        let time = self.clock.progress();
         for tweenable in &mut self.tracks {
             tweenable.set_elapsed(time);
         }
