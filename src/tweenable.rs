@@ -875,7 +875,7 @@ mod tests {
         SystemState<EventWriter<'w, 's, TweenCompleted>>,
     ) {
         let mut world = World::new();
-        world.insert_resource(Events::<TweenCompleted>::default());
+        world.init_resource::<Events<TweenCompleted>>();
 
         let event_reader_system_state: SystemState<EventReader<TweenCompleted>> =
             SystemState::new(&mut world);
@@ -937,6 +937,7 @@ mod tests {
         let (mut world, _, mut event_writer) = create_event_reader_writer();
 
         tween.set_progress(starting_progress);
+        // Apply progress change to the transform
         tween.tick(
             Duration::ZERO,
             &mut transform,
@@ -1090,11 +1091,11 @@ mod tests {
 
                 let mut event_reader = event_reader.get_mut(&mut world);
                 if just_completed {
-                    assert!(!event_reader.is_empty());
-                    for event in event_reader.iter() {
-                        assert_eq!(dummy_entity, event.entity);
-                        assert_eq!(USER_DATA, event.user_data, "user_data");
-                    }
+                    assert_eq!(1, event_reader.len());
+
+                    let event = event_reader.iter().next().unwrap();
+                    assert_eq!(dummy_entity, event.entity);
+                    assert_eq!(USER_DATA, event.user_data, "user_data");
                 } else {
                     assert!(event_reader.is_empty());
                 }
@@ -1157,15 +1158,13 @@ mod tests {
         .with_repeat_strategy(RepeatStrategy::Repeat);
 
         let expected_values = ExpectedValues {
-            deltas: once(Duration::ZERO).chain(repeat(Duration::from_secs_f32(1. / 3.)).take(10)),
+            deltas: once(Duration::ZERO).chain(repeat(Duration::from_secs(1) / 3).take(10)),
             progress: successors(Some(0.), |progress| Some(f32::min(3., progress + 1. / 3.))),
-            // TODO this is totally wrong due to float precision, should be fixed in upcoming
-            //  PR
-            times_completed: [0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3],
-            event_counts: [0, 0, 0, 1, 1, 1, 2, 2, 2, 3, 3],
+            times_completed: [0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3],
+            event_counts: [0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3],
             directions: repeat(TweeningDirection::Forward),
             states: repeat(TweenState::Active)
-                .take(9)
+                .take(10)
                 .chain(repeat(TweenState::Completed)),
             transforms: successors(Some(0.), |progress| Some(f32::min(3., progress + 1. / 3.)))
                 .map(|progress| Transform::from_translation(Vec3::splat(progress))),
@@ -1176,7 +1175,7 @@ mod tests {
 
     #[test]
     fn tween_tick_loop_infinite_large_jump() {
-        let duration = Duration::from_secs_f64(4. / 3.);
+        let duration = Duration::from_secs(4) / 3;
         let completions = Duration::MAX.as_secs_f64() / duration.as_secs_f64();
         let tween = Tween::new(
             EaseMethod::Linear,
@@ -1207,7 +1206,7 @@ mod tests {
 
     #[test]
     fn tween_tick_loop_finite_large_jump() {
-        let duration = Duration::from_secs_f64(4. / 3.);
+        let duration = Duration::from_secs(4) / 3;
         let tween = Tween::new(
             EaseMethod::Linear,
             duration,
@@ -1238,7 +1237,7 @@ mod tests {
     fn tween_tick_loop_ping_pong() {
         let tween = Tween::new(
             EaseMethod::Linear,
-            Duration::from_secs_f64(1. / 3.),
+            Duration::from_secs(1) / 3,
             TransformPositionLens {
                 start: Vec3::ZERO,
                 end: Vec3::ONE,
@@ -1273,7 +1272,7 @@ mod tests {
 
     #[test]
     fn tween_tick_loop_partial_completion() {
-        let duration = Duration::from_secs_f64(2. / 3.);
+        let duration = Duration::from_secs(2) / 3;
         let max_duration = Duration::from_secs_f64(1.42);
         let completions = max_duration.as_secs_f32() / duration.as_secs_f32();
         let tween = Tween::new(
