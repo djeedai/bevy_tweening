@@ -151,27 +151,25 @@
 //! [`Sprite`]: https://docs.rs/bevy/0.8.0/bevy/sprite/struct.Sprite.html
 //! [`Transform`]: https://docs.rs/bevy/0.8.0/bevy/transform/components/struct.Transform.html
 
-use bevy::prelude::*;
 use std::time::Duration;
 
 #[cfg(feature = "bevy_asset")]
 use bevy::asset::Asset;
-
+use bevy::prelude::*;
 use interpolation::Ease as IEase;
 pub use interpolation::{EaseFunction, Lerp};
 
-pub mod lens;
-mod plugin;
-mod tweenable;
-
 pub use lens::Lens;
+#[cfg(feature = "bevy_asset")]
+pub use plugin::asset_animator_system;
 pub use plugin::{component_animator_system, AnimationSystem, TweeningPlugin};
 pub use tweenable::{
     BoxedTweenable, Delay, Sequence, Tracks, Tween, TweenCompleted, TweenState, Tweenable,
 };
 
-#[cfg(feature = "bevy_asset")]
-pub use plugin::asset_animator_system;
+pub mod lens;
+mod plugin;
+mod tweenable;
 
 /// How many times to repeat a tween animation. See also: [`RepeatStrategy`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -388,35 +386,6 @@ macro_rules! animator_impl {
             }
         }
 
-        /// Set the current animation playback progress.
-        ///
-        /// See [`progress()`] for details on the meaning.
-        ///
-        /// [`progress()`]: Animator::progress
-        pub fn set_progress(&mut self, progress: f32) {
-            if let Some(tweenable) = &mut self.tweenable {
-                tweenable.set_progress(progress)
-            }
-        }
-
-        /// Get the current progress of the tweenable. See [`Tweenable::progress`] for
-        /// details.
-        ///
-        /// For sequences, the progress is measured over the entire sequence, from 0 at
-        /// the start of the first child tweenable to 1 at the end of the last one.
-        ///
-        /// For tracks (parallel execution), the progress is measured like a sequence
-        /// over the longest "path" of child tweenables. In other words, this is the
-        /// current elapsed time over the total tweenable duration.
-        #[must_use]
-        pub fn progress(&self) -> f32 {
-            if let Some(tweenable) = &self.tweenable {
-                tweenable.progress()
-            } else {
-                0.
-            }
-        }
-
         /// Ticks the tween, if present. See [`Tweenable::tick`] for details.
         pub fn tick(
             &mut self,
@@ -548,6 +517,8 @@ impl<T: Asset> AssetAnimator<T> {
 mod tests {
     #[cfg(feature = "bevy_asset")]
     use bevy::reflect::TypeUuid;
+
+    use crate::tweenable::TweenableExt;
 
     use super::{lens::*, *};
 
@@ -690,32 +661,32 @@ mod tests {
         );
         let mut animator = Animator::new(tween);
         assert_eq!(animator.state, AnimatorState::Playing);
-        assert!(animator.progress().abs() <= 1e-5);
+        assert!(animator.tweenable().unwrap().progress().abs() <= 1e-5);
 
         animator.stop();
         assert_eq!(animator.state, AnimatorState::Paused);
-        assert!(animator.progress().abs() <= 1e-5);
+        assert!(animator.tweenable().unwrap().progress().abs() <= 1e-5);
 
-        animator.set_progress(0.5);
+        animator.tweenable_mut().unwrap().set_progress(0.5);
         assert_eq!(animator.state, AnimatorState::Paused);
-        assert!((animator.progress() - 0.5).abs() <= 1e-5);
+        assert!((animator.tweenable().unwrap().progress() - 0.5).abs() <= 1e-5);
 
         animator.rewind();
         assert_eq!(animator.state, AnimatorState::Paused);
-        assert!(animator.progress().abs() <= 1e-5);
+        assert!(animator.tweenable().unwrap().progress().abs() <= 1e-5);
 
-        animator.set_progress(0.5);
+        animator.tweenable_mut().unwrap().set_progress(0.5);
         animator.state = AnimatorState::Playing;
         assert_eq!(animator.state, AnimatorState::Playing);
-        assert!((animator.progress() - 0.5).abs() <= 1e-5);
+        assert!((animator.tweenable().unwrap().progress() - 0.5).abs() <= 1e-5);
 
         animator.rewind();
         assert_eq!(animator.state, AnimatorState::Playing);
-        assert!(animator.progress().abs() <= 1e-5);
+        assert!(animator.tweenable().unwrap().progress().abs() <= 1e-5);
 
         animator.stop();
         assert_eq!(animator.state, AnimatorState::Paused);
-        assert!(animator.progress().abs() <= 1e-5);
+        assert!(animator.tweenable().unwrap().progress().abs() <= 1e-5);
     }
 
     /// AssetAnimator::new()
@@ -780,31 +751,31 @@ mod tests {
         );
         let mut animator = AssetAnimator::new(Handle::<DummyAsset>::default(), tween);
         assert_eq!(animator.state, AnimatorState::Playing);
-        assert!(animator.progress().abs() <= 1e-5);
+        assert!(animator.tweenable().unwrap().progress().abs() <= 1e-5);
 
         animator.stop();
         assert_eq!(animator.state, AnimatorState::Paused);
-        assert!(animator.progress().abs() <= 1e-5);
+        assert!(animator.tweenable().unwrap().progress().abs() <= 1e-5);
 
-        animator.set_progress(0.5);
+        animator.tweenable_mut().unwrap().set_progress(0.5);
         assert_eq!(animator.state, AnimatorState::Paused);
-        assert!((animator.progress() - 0.5).abs() <= 1e-5);
+        assert!((animator.tweenable().unwrap().progress() - 0.5).abs() <= 1e-5);
 
         animator.rewind();
         assert_eq!(animator.state, AnimatorState::Paused);
-        assert!(animator.progress().abs() <= 1e-5);
+        assert!(animator.tweenable().unwrap().progress().abs() <= 1e-5);
 
-        animator.set_progress(0.5);
+        animator.tweenable_mut().unwrap().set_progress(0.5);
         animator.state = AnimatorState::Playing;
         assert_eq!(animator.state, AnimatorState::Playing);
-        assert!((animator.progress() - 0.5).abs() <= 1e-5);
+        assert!((animator.tweenable().unwrap().progress() - 0.5).abs() <= 1e-5);
 
         animator.rewind();
         assert_eq!(animator.state, AnimatorState::Playing);
-        assert!(animator.progress().abs() <= 1e-5);
+        assert!(animator.tweenable().unwrap().progress().abs() <= 1e-5);
 
         animator.stop();
         assert_eq!(animator.state, AnimatorState::Paused);
-        assert!(animator.progress().abs() <= 1e-5);
+        assert!(animator.tweenable().unwrap().progress().abs() <= 1e-5);
     }
 }
