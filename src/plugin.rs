@@ -1,12 +1,10 @@
+#[cfg(feature = "bevy_asset")]
+use bevy::asset::Asset;
 use bevy::{ecs::component::Component, prelude::*};
 
 #[cfg(feature = "bevy_asset")]
-use bevy::asset::Asset;
-
-use crate::{Animator, AnimatorState, TweenCompleted};
-
-#[cfg(feature = "bevy_asset")]
 use crate::AssetAnimator;
+use crate::{Animator, AnimatorState, TweenCompleted};
 
 /// Plugin to add systems related to tweening of common components and assets.
 ///
@@ -77,7 +75,9 @@ pub fn component_animator_system<T: Component>(
 ) {
     for (entity, ref mut target, ref mut animator) in query.iter_mut() {
         if animator.state != AnimatorState::Paused {
-            animator.tick(time.delta(), target, entity, &mut event_writer);
+            animator
+                .tweenable_mut()
+                .tick(time.delta(), target, entity, &mut event_writer);
         }
     }
 }
@@ -98,7 +98,9 @@ pub fn asset_animator_system<T: Asset>(
     for (entity, ref mut animator) in query.iter_mut() {
         if animator.state != AnimatorState::Paused {
             if let Some(target) = assets.get_mut(&animator.handle()) {
-                animator.tick(time.delta(), target, entity, &mut event_writer);
+                animator
+                    .tweenable_mut()
+                    .tick(time.delta(), target, entity, &mut event_writer);
             }
         }
     }
