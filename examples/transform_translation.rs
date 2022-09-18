@@ -1,25 +1,39 @@
 use bevy::prelude::*;
+use bevy_inspector_egui::{Inspectable, InspectorPlugin};
+
 use bevy_tweening::{lens::*, *};
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() {
     App::default()
         .insert_resource(WindowDescriptor {
             title: "TransformPositionLens".to_string(),
             width: 1400.,
             height: 600.,
-            vsync: true,
-            ..Default::default()
+            present_mode: bevy::window::PresentMode::Fifo, // vsync
+            ..default()
         })
         .add_plugins(DefaultPlugins)
         .add_plugin(TweeningPlugin)
+        .add_plugin(InspectorPlugin::<Options>::new())
         .add_startup_system(setup)
+        .add_system(update_animation_speed)
         .run();
+}
 
-    Ok(())
+#[derive(Copy, Clone, PartialEq, Inspectable)]
+struct Options {
+    #[inspectable(min = 0.01, max = 100.)]
+    speed: f32,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Self { speed: 1. }
+    }
 }
 
 fn setup(mut commands: Commands) {
-    commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+    commands.spawn_bundle(Camera2dBundle::default());
 
     let size = 25.;
 
@@ -62,25 +76,36 @@ fn setup(mut commands: Commands) {
     ] {
         let tween = Tween::new(
             *ease_function,
-            TweeningType::PingPong,
             std::time::Duration::from_secs(1),
             TransformPositionLens {
                 start: Vec3::new(x, screen_y, 0.),
                 end: Vec3::new(x, -screen_y, 0.),
             },
-        );
+        )
+        .with_repeat_count(RepeatCount::Infinite)
+        .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
         commands
             .spawn_bundle(SpriteBundle {
                 sprite: Sprite {
                     color: Color::RED,
                     custom_size: Some(Vec2::new(size, size)),
-                    ..Default::default()
+                    ..default()
                 },
-                ..Default::default()
+                ..default()
             })
             .insert(Animator::new(tween));
 
         x += size * spacing;
+    }
+}
+
+fn update_animation_speed(options: Res<Options>, mut animators: Query<&mut Animator<Transform>>) {
+    if !options.is_changed() {
+        return;
+    }
+
+    for mut animator in animators.iter_mut() {
+        animator.set_speed(options.speed);
     }
 }

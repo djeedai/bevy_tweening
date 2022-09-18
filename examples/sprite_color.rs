@@ -1,25 +1,23 @@
 use bevy::prelude::*;
 use bevy_tweening::{lens::*, *};
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() {
     App::default()
         .insert_resource(WindowDescriptor {
             title: "SpriteColorLens".to_string(),
             width: 1200.,
             height: 600.,
-            vsync: true,
-            ..Default::default()
+            present_mode: bevy::window::PresentMode::Fifo, // vsync
+            ..default()
         })
         .add_plugins(DefaultPlugins)
         .add_plugin(TweeningPlugin)
         .add_startup_system(setup)
         .run();
-
-    Ok(())
 }
 
 fn setup(mut commands: Commands) {
-    commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+    commands.spawn_bundle(Camera2dBundle::default());
 
     let size = 80.;
 
@@ -63,13 +61,14 @@ fn setup(mut commands: Commands) {
     ] {
         let tween = Tween::new(
             *ease_function,
-            TweeningType::PingPong,
             std::time::Duration::from_secs(1),
             SpriteColorLens {
                 start: Color::RED,
                 end: Color::BLUE,
             },
-        );
+        )
+        .with_repeat_count(RepeatCount::Infinite)
+        .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
         commands
             .spawn_bundle(SpriteBundle {
@@ -77,9 +76,9 @@ fn setup(mut commands: Commands) {
                 sprite: Sprite {
                     color: Color::BLACK,
                     custom_size: Some(Vec2::new(size, size)),
-                    ..Default::default()
+                    ..default()
                 },
-                ..Default::default()
+                ..default()
             })
             .insert(Animator::new(tween));
 

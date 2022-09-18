@@ -7,7 +7,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             title: "CustomRelativeLens".to_string(),
             width: 1400.,
             height: 600.,
-            vsync: true,
             ..Default::default()
         })
         .add_plugins(DefaultPlugins)
@@ -26,7 +25,6 @@ fn setup(mut commands: Commands) {
 
     let tween = Tween::new(
         EaseFunction::QuadraticInOut,
-        TweeningType::Once,
         std::time::Duration::from_millis(500),
         TransformRelativePositionLens {
             end: Vec3::new(100., -screen_y, 0.),
