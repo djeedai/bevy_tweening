@@ -492,9 +492,9 @@ impl<T> Tweenable<T> for Tween<T> {
             return TweenState::Completed;
         }
 
-        if self.times_completed == 0
+        if self.times_completed() == 0
             && self.direction == TweeningDirection::Forward
-            && self.timer.elapsed().is_zero()
+            && self.progress() == 0.
         {
             self.lens.update_on_tween_start(target);
         }
