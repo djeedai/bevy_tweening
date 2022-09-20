@@ -988,7 +988,7 @@ mod tests {
     fn validate_tween(
         mut tween: Tween<Transform>,
         expected_values: ExpectedValues<
-            impl IntoIterator<Item = Duration>,
+            impl IntoIterator<Item = Duration> + Clone,
             impl IntoIterator<Item = f32>,
             impl IntoIterator<Item = u32>,
             impl IntoIterator<Item = u32>,
@@ -997,14 +997,17 @@ mod tests {
             impl IntoIterator<Item = Transform>,
         >,
     ) {
-        let expected_values = expected_values.deltas.into_iter().zip_eq(izip!(
-            expected_values.progress,
-            expected_values.times_completed,
-            expected_values.event_counts,
-            expected_values.directions,
-            expected_values.states,
-            expected_values.transforms,
-        ));
+        let expected_values = expected_values.deltas.clone().into_iter().zip_eq(
+            izip!(
+                expected_values.progress,
+                expected_values.times_completed,
+                expected_values.event_counts,
+                expected_values.directions,
+                expected_values.states,
+                expected_values.transforms,
+            )
+            .take(expected_values.deltas.into_iter().count()),
+        );
 
         let dummy_entity = Entity::from_raw(42);
 
