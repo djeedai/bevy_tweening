@@ -671,7 +671,7 @@ impl<T> Tweenable<T> for Sequence<T> {
             }
 
             tween.rewind();
-            delta -= tween_remaining;
+            delta = delta.saturating_sub(tween_remaining);
             self.index += 1;
         }
 
