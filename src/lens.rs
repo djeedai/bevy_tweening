@@ -373,8 +373,9 @@ impl Lens<Sprite> for SpriteColorLens {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use std::f32::consts::TAU;
+
+    use super::*;
 
     #[cfg(feature = "bevy_ui")]
     #[test]

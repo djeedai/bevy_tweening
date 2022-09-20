@@ -203,12 +203,10 @@ fn update_text(
     mut query_event: EventReader<TweenCompleted>,
 ) {
     let anim_red = query_anim_red.single();
-    let tween_red = anim_red.tweenable().unwrap();
-    let progress_red = tween_red.progress();
+    let progress_red = anim_red.tweenable().progress();
 
     let anim_blue = query_anim_blue.single();
-    let tween_blue = anim_blue.tweenable().unwrap();
-    let progress_blue = tween_blue.progress();
+    let progress_blue = anim_blue.tweenable().progress();
 
     let mut red_text = query_text_red.single_mut();
     red_text.sections[1].value = format!("{:5.1}%", progress_red * 100.);
