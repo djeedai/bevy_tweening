@@ -968,13 +968,13 @@ mod tests {
     }
 
     struct ExpectedValues<
-        Deltas: IntoIterator<Item = Duration>,
-        Progress: IntoIterator<Item = f32>,
-        TimesCompleted: IntoIterator<Item = u32>,
-        EventCounts: IntoIterator<Item = u32>,
-        Directions: IntoIterator<Item = TweeningDirection>,
-        States: IntoIterator<Item = TweenState>,
-        Transforms: IntoIterator<Item = Transform>,
+        Deltas,
+        Progress,
+        TimesCompleted,
+        EventCounts,
+        Directions,
+        States,
+        Transforms,
     > {
         deltas: Deltas,
         progress: Progress,
