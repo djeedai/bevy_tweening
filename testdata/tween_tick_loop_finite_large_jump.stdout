@@ -1,0 +1,39 @@
+Initial tween state:
+Clock=AnimClock {
+    elapsed: 0ns,
+    duration: 1.333333333s,
+    times_completed: 0,
+    total_duration: Finite(
+        133.3333333s,
+    ),
+    strategy: Repeat,
+}
+Direction=Forward
+
+Tick by 13.33333333s:
+Completion received for 42v0
+13.33333333s/1.333333333s elapsed
+Direction: Forward
+State: Active
+Progress: 9.999999
+Total completions: 10
+Transform: Transform { translation: Vec3(9.999999, 9.999999, 9.999999), rotation: Quat(0.0, 0.0, 0.0, 1.0), scale: Vec3(1.0, 1.0, 1.0) }
+Event received: TweenCompleted { entity: 42v0, user_data: 69420 }
+
+Tick by 18446744073709551615.999999999s:
+Completion received for 42v0
+18446744073709551615.999999999s/1.333333333s elapsed
+Direction: Forward
+State: Completed
+Progress: 99.99999
+Total completions: 100
+Transform: Transform { translation: Vec3(99.99999, 99.99999, 99.99999), rotation: Quat(0.0, 0.0, 0.0, 1.0), scale: Vec3(1.0, 1.0, 1.0) }
+Event received: TweenCompleted { entity: 42v0, user_data: 69420 }
+
+Tick by 18446744073709551615.999999999s:
+18446744073709551615.999999999s/1.333333333s elapsed
+Direction: Forward
+State: Completed
+Progress: 99.99999
+Total completions: 100
+Transform: Transform { translation: Vec3(99.99999, 99.99999, 99.99999), rotation: Quat(0.0, 0.0, 0.0, 1.0), scale: Vec3(1.0, 1.0, 1.0) }

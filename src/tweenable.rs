@@ -85,7 +85,7 @@ pub enum TweenState {
 /// updated anymore, a state which is never reached for looping animation. Here
 /// the [`TweenCompleted`] event instead marks the end of a single loop
 /// iteration.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct TweenCompleted {
     /// The [`Entity`] the tween which completed and its animator are attached
     /// to.
@@ -275,7 +275,7 @@ pub type CompletedCallback<T> = dyn Fn(Entity, &Tween<T>) + Send + Sync + 'stati
 
 /// Single tweening animation instance.
 pub struct Tween<T> {
-    ease_function: EaseMethod,
+    ease_method: EaseMethod,
     clock: AnimClock,
     direction: TweeningDirection,
     lens: Box<dyn Lens<T> + Send + Sync + 'static>,
@@ -339,7 +339,7 @@ impl<T> Tween<T> {
         L: Lens<T> + Send + Sync + 'static,
     {
         Self {
-            ease_function: ease_function.into(),
+            ease_method: ease_function.into(),
             clock: AnimClock::new(duration),
             direction: TweeningDirection::Forward,
             lens: Box::new(lens),
@@ -510,7 +510,7 @@ impl<T> Tweenable<T> for Tween<T> {
         if self.direction.is_backward() {
             factor = 1. - factor;
         }
-        let factor = self.ease_function.sample(factor);
+        let factor = self.ease_method.sample(factor);
         self.lens.lerp(target, factor);
 
         // If completed at least once this frame, notify the user
@@ -851,13 +851,14 @@ impl<T> Tweenable<T> for Delay {
 #[cfg(test)]
 mod tests {
     use std::{
-        iter::{once, repeat, successors},
+        io::Write,
+        iter::{once, repeat},
         sync::{Arc, Mutex},
         time::Duration,
     };
 
     use bevy::ecs::{event::Events, system::SystemState};
-    use itertools::{izip, Itertools};
+    use goldenfile::Mint;
     use rstest::rstest;
 
     use crate::lens::*;
@@ -883,12 +884,6 @@ mod tests {
             SystemState::new(&mut world);
 
         (world, event_reader_system_state, event_writer_system_state)
-    }
-
-    #[derive(Default, Copy, Clone)]
-    struct CallbackMonitor {
-        invoke_count: u64,
-        last_reported_count: u32,
     }
 
     #[test]
@@ -967,140 +962,59 @@ mod tests {
         assert_eq!(tween.times_completed(), 0);
     }
 
-    struct ExpectedValues<
-        Deltas,
-        Progress,
-        TimesCompleted,
-        EventCounts,
-        Directions,
-        States,
-        Transforms,
-    > {
-        deltas: Deltas,
-        progress: Progress,
-        times_completed: TimesCompleted,
-        event_counts: EventCounts,
-        directions: Directions,
-        states: States,
-        transforms: Transforms,
-    }
-
-    fn validate_tween(
+    fn write_tween(
         mut tween: Tween<Transform>,
-        expected_values: ExpectedValues<
-            impl IntoIterator<Item = Duration> + Clone,
-            impl IntoIterator<Item = f32>,
-            impl IntoIterator<Item = u32>,
-            impl IntoIterator<Item = u32>,
-            impl IntoIterator<Item = TweeningDirection>,
-            impl IntoIterator<Item = TweenState>,
-            impl IntoIterator<Item = Transform>,
-        >,
+        deltas: impl IntoIterator<Item = Duration>,
+        output: impl Write + Send + Sync + 'static,
     ) {
-        let expected_values = expected_values.deltas.clone().into_iter().zip_eq(
-            izip!(
-                expected_values.progress,
-                expected_values.times_completed,
-                expected_values.event_counts,
-                expected_values.directions,
-                expected_values.states,
-                expected_values.transforms,
-            )
-            .take(expected_values.deltas.into_iter().count()),
-        );
+        let output = Arc::new(Mutex::new(output));
 
-        let dummy_entity = Entity::from_raw(42);
-
-        const USER_DATA: u64 = 54789;
-        tween.set_completed_event(USER_DATA);
-
-        // Register callbacks to count started/ended events
-        let callback_monitor = Arc::new(Mutex::new(CallbackMonitor::default()));
-        let cb_mon_ptr = Arc::clone(&callback_monitor);
-        tween.set_completed(move |entity, tween| {
-            assert_eq!(dummy_entity, entity);
-            let mut cb_mon = cb_mon_ptr.lock().unwrap();
-            cb_mon.invoke_count += 1;
-            cb_mon.last_reported_count = tween.times_completed();
-        });
+        {
+            let output = output.clone();
+            tween.set_completed_event(69420);
+            tween.set_completed(move |entity, _| {
+                writeln!(output.lock().unwrap(), "Completion received for {entity:?}").unwrap();
+            });
+        }
 
         let (mut world, mut event_reader, mut event_writer) = create_event_reader_writer();
 
+        writeln!(
+            output.lock().unwrap(),
+            "Initial tween state:\nClock={:#?}\nDirection={:?}",
+            tween.clock,
+            tween.direction
+        )
+        .unwrap();
+
         let mut transform = Transform::default();
-        let mut prev_times_completed = 0;
-        for (
-            delta,
-            (progress, times_completed, event_count, direction, expected_state, expected_transform),
-        ) in expected_values
-        {
-            // Tick the tween
-            let actual_state = tween.tick(
+        let mut elapsed = Duration::ZERO;
+        for delta in deltas {
+            writeln!(output.lock().unwrap(), "\nTick by {delta:?}:").unwrap();
+
+            let state = tween.tick(
                 delta,
                 &mut transform,
-                dummy_entity,
+                Entity::from_raw(42),
                 &mut event_writer.get_mut(&mut world),
             );
 
-            // Propagate events
+            elapsed = elapsed.saturating_add(delta); // TODO replace with elapsed API
+            let mut output = output.lock().unwrap();
+            writeln!(output, "{elapsed:?}/{:?} elapsed", tween.duration()).unwrap();
+            writeln!(output, "Direction: {:?}", tween.direction()).unwrap();
+            writeln!(output, "State: {:?}", state).unwrap();
+            writeln!(output, "Progress: {:?}", tween.progress()).unwrap();
+            writeln!(output, "Total completions: {:?}", tween.times_completed()).unwrap();
+            writeln!(output, "Transform: {:?}", transform).unwrap();
+
             {
                 let mut events = world.get_resource_mut::<Events<TweenCompleted>>().unwrap();
                 events.update();
-            }
-
-            // Check actual values
-            assert_eq!(direction, tween.direction());
-            assert_eq!(expected_state, actual_state);
-            assert!(
-                abs_diff_eq(tween.progress(), progress, 1e-5),
-                "progress: expected={progress}, actual={}",
-                tween.progress()
-            );
-            assert_eq!(times_completed, tween.times_completed(), "times_completed");
-            assert!(
-                transform
-                    .translation
-                    .abs_diff_eq(expected_transform.translation, 1e-5),
-                "translation: expected={}, actual={}",
-                expected_transform.translation,
-                transform.translation
-            );
-            assert!(
-                transform
-                    .rotation
-                    .abs_diff_eq(expected_transform.rotation, 1e-5),
-                "rotation: expected={}, actual={}",
-                expected_transform.rotation,
-                transform.rotation
-            );
-            assert!(
-                transform.scale.abs_diff_eq(expected_transform.scale, 1e-5),
-                "scale: expected={}, actual={}",
-                expected_transform.scale,
-                transform.scale
-            );
-            let cb_mon = callback_monitor.lock().unwrap();
-            assert_eq!(
-                event_count as u64, cb_mon.invoke_count,
-                "cb_mon.invoke_count"
-            );
-            assert_eq!(
-                times_completed, cb_mon.last_reported_count,
-                "cb_mon.last_reported_count"
-            );
-
-            {
-                let just_completed = prev_times_completed != times_completed;
-                prev_times_completed = times_completed;
-
                 let mut event_reader = event_reader.get_mut(&mut world);
-                if just_completed {
-                    assert_eq!(1, event_reader.len());
 
-                    let event = event_reader.iter().next().unwrap();
-                    assert_eq!(dummy_entity, event.entity);
-                    assert_eq!(USER_DATA, event.user_data, "user_data");
-                } else {
-                    assert!(event_reader.is_empty());
+                for event in event_reader.iter() {
+                    writeln!(output, "Event received: {event:?}").unwrap();
                 }
             }
         }
@@ -1121,29 +1035,17 @@ mod tests {
         )
         .with_direction(direction);
 
-        let expected_values = ExpectedValues {
-            deltas: once(Duration::ZERO).chain(repeat(Duration::from_millis(200)).take(6)),
-            progress: successors(Some(0.), |progress| Some(f32::min(progress + 0.2, 1.))),
-            times_completed: [0, 0, 0, 0, 0, 1, 1],
-            event_counts: [0, 0, 0, 0, 0, 1, 1],
-            directions: repeat(direction),
-            states: repeat(TweenState::Active)
-                .take(5)
-                .chain(repeat(TweenState::Completed)),
-            transforms: if direction == TweeningDirection::Forward {
-                successors(Some(0.), |progress| Some(f32::min(progress + 0.2, 1.)))
-                    .map(|progress| Transform::from_translation(Vec3::splat(progress)))
-                    .take(7)
-                    .collect::<Vec<_>>()
-            } else {
-                successors(Some(1.), |progress| Some(f32::max(progress - 0.2, 0.)))
-                    .map(|progress| Transform::from_translation(Vec3::splat(progress)))
-                    .take(7)
-                    .collect::<Vec<_>>()
-            },
-        };
-
-        validate_tween(tween, expected_values);
+        let mut mint = Mint::new("testdata");
+        let goldenfile = mint
+            .new_goldenfile(format!(
+                "tween_tick_with_defaults_going_{direction:?}.stdout"
+            ))
+            .unwrap();
+        write_tween(
+            tween,
+            once(Duration::ZERO).chain(repeat(Duration::from_millis(200)).take(6)),
+            goldenfile,
+        );
     }
 
     #[test]
@@ -1160,26 +1062,20 @@ mod tests {
         .with_repeat_count(RepeatCount::Finite(3))
         .with_repeat_strategy(RepeatStrategy::Repeat);
 
-        let expected_values = ExpectedValues {
-            deltas: once(Duration::ZERO).chain(repeat(Duration::from_secs(1) / 3).take(10)),
-            progress: successors(Some(0.), |progress| Some(f32::min(3., progress + 1. / 3.))),
-            times_completed: [0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3],
-            event_counts: [0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3],
-            directions: repeat(TweeningDirection::Forward),
-            states: repeat(TweenState::Active)
-                .take(10)
-                .chain(repeat(TweenState::Completed)),
-            transforms: successors(Some(0.), |progress| Some(f32::min(3., progress + 1. / 3.)))
-                .map(|progress| Transform::from_translation(Vec3::splat(progress))),
-        };
-
-        validate_tween(tween, expected_values);
+        let mut mint = Mint::new("testdata");
+        let goldenfile = mint
+            .new_goldenfile("tween_tick_loop_finite.stdout")
+            .unwrap();
+        write_tween(
+            tween,
+            once(Duration::ZERO).chain(repeat(Duration::from_secs(1) / 3).take(10)),
+            goldenfile,
+        );
     }
 
     #[test]
     fn tween_tick_loop_infinite_large_jump() {
         let duration = Duration::from_secs(4) / 3;
-        let completions = Duration::MAX.as_secs_f64() / duration.as_secs_f64();
         let tween = Tween::new(
             EaseMethod::Linear,
             duration,
@@ -1192,19 +1088,15 @@ mod tests {
         .with_repeat_count(RepeatCount::Infinite)
         .with_repeat_strategy(RepeatStrategy::Repeat);
 
-        let expected_values = ExpectedValues {
-            deltas: [duration * 10, Duration::MAX, Duration::MAX],
-            progress: once(10.).chain(repeat(completions as f32)),
-            times_completed: [10, 3458764514, 3458764514],
-            event_counts: [1, 2, 2],
-            directions: repeat(TweeningDirection::Forward),
-            states: repeat(TweenState::Active),
-            transforms: once(Transform::from_translation(Vec3::splat(10.))).chain(repeat(
-                Transform::from_translation(Vec3::splat(completions as f32)),
-            )),
-        };
-
-        validate_tween(tween, expected_values);
+        let mut mint = Mint::new("testdata");
+        let goldenfile = mint
+            .new_goldenfile("tween_tick_loop_infinite_large_jump.stdout")
+            .unwrap();
+        write_tween(
+            tween,
+            [duration * 10, Duration::MAX, Duration::MAX],
+            goldenfile,
+        );
     }
 
     #[test]
@@ -1222,18 +1114,15 @@ mod tests {
         .with_repeat_count(RepeatCount::Finite(100))
         .with_repeat_strategy(RepeatStrategy::Repeat);
 
-        let expected_values = ExpectedValues {
-            deltas: [duration * 10, Duration::MAX, Duration::MAX],
-            progress: [10., 100., 100.],
-            times_completed: [10, 100, 100],
-            event_counts: [1, 2, 2],
-            directions: repeat(TweeningDirection::Forward),
-            states: once(TweenState::Active).chain(repeat(TweenState::Completed)),
-            transforms: once(Transform::from_translation(Vec3::splat(10.)))
-                .chain(repeat(Transform::from_translation(Vec3::splat(100.)))),
-        };
-
-        validate_tween(tween, expected_values);
+        let mut mint = Mint::new("testdata");
+        let goldenfile = mint
+            .new_goldenfile("tween_tick_loop_finite_large_jump.stdout")
+            .unwrap();
+        write_tween(
+            tween,
+            [duration * 10, Duration::MAX, Duration::MAX],
+            goldenfile,
+        );
     }
 
     #[test]
@@ -1250,64 +1139,40 @@ mod tests {
         .with_repeat_count(RepeatCount::Infinite)
         .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
-        let expected_values = ExpectedValues {
-            deltas: repeat(Duration::from_millis(200)).take(4),
-            progress: successors(Some(0.6), |progress| Some(progress + 0.6)),
-            times_completed: [0, 1, 1, 2],
-            event_counts: [0, 1, 1, 2],
-            directions: [
-                TweeningDirection::Forward,
-                TweeningDirection::Backward,
-                TweeningDirection::Backward,
-                TweeningDirection::Forward,
-            ],
-            states: repeat(TweenState::Active),
-            transforms: [
-                Transform::from_translation(Vec3::splat(0.6)),
-                Transform::from_translation(Vec3::splat(-0.2)),
-                Transform::from_translation(Vec3::splat(-0.8)),
-                Transform::from_translation(Vec3::splat(2.4)),
-            ],
-        };
-
-        validate_tween(tween, expected_values);
+        let mut mint = Mint::new("testdata");
+        let goldenfile = mint
+            .new_goldenfile("tween_tick_loop_ping_pong.stdout")
+            .unwrap();
+        write_tween(
+            tween,
+            repeat(Duration::from_millis(200)).take(4),
+            goldenfile,
+        );
     }
 
     #[test]
     fn tween_tick_loop_partial_completion() {
-        let duration = Duration::from_secs(2) / 3;
-        let max_duration = Duration::from_secs_f64(1.42);
-        let completions = max_duration.as_secs_f32() / duration.as_secs_f32();
         let tween = Tween::new(
             EaseMethod::Linear,
-            duration,
+            Duration::from_secs(2) / 3,
             TransformPositionLens {
                 start: Vec3::ZERO,
                 end: Vec3::ONE,
             },
         )
         .with_direction(TweeningDirection::Forward)
-        .with_repeat_count(RepeatCount::For(max_duration))
+        .with_repeat_count(RepeatCount::For(Duration::from_secs_f64(1.42)))
         .with_repeat_strategy(RepeatStrategy::Repeat);
 
-        let expected_values = ExpectedValues {
-            deltas: repeat(Duration::from_millis(400)).take(4),
-            progress: successors(Some(0.6), |progress| {
-                Some(f32::min(completions, progress + 0.6))
-            }),
-            times_completed: [0, 1, 1, 2],
-            event_counts: [0, 1, 1, 2],
-            directions: repeat(TweeningDirection::Forward),
-            states: repeat(TweenState::Active)
-                .take(3)
-                .chain([TweenState::Completed]),
-            transforms: successors(Some(0.6), |progress| {
-                Some(f32::min(completions, progress + 0.6))
-            })
-            .map(|progress| Transform::from_translation(Vec3::splat(progress))),
-        };
-
-        validate_tween(tween, expected_values);
+        let mut mint = Mint::new("testdata");
+        let goldenfile = mint
+            .new_goldenfile("tween_tick_loop_partial_completion.stdout")
+            .unwrap();
+        write_tween(
+            tween,
+            repeat(Duration::from_millis(400)).take(4),
+            goldenfile,
+        );
     }
 
     #[test]
