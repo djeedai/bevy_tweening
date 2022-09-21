@@ -27,6 +27,8 @@ bevy = { version = "0.8", default-features = false }
 
 [dev-dependencies]
 bevy-inspector-egui = "0.12"
+itertools = "0.10.3"
+rstest = "0.15.0"
 
 [[example]]
 name = "menu"

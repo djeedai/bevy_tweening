@@ -74,10 +74,14 @@ pub enum TweenState {
 /// complete cycle start -> end -> start counts as 2 iterations and raises 2
 /// events (one when reaching the end, one when reaching back the start).
 ///
+/// If the tick delta is high enough that multiple completions have occurred in
+/// its interval, only one event will be sent rather one event per completion
+/// that theoretically occurred.
+///
 /// # Note
 ///
 /// The semantic is slightly different from [`TweenState::Completed`], which
-/// indicates that the tweenable has finished ticking and do not need to be
+/// indicates that the tweenable has finished ticking and does not need to be
 /// updated anymore, a state which is never reached for looping animation. Here
 /// the [`TweenCompleted`] event instead marks the end of a single loop
 /// iteration.
@@ -550,7 +554,6 @@ impl<T> Sequence<T> {
     #[must_use]
     pub fn new(items: impl IntoIterator<Item = impl Into<BoxedTweenable<T>>>) -> Self {
         let tweens: Vec<_> = items.into_iter().map(Into::into).collect();
-        assert!(!tweens.is_empty());
         let duration = tweens
             .iter()
             .map(AsRef::as_ref)
@@ -847,11 +850,14 @@ impl<T> Tweenable<T> for Delay {
 #[cfg(test)]
 mod tests {
     use std::{
+        iter::{once, repeat, successors},
         sync::{Arc, Mutex},
         time::Duration,
     };
 
     use bevy::ecs::{event::Events, system::SystemState};
+    use itertools::{izip, Itertools};
+    use rstest::rstest;
 
     use crate::lens::*;
 
@@ -859,7 +865,23 @@ mod tests {
 
     /// Utility to compare floating-point values with a tolerance.
     fn abs_diff_eq(a: f32, b: f32, tol: f32) -> bool {
-        (a - b).abs() < tol
+        (a - b).abs() < tol || (a.is_nan() && b.is_nan())
+    }
+
+    fn create_event_reader_writer<'w, 's>() -> (
+        World,
+        SystemState<EventReader<'w, 's, TweenCompleted>>,
+        SystemState<EventWriter<'w, 's, TweenCompleted>>,
+    ) {
+        let mut world = World::new();
+        world.init_resource::<Events<TweenCompleted>>();
+
+        let event_reader_system_state: SystemState<EventReader<TweenCompleted>> =
+            SystemState::new(&mut world);
+        let event_writer_system_state: SystemState<EventWriter<TweenCompleted>> =
+            SystemState::new(&mut world);
+
+        (world, event_reader_system_state, event_writer_system_state)
     }
 
     #[derive(Default, Copy, Clone)]
@@ -894,264 +916,401 @@ mod tests {
         }
 
         assert_eq!(
-            (total_duration.as_secs_f64() / duration.as_secs_f64()) as u32,
+            (total_duration.as_nanos() / duration.as_nanos()) as u32,
             times_completed
         );
     }
 
-    /// Test ticking of a single tween in isolation.
-    #[test]
-    fn tween_tick() {
-        for tweening_direction in &[TweeningDirection::Forward, TweeningDirection::Backward] {
-            for (count, strategy) in &[
-                (RepeatCount::Finite(1), RepeatStrategy::default()),
-                (RepeatCount::Infinite, RepeatStrategy::Repeat),
-                (RepeatCount::Finite(2), RepeatStrategy::Repeat),
-                (RepeatCount::Infinite, RepeatStrategy::MirroredRepeat),
-                (RepeatCount::Finite(2), RepeatStrategy::MirroredRepeat),
-            ] {
-                println!(
-                    "TweeningType: count={count:?} strategy={strategy:?} dir={tweening_direction:?}",
-                );
+    #[rstest]
+    fn tween_rewind(#[values(1. / 3., 0.5, 1.)] starting_progress: f32) {
+        let mut tween = Tween::new(
+            EaseMethod::Linear,
+            Duration::from_secs(1),
+            TransformPositionLens {
+                start: Vec3::ZERO,
+                end: Vec3::ONE,
+            },
+        );
+        let mut transform = Transform::default();
 
-                // Create a linear tween over 1 second
-                let mut tween = Tween::new(
-                    EaseMethod::Linear,
-                    Duration::from_secs_f32(1.0),
-                    TransformPositionLens {
-                        start: Vec3::ZERO,
-                        end: Vec3::ONE,
-                    },
-                )
-                .with_direction(*tweening_direction)
-                .with_repeat_count(*count)
-                .with_repeat_strategy(*strategy);
-                assert_eq!(tween.direction(), *tweening_direction);
-                assert!(tween.on_completed.is_none());
-                assert!(tween.event_data.is_none());
+        let (mut world, _, mut event_writer) = create_event_reader_writer();
 
-                let dummy_entity = Entity::from_raw(42);
+        tween.set_progress(starting_progress);
+        // Apply progress change to the transform
+        tween.tick(
+            Duration::ZERO,
+            &mut transform,
+            Entity::from_raw(0),
+            &mut event_writer.get_mut(&mut world),
+        );
+        // TODO(https://github.com/djeedai/bevy_tweening/issues/43) decide if this is acceptable behavior.
+        if starting_progress != 1. {
+            assert!(transform
+                .translation
+                .abs_diff_eq(Vec3::splat(starting_progress), 1e-5));
+        }
 
-                // Register callbacks to count started/ended events
-                let callback_monitor = Arc::new(Mutex::new(CallbackMonitor::default()));
-                let cb_mon_ptr = Arc::clone(&callback_monitor);
-                tween.set_completed(move |entity, tween| {
-                    assert_eq!(dummy_entity, entity);
-                    let mut cb_mon = cb_mon_ptr.lock().unwrap();
-                    cb_mon.invoke_count += 1;
-                    cb_mon.last_reported_count = tween.times_completed();
-                });
-                assert!(tween.on_completed.is_some());
-                assert!(tween.event_data.is_none());
-                assert_eq!(callback_monitor.lock().unwrap().invoke_count, 0);
+        // Rewind
+        tween.rewind();
+        assert!(abs_diff_eq(tween.progress(), 0., 1e-5));
+        assert_eq!(
+            tween.tick(
+                Duration::ZERO,
+                &mut transform,
+                Entity::from_raw(0),
+                &mut event_writer.get_mut(&mut world),
+            ),
+            TweenState::Active
+        );
+        assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
+        assert_eq!(tween.times_completed(), 0);
+    }
 
-                // Activate event sending
-                const USER_DATA: u64 = 54789; // dummy
-                tween.set_completed_event(USER_DATA);
-                assert!(tween.event_data.is_some());
-                assert_eq!(tween.event_data.unwrap(), USER_DATA);
+    struct ExpectedTweenValues<
+        Deltas,
+        Progress,
+        TimesCompleted,
+        EventCounts,
+        Directions,
+        States,
+        Transforms,
+    > {
+        deltas: Deltas,
+        progress: Progress,
+        times_completed: TimesCompleted,
+        event_counts: EventCounts,
+        directions: Directions,
+        states: States,
+        transforms: Transforms,
+    }
 
-                // Dummy world and event writer
-                let mut world = World::new();
-                world.insert_resource(Events::<TweenCompleted>::default());
-                let mut event_writer_system_state: SystemState<EventWriter<TweenCompleted>> =
-                    SystemState::new(&mut world);
-                let mut event_reader_system_state: SystemState<EventReader<TweenCompleted>> =
-                    SystemState::new(&mut world);
+    fn validate_tween(
+        mut tween: Tween<Transform>,
+        expected_values: ExpectedTweenValues<
+            impl IntoIterator<Item = Duration> + Clone,
+            impl IntoIterator<Item = f32>,
+            impl IntoIterator<Item = u32>,
+            impl IntoIterator<Item = u32>,
+            impl IntoIterator<Item = TweeningDirection>,
+            impl IntoIterator<Item = TweenState>,
+            impl IntoIterator<Item = Transform>,
+        >,
+    ) {
+        let expected_values = expected_values.deltas.clone().into_iter().zip_eq(
+            izip!(
+                expected_values.progress,
+                expected_values.times_completed,
+                expected_values.event_counts,
+                expected_values.directions,
+                expected_values.states,
+                expected_values.transforms,
+            )
+            .take(expected_values.deltas.into_iter().count()),
+        );
 
-                // Loop over 2.2 seconds, so greater than one ping-pong loop
-                let mut transform = Transform::default();
-                let tick_duration = Duration::from_secs_f32(0.2);
-                for i in 1..=11 {
-                    // Calculate expected values
-                    let (progress, times_completed, mut direction, expected_state, just_completed) =
-                        match count {
-                            RepeatCount::Finite(1) => {
-                                let progress = (i as f32 * 0.2).min(1.0);
-                                let times_completed = if i >= 5 { 1 } else { 0 };
-                                let state = if i < 5 {
-                                    TweenState::Active
-                                } else {
-                                    TweenState::Completed
-                                };
-                                let just_completed = i == 5;
-                                (
-                                    progress,
-                                    times_completed,
-                                    TweeningDirection::Forward,
-                                    state,
-                                    just_completed,
-                                )
-                            }
-                            RepeatCount::Finite(count) => {
-                                let progress = (i as f32 * 0.2).min(1.0 * *count as f32);
-                                if *strategy == RepeatStrategy::Repeat {
-                                    let times_completed = i / 5;
-                                    let just_completed = i % 5 == 0;
-                                    (
-                                        progress,
-                                        times_completed,
-                                        TweeningDirection::Forward,
-                                        if i < 10 {
-                                            TweenState::Active
-                                        } else {
-                                            TweenState::Completed
-                                        },
-                                        just_completed,
-                                    )
-                                } else {
-                                    let i5 = i % 5;
-                                    let times_completed = i / 5;
-                                    let i10 = i % 10;
-                                    let direction = if i10 >= 5 {
-                                        TweeningDirection::Backward
-                                    } else {
-                                        TweeningDirection::Forward
-                                    };
-                                    let just_completed = i5 == 0;
-                                    (
-                                        progress,
-                                        times_completed,
-                                        direction,
-                                        if i < 10 {
-                                            TweenState::Active
-                                        } else {
-                                            TweenState::Completed
-                                        },
-                                        just_completed,
-                                    )
-                                }
-                            }
-                            RepeatCount::Infinite => {
-                                let progress = i as f32 * 0.2;
-                                if *strategy == RepeatStrategy::Repeat {
-                                    let times_completed = i / 5;
-                                    let just_completed = i % 5 == 0;
-                                    (
-                                        progress,
-                                        times_completed,
-                                        TweeningDirection::Forward,
-                                        TweenState::Active,
-                                        just_completed,
-                                    )
-                                } else {
-                                    let i5 = i % 5;
-                                    let times_completed = i / 5;
-                                    let i10 = i % 10;
-                                    let direction = if i10 >= 5 {
-                                        TweeningDirection::Backward
-                                    } else {
-                                        TweeningDirection::Forward
-                                    };
-                                    let just_completed = i5 == 0;
-                                    (
-                                        progress,
-                                        times_completed,
-                                        direction,
-                                        TweenState::Active,
-                                        just_completed,
-                                    )
-                                }
-                            }
-                            RepeatCount::For(_) => panic!("Untested"),
-                        };
-                    let factor = if tweening_direction.is_backward() {
-                        direction = !direction;
-                        1. - progress
-                    } else {
-                        progress
-                    };
-                    let expected_translation = if direction.is_forward() {
-                        Vec3::splat(progress)
-                    } else {
-                        Vec3::splat(1. - progress)
-                    };
-                    println!(
-                        "Expected: progress={} factor={} times_completed={} direction={:?} state={:?} just_completed={} translation={:?}",
-                        progress, factor, times_completed, direction, expected_state, just_completed, expected_translation
-                    );
+        let dummy_entity = Entity::from_raw(42);
 
-                    // Tick the tween
-                    let actual_state = {
-                        let mut event_writer = event_writer_system_state.get_mut(&mut world);
-                        tween.tick(
-                            tick_duration,
-                            &mut transform,
-                            dummy_entity,
-                            &mut event_writer,
-                        )
-                    };
+        const USER_DATA: u64 = 54789;
+        tween.set_completed_event(USER_DATA);
 
-                    // Propagate events
-                    {
-                        let mut events =
-                            world.get_resource_mut::<Events<TweenCompleted>>().unwrap();
-                        events.update();
-                    }
+        // Register callbacks to count started/ended events
+        let callback_monitor = Arc::new(Mutex::new(CallbackMonitor::default()));
+        let cb_mon_ptr = Arc::clone(&callback_monitor);
+        tween.set_completed(move |entity, tween| {
+            assert_eq!(dummy_entity, entity);
+            let mut cb_mon = cb_mon_ptr.lock().unwrap();
+            cb_mon.invoke_count += 1;
+            cb_mon.last_reported_count = tween.times_completed();
+        });
 
-                    // Check actual values
-                    assert_eq!(tween.direction(), direction);
-                    assert_eq!(actual_state, expected_state);
-                    assert!(abs_diff_eq(tween.progress(), progress, 1e-5));
-                    assert_eq!(tween.times_completed(), times_completed);
-                    assert!(transform
-                        .translation
-                        .abs_diff_eq(expected_translation, 1e-5));
-                    assert!(transform.rotation.abs_diff_eq(Quat::IDENTITY, 1e-5));
-                    let cb_mon = callback_monitor.lock().unwrap();
-                    assert_eq!(cb_mon.invoke_count, times_completed as u64);
-                    assert_eq!(cb_mon.last_reported_count, times_completed);
-                    {
-                        let mut event_reader = event_reader_system_state.get_mut(&mut world);
-                        let event = event_reader.iter().next();
-                        if just_completed {
-                            assert!(event.is_some());
-                            if let Some(event) = event {
-                                assert_eq!(event.entity, dummy_entity);
-                                assert_eq!(event.user_data, USER_DATA);
-                            }
-                        } else {
-                            assert!(event.is_none());
-                        }
-                    }
-                }
+        let (mut world, mut event_reader, mut event_writer) = create_event_reader_writer();
 
-                // Rewind
-                tween.rewind();
-                assert_eq!(tween.direction(), *tweening_direction); // does not change
-                assert!(abs_diff_eq(tween.progress(), 0., 1e-5));
-                assert_eq!(tween.times_completed(), 0);
+        let mut transform = Transform::default();
+        let mut prev_times_completed = 0;
+        for (
+            delta,
+            (progress, times_completed, event_count, direction, expected_state, expected_transform),
+        ) in expected_values
+        {
+            // Tick the tween
+            let actual_state = tween.tick(
+                delta,
+                &mut transform,
+                dummy_entity,
+                &mut event_writer.get_mut(&mut world),
+            );
 
-                // Dummy tick to update target
-                let actual_state = {
-                    let mut event_writer = event_writer_system_state.get_mut(&mut world);
-                    tween.tick(
-                        Duration::ZERO,
-                        &mut transform,
-                        Entity::from_raw(0),
-                        &mut event_writer,
-                    )
-                };
-                assert_eq!(actual_state, TweenState::Active);
-                let expected_translation = if tweening_direction.is_backward() {
-                    Vec3::ONE
-                } else {
-                    Vec3::ZERO
-                };
-                assert!(transform
+            // Propagate events
+            {
+                let mut events = world.get_resource_mut::<Events<TweenCompleted>>().unwrap();
+                events.update();
+            }
+
+            // Check actual values
+            assert_eq!(direction, tween.direction());
+            assert_eq!(expected_state, actual_state);
+            assert!(
+                abs_diff_eq(tween.progress(), progress, 1e-5),
+                "progress: expected={progress}, actual={}",
+                tween.progress()
+            );
+            assert_eq!(times_completed, tween.times_completed(), "times_completed");
+            assert!(
+                transform
                     .translation
-                    .abs_diff_eq(expected_translation, 1e-5));
-                assert!(transform.rotation.abs_diff_eq(Quat::IDENTITY, 1e-5));
+                    .abs_diff_eq(expected_transform.translation, 1e-5),
+                "translation: expected={}, actual={}",
+                expected_transform.translation,
+                transform.translation
+            );
+            assert!(
+                transform
+                    .rotation
+                    .abs_diff_eq(expected_transform.rotation, 1e-5),
+                "rotation: expected={}, actual={}",
+                expected_transform.rotation,
+                transform.rotation
+            );
+            assert!(
+                transform.scale.abs_diff_eq(expected_transform.scale, 1e-5),
+                "scale: expected={}, actual={}",
+                expected_transform.scale,
+                transform.scale
+            );
+            let cb_mon = callback_monitor.lock().unwrap();
+            assert_eq!(
+                event_count as u64, cb_mon.invoke_count,
+                "cb_mon.invoke_count"
+            );
+            assert_eq!(
+                times_completed, cb_mon.last_reported_count,
+                "cb_mon.last_reported_count"
+            );
 
-                // Clear callback
-                tween.clear_completed();
-                assert!(tween.on_completed.is_none());
+            {
+                let just_completed = prev_times_completed != times_completed;
+                prev_times_completed = times_completed;
+
+                let mut event_reader = event_reader.get_mut(&mut world);
+                if just_completed {
+                    assert_eq!(1, event_reader.len());
+
+                    let event = event_reader.iter().next().unwrap();
+                    assert_eq!(dummy_entity, event.entity);
+                    assert_eq!(USER_DATA, event.user_data, "user_data");
+                } else {
+                    assert!(event_reader.is_empty());
+                }
             }
         }
     }
 
+    #[rstest]
+    fn tween_tick_with_defaults_and_directions(
+        #[values(TweeningDirection::Forward, TweeningDirection::Backward)]
+        direction: TweeningDirection,
+    ) {
+        let tween = Tween::new(
+            EaseMethod::Linear,
+            Duration::from_secs(1),
+            TransformPositionLens {
+                start: Vec3::ZERO,
+                end: Vec3::ONE,
+            },
+        )
+        .with_direction(direction);
+
+        let expected_values = ExpectedTweenValues {
+            deltas: once(Duration::ZERO).chain(repeat(Duration::from_millis(200)).take(6)),
+            progress: successors(Some(0.), |progress| Some(f32::min(progress + 0.2, 1.))),
+            times_completed: [0, 0, 0, 0, 0, 1, 1],
+            event_counts: [0, 0, 0, 0, 0, 1, 1],
+            directions: repeat(direction),
+            states: repeat(TweenState::Active)
+                .take(5)
+                .chain(repeat(TweenState::Completed)),
+            transforms: if direction == TweeningDirection::Forward {
+                successors(Some(0.), |progress| Some(f32::min(progress + 0.2, 1.)))
+                    .map(|progress| Transform::from_translation(Vec3::splat(progress)))
+                    .take(7)
+                    .collect::<Vec<_>>()
+            } else {
+                successors(Some(1.), |progress| Some(f32::max(progress - 0.2, 0.)))
+                    .map(|progress| Transform::from_translation(Vec3::splat(progress)))
+                    .take(7)
+                    .collect::<Vec<_>>()
+            },
+        };
+
+        validate_tween(tween, expected_values);
+    }
+
     #[test]
-    fn tween_dir() {
+    fn tween_tick_loop_finite() {
+        let tween = Tween::new(
+            EaseMethod::Linear,
+            Duration::from_secs(1),
+            TransformPositionLens {
+                start: Vec3::ZERO,
+                end: Vec3::ONE,
+            },
+        )
+        .with_direction(TweeningDirection::Forward)
+        .with_repeat_count(RepeatCount::Finite(3))
+        .with_repeat_strategy(RepeatStrategy::Repeat);
+
+        let expected_values = ExpectedTweenValues {
+            deltas: once(Duration::ZERO).chain(repeat(Duration::from_secs(1) / 3).take(10)),
+            progress: successors(Some(0.), |progress| Some(f32::min(3., progress + 1. / 3.))),
+            times_completed: [0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3],
+            event_counts: [0, 0, 0, 0, 1, 1, 1, 2, 2, 2, 3],
+            directions: repeat(TweeningDirection::Forward),
+            states: repeat(TweenState::Active)
+                .take(10)
+                .chain(repeat(TweenState::Completed)),
+            transforms: successors(Some(0.), |progress| Some(f32::min(3., progress + 1. / 3.)))
+                .map(|progress| Transform::from_translation(Vec3::splat(progress))),
+        };
+
+        validate_tween(tween, expected_values);
+    }
+
+    #[test]
+    fn tween_tick_loop_infinite_large_jump() {
+        let duration = Duration::from_secs(4) / 3;
+        let completions = Duration::MAX.as_secs_f64() / duration.as_secs_f64();
+        let tween = Tween::new(
+            EaseMethod::Linear,
+            duration,
+            TransformPositionLens {
+                start: Vec3::ZERO,
+                end: Vec3::ONE,
+            },
+        )
+        .with_direction(TweeningDirection::Forward)
+        .with_repeat_count(RepeatCount::Infinite)
+        .with_repeat_strategy(RepeatStrategy::Repeat);
+
+        let expected_values = ExpectedTweenValues {
+            deltas: [duration * 10, Duration::MAX, Duration::MAX],
+            progress: once(10.).chain(repeat(completions as f32)),
+            times_completed: [10, 3458764514, 3458764514],
+            event_counts: [1, 2, 2],
+            directions: repeat(TweeningDirection::Forward),
+            states: repeat(TweenState::Active),
+            transforms: once(Transform::from_translation(Vec3::splat(10.))).chain(repeat(
+                Transform::from_translation(Vec3::splat(completions as f32)),
+            )),
+        };
+
+        validate_tween(tween, expected_values);
+    }
+
+    #[test]
+    fn tween_tick_loop_finite_large_jump() {
+        let duration = Duration::from_secs(4) / 3;
+        let tween = Tween::new(
+            EaseMethod::Linear,
+            duration,
+            TransformPositionLens {
+                start: Vec3::ZERO,
+                end: Vec3::ONE,
+            },
+        )
+        .with_direction(TweeningDirection::Forward)
+        .with_repeat_count(RepeatCount::Finite(100))
+        .with_repeat_strategy(RepeatStrategy::Repeat);
+
+        let expected_values = ExpectedTweenValues {
+            deltas: [duration * 10, Duration::MAX, Duration::MAX],
+            progress: [10., 100., 100.],
+            times_completed: [10, 100, 100],
+            event_counts: [1, 2, 2],
+            directions: repeat(TweeningDirection::Forward),
+            states: once(TweenState::Active).chain(repeat(TweenState::Completed)),
+            transforms: once(Transform::from_translation(Vec3::splat(10.)))
+                .chain(repeat(Transform::from_translation(Vec3::splat(100.)))),
+        };
+
+        validate_tween(tween, expected_values);
+    }
+
+    #[test]
+    fn tween_tick_loop_ping_pong() {
+        let tween = Tween::new(
+            EaseMethod::Linear,
+            Duration::from_secs(1) / 3,
+            TransformPositionLens {
+                start: Vec3::ZERO,
+                end: Vec3::ONE,
+            },
+        )
+        .with_direction(TweeningDirection::Forward)
+        .with_repeat_count(RepeatCount::Infinite)
+        .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
+
+        let expected_values = ExpectedTweenValues {
+            deltas: repeat(Duration::from_millis(200)).take(4),
+            progress: successors(Some(0.6), |progress| Some(progress + 0.6)),
+            times_completed: [0, 1, 1, 2],
+            event_counts: [0, 1, 1, 2],
+            directions: [
+                TweeningDirection::Forward,
+                TweeningDirection::Backward,
+                TweeningDirection::Backward,
+                TweeningDirection::Forward,
+            ],
+            states: repeat(TweenState::Active),
+            transforms: [
+                Transform::from_translation(Vec3::splat(0.6)),
+                Transform::from_translation(Vec3::splat(-0.2)),
+                Transform::from_translation(Vec3::splat(-0.8)),
+                Transform::from_translation(Vec3::splat(2.4)),
+            ],
+        };
+
+        validate_tween(tween, expected_values);
+    }
+
+    #[test]
+    fn tween_tick_loop_partial_completion() {
+        let duration = Duration::from_secs(2) / 3;
+        let max_duration = Duration::from_secs_f64(1.42);
+        let completions = max_duration.as_secs_f32() / duration.as_secs_f32();
+        let tween = Tween::new(
+            EaseMethod::Linear,
+            duration,
+            TransformPositionLens {
+                start: Vec3::ZERO,
+                end: Vec3::ONE,
+            },
+        )
+        .with_direction(TweeningDirection::Forward)
+        .with_repeat_count(RepeatCount::For(max_duration))
+        .with_repeat_strategy(RepeatStrategy::Repeat);
+
+        let expected_values = ExpectedTweenValues {
+            deltas: repeat(Duration::from_millis(400)).take(4),
+            progress: successors(Some(0.6), |progress| {
+                Some(f32::min(completions, progress + 0.6))
+            }),
+            times_completed: [0, 1, 1, 2],
+            event_counts: [0, 1, 1, 2],
+            directions: repeat(TweeningDirection::Forward),
+            states: repeat(TweenState::Active)
+                .take(3)
+                .chain([TweenState::Completed]),
+            transforms: successors(Some(0.6), |progress| {
+                Some(f32::min(completions, progress + 0.6))
+            })
+            .map(|progress| Transform::from_translation(Vec3::splat(progress))),
+        };
+
+        validate_tween(tween, expected_values);
+    }
+
+    #[test]
+    fn tween_direction() {
         let mut tween = Tween::new(
             EaseMethod::Linear,
             Duration::from_secs_f32(1.0),
@@ -1184,128 +1343,334 @@ mod tests {
         // progress is independent of direction
         assert!(abs_diff_eq(tween.progress(), 0.3, 1e-5));
 
-        // Dummy world and event writer
-        let mut world = World::new();
-        world.insert_resource(Events::<TweenCompleted>::default());
-        let mut event_writer_system_state: SystemState<EventWriter<TweenCompleted>> =
-            SystemState::new(&mut world);
+        let (mut world, _, mut event_writer) = create_event_reader_writer();
 
         // Progress always increases alongside the current direction
         let dummy_entity = Entity::from_raw(0);
         let mut transform = Transform::default();
-        let mut event_writer = event_writer_system_state.get_mut(&mut world);
         tween.set_direction(TweeningDirection::Backward);
         assert!(abs_diff_eq(tween.progress(), 0.3, 1e-5));
         tween.tick(
             Duration::from_secs_f32(0.1),
             &mut transform,
             dummy_entity,
-            &mut event_writer,
+            &mut event_writer.get_mut(&mut world),
         );
         assert!(abs_diff_eq(tween.progress(), 0.4, 1e-5));
         assert!(transform.translation.abs_diff_eq(Vec3::splat(0.6), 1e-5));
     }
 
-    /// Test ticking a sequence of tweens.
+    struct ExpectedSequenceValues<
+        Deltas,
+        Progress,
+        TimesCompleted,
+        States,
+        Transforms,
+        TweenIndices,
+    > {
+        deltas: Deltas,
+        progress: Progress,
+        times_completed: TimesCompleted,
+        states: States,
+        transforms: Transforms,
+        tween_indices: TweenIndices,
+    }
+
+    fn validate_sequence(
+        mut sequence: Sequence<Transform>,
+        expected_values: ExpectedSequenceValues<
+            impl IntoIterator<Item = Duration> + Clone,
+            impl IntoIterator<Item = f32>,
+            impl IntoIterator<Item = u32>,
+            impl IntoIterator<Item = TweenState>,
+            impl IntoIterator<Item = Transform>,
+            impl IntoIterator<Item = usize>,
+        >,
+    ) {
+        let expected_values = expected_values.deltas.clone().into_iter().zip_eq(
+            izip!(
+                expected_values.progress,
+                expected_values.times_completed,
+                expected_values.states,
+                expected_values.transforms,
+                expected_values.tween_indices,
+            )
+            .take(expected_values.deltas.into_iter().count()),
+        );
+
+        let dummy_entity = Entity::from_raw(42);
+
+        let (mut world, _, mut event_writer) = create_event_reader_writer();
+
+        let mut transform = Transform::default();
+        for (
+            delta,
+            (progress, times_completed, expected_state, expected_transform, expected_tween_index),
+        ) in expected_values
+        {
+            // Tick the tween
+            let actual_state = sequence.tick(
+                delta,
+                &mut transform,
+                dummy_entity,
+                &mut event_writer.get_mut(&mut world),
+            );
+
+            // Check actual values
+            assert_eq!(expected_state, actual_state);
+            assert!(
+                abs_diff_eq(sequence.progress(), progress, 1e-5),
+                "progress: expected={progress}, actual={}",
+                sequence.progress()
+            );
+            assert_eq!(
+                times_completed,
+                sequence.times_completed(),
+                "times_completed"
+            );
+            assert!(
+                transform
+                    .translation
+                    .abs_diff_eq(expected_transform.translation, 1e-5),
+                "translation: expected={}, actual={}",
+                expected_transform.translation,
+                transform.translation
+            );
+            assert!(
+                transform
+                    .rotation
+                    .abs_diff_eq(expected_transform.rotation, 1e-5),
+                "rotation: expected={}, actual={}",
+                expected_transform.rotation,
+                transform.rotation
+            );
+            assert!(
+                transform.scale.abs_diff_eq(expected_transform.scale, 1e-5),
+                "scale: expected={}, actual={}",
+                expected_transform.scale,
+                transform.scale
+            );
+            assert_eq!(expected_tween_index, sequence.index(), "sequence.index()");
+        }
+    }
+
     #[test]
-    fn seq_tick() {
-        let tween1 = Tween::new(
+    #[should_panic] // TODO remove once overflow crash is fixed
+    fn sequence_tick_empty_tweens_does_nothing() {
+        let sequence = Sequence::new(Vec::<Tween<Transform>>::new());
+
+        let expected_values = ExpectedSequenceValues {
+            deltas: once(Duration::ZERO).chain(repeat(Duration::from_secs(1) / 3).take(10)),
+            progress: repeat(f32::NAN),
+            times_completed: repeat(1),
+            states: repeat(TweenState::Completed),
+            transforms: repeat(Transform::identity()),
+            tween_indices: repeat(0),
+        };
+
+        validate_sequence(sequence, expected_values);
+    }
+
+    #[test]
+    #[should_panic] // TODO remove once negative time crash is fixed
+    fn sequence_tick_single_tween_is_passthrough() {
+        let tween = Tween::new(
             EaseMethod::Linear,
-            Duration::from_secs_f32(1.0),
+            Duration::from_secs(1),
             TransformPositionLens {
                 start: Vec3::ZERO,
                 end: Vec3::ONE,
             },
-        );
+        )
+        .with_direction(TweeningDirection::Forward)
+        .with_repeat_count(RepeatCount::Finite(3))
+        .with_repeat_strategy(RepeatStrategy::Repeat);
+        let sequence = Sequence::from_single(tween);
+
+        let expected_values = ExpectedSequenceValues {
+            deltas: once(Duration::ZERO).chain(repeat(Duration::from_secs(1) / 3).take(10)),
+            progress: successors(Some(0.), |progress| Some(f32::min(1., progress + 1. / 3.))),
+            times_completed: repeat(0).take(10).chain(once(1)),
+            states: repeat(TweenState::Active)
+                .take(10)
+                .chain(repeat(TweenState::Completed)),
+            transforms: successors(Some(0.), |progress| Some(f32::min(3., progress + 1. / 3.)))
+                .map(|progress| Transform::from_translation(Vec3::splat(progress))),
+            tween_indices: repeat(0).take(10).chain(once(1)),
+        };
+
+        validate_sequence(sequence, expected_values);
+    }
+
+    #[test]
+    fn sequence_tick_two_tweens_transitions_with_jump() {
+        let tween1 = Tween::new(
+            EaseMethod::Linear,
+            Duration::from_secs(1),
+            TransformPositionLens {
+                start: Vec3::ZERO,
+                end: Vec3::ONE,
+            },
+        )
+        .with_direction(TweeningDirection::Forward)
+        .with_repeat_count(RepeatCount::Finite(1))
+        .with_repeat_strategy(RepeatStrategy::Repeat);
         let tween2 = Tween::new(
             EaseMethod::Linear,
-            Duration::from_secs_f32(1.0),
+            Duration::from_secs(1),
             TransformRotationLens {
                 start: Quat::IDENTITY,
                 end: Quat::from_rotation_x(90_f32.to_radians()),
             },
-        );
-        let mut seq = tween1.then(tween2);
-        let mut transform = Transform::default();
+        )
+        .with_direction(TweeningDirection::Forward)
+        .with_repeat_count(RepeatCount::Finite(1))
+        .with_repeat_strategy(RepeatStrategy::Repeat);
+        let sequence = tween1.then(tween2);
 
-        // Dummy world and event writer
-        let mut world = World::new();
-        world.insert_resource(Events::<TweenCompleted>::default());
-        let mut system_state: SystemState<EventWriter<TweenCompleted>> =
-            SystemState::new(&mut world);
-        let mut event_writer = system_state.get_mut(&mut world);
+        let expected_values = ExpectedSequenceValues {
+            deltas: once(Duration::ZERO).chain(repeat(Duration::from_secs(1) / 3).take(10)),
+            progress: successors(Some(0.), |progress| Some(f32::min(1., progress + 1. / 6.))),
+            times_completed: repeat(0).take(7).chain(repeat(1)),
+            states: repeat(TweenState::Active)
+                .take(7)
+                .chain(repeat(TweenState::Completed)),
+            transforms: {
+                let successors =
+                    successors(Some(0.), |progress| Some(f32::min(1., progress + 1. / 3.)));
+                successors
+                    .clone()
+                    .map(|progress| Transform::from_translation(Vec3::splat(progress)))
+                    .take(3)
+                    .chain(successors.map(|progress| {
+                        Transform::from_translation(Vec3::ONE)
+                            .with_rotation(Quat::from_rotation_x((progress * 90.).to_radians()))
+                    }))
+            },
+            tween_indices: repeat(0).take(4).chain(repeat(1)),
+        };
 
-        for i in 1..=16 {
-            let state = seq.tick(
-                Duration::from_secs_f32(0.2),
-                &mut transform,
-                Entity::from_raw(0),
-                &mut event_writer,
-            );
-            if i < 5 {
-                assert_eq!(state, TweenState::Active);
-                let r = i as f32 * 0.2;
-                assert_eq!(transform, Transform::from_translation(Vec3::splat(r)));
-            } else if i < 10 {
-                assert_eq!(state, TweenState::Active);
-                let alpha_deg = (18 * (i - 5)) as f32;
-                assert!(transform.translation.abs_diff_eq(Vec3::ONE, 1e-5));
-                assert!(transform
-                    .rotation
-                    .abs_diff_eq(Quat::from_rotation_x(alpha_deg.to_radians()), 1e-5));
-            } else {
-                assert_eq!(state, TweenState::Completed);
-                assert!(transform.translation.abs_diff_eq(Vec3::ONE, 1e-5));
-                assert!(transform
-                    .rotation
-                    .abs_diff_eq(Quat::from_rotation_x(90_f32.to_radians()), 1e-5));
-            }
-        }
+        validate_sequence(sequence, expected_values);
     }
 
-    /// Test crossing tween boundaries in one tick.
     #[test]
-    fn seq_tick_boundaries() {
-        let mut seq = Sequence::new((0..3).map(|i| {
+    fn sequence_tick_two_tweens_transitions_on_boundary() {
+        let tween1 = Tween::new(
+            EaseMethod::Linear,
+            Duration::from_secs(1),
+            TransformPositionLens {
+                start: Vec3::ZERO,
+                end: Vec3::ONE,
+            },
+        )
+        .with_direction(TweeningDirection::Forward)
+        .with_repeat_count(RepeatCount::Finite(1))
+        .with_repeat_strategy(RepeatStrategy::Repeat);
+        let tween2 = Tween::new(
+            EaseMethod::Linear,
+            Duration::from_secs(1),
+            TransformRotationLens {
+                start: Quat::IDENTITY,
+                end: Quat::from_rotation_x(90_f32.to_radians()),
+            },
+        )
+        .with_direction(TweeningDirection::Forward)
+        .with_repeat_count(RepeatCount::Finite(1))
+        .with_repeat_strategy(RepeatStrategy::Repeat);
+        let sequence = tween1.then(tween2);
+
+        let expected_values = ExpectedSequenceValues {
+            deltas: repeat(Duration::from_millis(200)).take(11),
+            progress: successors(Some(0.1), |progress| Some(f32::min(1., progress + 0.1))),
+            times_completed: repeat(0).take(9).chain(repeat(1)),
+            states: repeat(TweenState::Active)
+                .take(9)
+                .chain(repeat(TweenState::Completed)),
+            transforms: {
+                let successors =
+                    successors(Some(0.2), |progress| Some(f32::min(1., progress + 0.2)));
+                successors
+                    .clone()
+                    .map(|progress| Transform::from_translation(Vec3::splat(progress)))
+                    .take(5)
+                    .chain(successors.map(|progress| {
+                        Transform::from_translation(Vec3::ONE)
+                            .with_rotation(Quat::from_rotation_x((progress * 90.).to_radians()))
+                    }))
+            },
+            tween_indices: repeat(0).take(4).chain(repeat(1)),
+        };
+
+        validate_sequence(sequence, expected_values);
+    }
+
+    #[test]
+    fn sequence_tick_two_tweens_transitions_with_skip() {
+        let sequence = Tween::new(
+            EaseMethod::Linear,
+            Duration::from_secs(1),
+            TransformPositionLens {
+                start: Vec3::ZERO,
+                end: Vec3::ONE,
+            },
+        )
+        .with_direction(TweeningDirection::Forward)
+        .with_repeat_count(RepeatCount::Finite(1))
+        .with_repeat_strategy(RepeatStrategy::Repeat)
+        .then(
+            Tween::new(
+                EaseMethod::Linear,
+                Duration::from_secs(1),
+                TransformRotationLens {
+                    start: Quat::IDENTITY,
+                    end: Quat::from_rotation_x(90_f32.to_radians()),
+                },
+            )
+            .with_direction(TweeningDirection::Forward)
+            .with_repeat_count(RepeatCount::Finite(1))
+            .with_repeat_strategy(RepeatStrategy::Repeat),
+        )
+        .then(
             Tween::new(
                 EaseMethod::Linear,
                 Duration::from_secs(1),
                 TransformPositionLens {
-                    start: Vec3::splat(i as f32),
-                    end: Vec3::splat((i + 1) as f32),
+                    start: Vec3::splat(2.),
+                    end: Vec3::splat(3.),
                 },
             )
+            .with_direction(TweeningDirection::Forward)
             .with_repeat_count(RepeatCount::Finite(1))
-        }));
-        let mut transform = Transform::default();
+            .with_repeat_strategy(RepeatStrategy::Repeat),
+        );
 
-        // Dummy world and event writer
-        let mut world = World::new();
-        world.insert_resource(Events::<TweenCompleted>::default());
-        let mut system_state: SystemState<EventWriter<TweenCompleted>> =
-            SystemState::new(&mut world);
-        let mut event_writer = system_state.get_mut(&mut world);
+        let expected_values = ExpectedSequenceValues {
+            deltas: [
+                Duration::from_millis(500),
+                Duration::from_secs(2),
+                Duration::from_millis(500),
+            ],
+            progress: [0.5 / 3., 2.5 / 3., 1.],
+            times_completed: [0, 0, 1],
+            states: repeat(TweenState::Active)
+                .take(2)
+                .chain(repeat(TweenState::Completed)),
+            transforms: [
+                Transform::from_translation(Vec3::splat(0.5)),
+                Transform::from_translation(Vec3::splat(2.5))
+                    .with_rotation(Quat::from_rotation_x(90_f32.to_radians())),
+                Transform::from_translation(Vec3::splat(3.))
+                    .with_rotation(Quat::from_rotation_x(90_f32.to_radians())),
+            ],
+            tween_indices: [0, 2, 2],
+        };
 
-        // Tick halfway through the first tween, then in one tick:
-        // - Finish the first tween
-        // - Start and finish the second tween
-        // - Start the third tween
-        for delta in [0.5, 2.0] {
-            seq.tick(
-                Duration::from_secs_f32(delta),
-                &mut transform,
-                Entity::from_raw(0),
-                &mut event_writer,
-            );
-        }
-        assert_eq!(seq.index(), 2);
-        assert!(transform.translation.abs_diff_eq(Vec3::splat(2.5), 1e-5));
+        validate_sequence(sequence, expected_values);
     }
 
-    /// Sequence::new() and various Sequence-specific methods
     #[test]
-    fn seq_iter() {
-        let mut seq = Sequence::new((1..5).map(|i| {
+    fn sequence_set_progress_and_rewind() {
+        let mut sequence = Sequence::new((1..5).map(|i| {
             Tween::new(
                 EaseMethod::Linear,
                 Duration::from_secs_f32(0.2 * i as f32),
@@ -1318,18 +1683,21 @@ mod tests {
 
         let mut progress = 0.;
         for i in 1..5 {
-            assert_eq!(seq.index(), i - 1);
-            assert!((seq.progress() - progress).abs() < 1e-5);
-            let secs = 0.2 * i as f32;
-            assert_eq!(seq.current().duration(), Duration::from_secs_f32(secs));
+            assert_eq!(i - 1, sequence.index(), "sequence.index()");
+            assert!(
+                abs_diff_eq(sequence.progress(), progress, 1e-5),
+                "progress: expected={progress}, actual={}",
+                sequence.progress()
+            );
+
             progress += 0.25;
-            seq.set_progress(progress);
-            assert_eq!(seq.times_completed(), if i == 4 { 1 } else { 0 });
+            sequence.set_progress(progress);
+            assert_eq!(u32::from(i == 4), sequence.times_completed());
         }
 
-        seq.rewind();
-        assert_eq!(seq.progress(), 0.);
-        assert_eq!(seq.times_completed(), 0);
+        sequence.rewind();
+        assert_eq!(0., sequence.progress());
+        assert_eq!(0, sequence.times_completed());
     }
 
     /// Test ticking parallel tracks of tweens.
