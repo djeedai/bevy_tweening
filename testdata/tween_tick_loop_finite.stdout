@@ -1,4 +1,16 @@
 Initial tween state:
+Lens=TransformPositionLens {
+    start: Vec3(
+        0.0,
+        0.0,
+        0.0,
+    ),
+    end: Vec3(
+        1.0,
+        1.0,
+        1.0,
+    ),
+}
 Clock=AnimClock {
     elapsed: 0ns,
     duration: 1s,

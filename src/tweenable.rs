@@ -981,7 +981,8 @@ mod tests {
 
         writeln!(
             output.lock().unwrap(),
-            "Initial tween state:\nClock={:#?}\nDirection={:?}",
+            "Initial tween state:\nLens={:#?}\nClock={:#?}\nDirection={:?}",
+            tween.lens,
             tween.clock,
             tween.direction
         )
