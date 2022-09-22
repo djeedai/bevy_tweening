@@ -36,6 +36,7 @@
 //! [`Quat::slerp()`]: https://docs.rs/bevy/0.8.0/bevy/math/struct.Quat.html#method.slerp
 
 use bevy::prelude::*;
+use std::fmt::Debug;
 
 /// A lens over a subset of a component.
 ///
@@ -65,12 +66,18 @@ use bevy::prelude::*;
 ///   }
 /// }
 /// ```
+#[cfg(not(test))]
 pub trait Lens<T> {
     /// Perform a linear interpolation (lerp) over the subset of fields of a
     /// component or asset the lens focuses on, based on the linear ratio
     /// `ratio`. The `target` component or asset is mutated in place. The
     /// implementation decides which fields are interpolated, and performs
     /// the animation in-place, overwriting the target.
+    fn lerp(&mut self, target: &mut T, ratio: f32);
+}
+
+#[cfg(test)]
+pub trait Lens<T>: Debug {
     fn lerp(&mut self, target: &mut T, ratio: f32);
 }
 

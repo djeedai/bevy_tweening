@@ -468,6 +468,7 @@ mod tests {
 
     use super::{lens::*, *};
 
+    #[derive(Debug)]
     struct DummyLens {
         start: f32,
         end: f32,

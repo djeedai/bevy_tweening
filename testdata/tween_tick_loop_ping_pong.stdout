@@ -1,0 +1,57 @@
+Initial tween state:
+Lens=TransformPositionLens {
+    start: Vec3(
+        0.0,
+        0.0,
+        0.0,
+    ),
+    end: Vec3(
+        1.0,
+        1.0,
+        1.0,
+    ),
+}
+Clock=AnimClock {
+    elapsed: 0ns,
+    duration: 333.333333ms,
+    times_completed: 0,
+    total_duration: Infinite,
+    strategy: MirroredRepeat,
+}
+Direction=Forward
+
+Tick by 200ms:
+200ms/333.333333ms elapsed
+Direction: Forward
+State: Active
+Progress: 0.59999996
+Total completions: 0
+Transform: Transform { translation: Vec3(0.59999996, 0.59999996, 0.59999996), rotation: Quat(0.0, 0.0, 0.0, 1.0), scale: Vec3(1.0, 1.0, 1.0) }
+
+Tick by 200ms:
+Completion received for 42v0
+400ms/333.333333ms elapsed
+Direction: Backward
+State: Active
+Progress: 1.1999999
+Total completions: 1
+Transform: Transform { translation: Vec3(-0.19999993, -0.19999993, -0.19999993), rotation: Quat(0.0, 0.0, 0.0, 1.0), scale: Vec3(1.0, 1.0, 1.0) }
+Event received: TweenCompleted { entity: 42v0, user_data: 69420 }
+
+Tick by 200ms:
+600ms/333.333333ms elapsed
+Direction: Backward
+State: Active
+Progress: 1.8000001
+Total completions: 1
+Transform: Transform { translation: Vec3(-0.8000001, -0.8000001, -0.8000001), rotation: Quat(0.0, 0.0, 0.0, 1.0), scale: Vec3(1.0, 1.0, 1.0) }
+
+Tick by 200ms:
+Completion received for 42v0
+800ms/333.333333ms elapsed
+Direction: Forward
+State: Active
+Progress: 2.3999999
+Total completions: 2
+Transform: Transform { translation: Vec3(2.3999999, 2.3999999, 2.3999999), rotation: Quat(0.0, 0.0, 0.0, 1.0), scale: Vec3(1.0, 1.0, 1.0) }
+Event received: TweenCompleted { entity: 42v0, user_data: 69420 }
