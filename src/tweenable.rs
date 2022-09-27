@@ -116,19 +116,25 @@ impl AnimClock {
         }
     }
 
-    fn record_completions(&mut self, times_completed: u32) {
-        self.times_completed = self.times_completed.saturating_add(times_completed);
-    }
-
-    fn tick(&mut self, tick: Duration) -> u32 {
+    fn tick(&mut self, tick: Duration) -> (TweenState, u32) {
         let duration = self.duration.as_nanos();
+        let prev_times_completed = self.elapsed.as_nanos() / duration;
 
-        let before = self.elapsed.as_nanos() / duration;
         self.elapsed = self.elapsed.saturating_add(tick);
-        if let TotalDuration::Finite(duration) = self.total_duration {
-            self.elapsed = self.elapsed.min(duration);
-        }
-        (self.elapsed.as_nanos() / duration - before) as u32
+        let state = if let TotalDuration::Finite(duration) = self.total_duration {
+            if self.elapsed >= duration {
+                self.elapsed = duration;
+                TweenState::Completed
+            } else {
+                TweenState::Active
+            }
+        } else {
+            TweenState::Active
+        };
+
+        let times_completed = (self.elapsed.as_nanos() / duration - prev_times_completed) as u32;
+        self.times_completed = self.times_completed.saturating_add(times_completed);
+        (state, times_completed)
     }
 
     fn set_progress(&mut self, progress: f32) {
@@ -136,7 +142,12 @@ impl AnimClock {
     }
 
     fn progress(&self) -> f32 {
-        self.elapsed.as_secs_f32() / self.duration.as_secs_f32()
+        if let TotalDuration::Finite(total_duration) = self.total_duration {
+            if self.elapsed >= total_duration {
+                return 1.;
+            }
+        }
+        (self.elapsed.as_secs_f32() / self.duration.as_secs_f32()).fract()
     }
 
     fn state(&self) -> TweenState {
@@ -493,12 +504,16 @@ impl<T> Tweenable<T> for Tween<T> {
         }
 
         // Tick the animation clock
-        let times_completed = self.clock.tick(delta);
-        self.clock.record_completions(times_completed);
-        if self.clock.strategy == RepeatStrategy::MirroredRepeat && times_completed & 1 != 0 {
-            self.direction = !self.direction;
-        }
-        let progress = self.progress();
+        let (state, times_completed) = self.clock.tick(delta);
+        let progress = match state {
+            TweenState::Active => {
+                if self.clock.strategy == RepeatStrategy::MirroredRepeat && times_completed & 1 != 0 {
+                    self.direction = !self.direction;
+                }
+                self.progress()
+            }
+            TweenState::Completed => 1.
+        };
 
         // Apply the lens, even if the animation finished, to ensure the state is
         // consistent
@@ -522,7 +537,7 @@ impl<T> Tweenable<T> for Tween<T> {
             }
         }
 
-        self.clock.state()
+        state
     }
 
     fn times_completed(&self) -> u32 {
@@ -894,7 +909,7 @@ mod tests {
         let mut total_duration = Duration::ZERO;
         for i in 0..10_000_000 {
             let tick = test_ticks[i % test_ticks.len()];
-            times_completed += clock.tick(tick);
+            times_completed += clock.tick(tick).1;
             total_duration += tick;
         }
 
@@ -1482,5 +1497,77 @@ mod tests {
     #[should_panic]
     fn delay_zero_duration_panics() {
         let _ = Delay::new(Duration::ZERO);
+    }
+
+    #[test]
+    fn tween_repeat() {
+        let mut tween = Tween::new(
+            EaseMethod::Linear,
+            Duration::from_secs(1),
+            TransformPositionLens {
+                start: Vec3::ZERO,
+                end: Vec3::ONE,
+            },
+        )
+        .with_repeat_count(RepeatCount::Finite(5))
+        .with_repeat_strategy(RepeatStrategy::Repeat);
+
+        assert!(abs_diff_eq(tween.progress(), 0., 1e-5));
+
+        let mut world = World::new();
+        world.insert_resource(Events::<TweenCompleted>::default());
+        let mut event_writer_system_state: SystemState<EventWriter<TweenCompleted>> =
+            SystemState::new(&mut world);
+        let dummy_entity = Entity::from_raw(0);
+        let mut transform = Transform::default();
+        let mut event_writer = event_writer_system_state.get_mut(&mut world);
+
+        // 10%
+        let state = tween.tick(
+            Duration::from_millis(100),
+            &mut transform,
+            dummy_entity,
+            &mut event_writer,
+        );
+        assert_eq!(TweenState::Active, state);
+        assert_eq!(0, tween.times_completed());
+        assert!(abs_diff_eq(tween.progress(), 0.1, 1e-5));
+        assert!(transform.translation.abs_diff_eq(Vec3::splat(0.1), 1e-5));
+
+        // 130%
+        let state = tween.tick(
+            Duration::from_millis(1200),
+            &mut transform,
+            dummy_entity,
+            &mut event_writer,
+        );
+        assert_eq!(TweenState::Active, state);
+        assert_eq!(1, tween.times_completed());
+        assert!(abs_diff_eq(tween.progress(), 0.3, 1e-5));
+        assert!(transform.translation.abs_diff_eq(Vec3::splat(0.3), 1e-5));
+
+        // 480%
+        let state = tween.tick(
+            Duration::from_millis(3500),
+            &mut transform,
+            dummy_entity,
+            &mut event_writer,
+        );
+        assert_eq!(TweenState::Active, state);
+        assert_eq!(4, tween.times_completed());
+        assert!(abs_diff_eq(tween.progress(), 0.8, 1e-5));
+        assert!(transform.translation.abs_diff_eq(Vec3::splat(0.8), 1e-5));
+
+        // 500% - done
+        let state = tween.tick(
+            Duration::from_millis(200),
+            &mut transform,
+            dummy_entity,
+            &mut event_writer,
+        );
+        assert_eq!(TweenState::Completed, state);
+        assert_eq!(5, tween.times_completed());
+        assert!(abs_diff_eq(tween.progress(), 1.0, 1e-5));
+        assert!(transform.translation.abs_diff_eq(Vec3::splat(1.0), 1e-5));
     }
 }
