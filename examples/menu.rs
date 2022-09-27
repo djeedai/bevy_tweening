@@ -45,8 +45,6 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         .with_children(|container| {
             let mut start_time_ms = 0;
             for text in &["Continue", "New Game", "Settings", "Quit"] {
-                let delay = Delay::new(Duration::from_millis(start_time_ms));
-                start_time_ms += 500;
                 let tween_scale = Tween::new(
                     EaseFunction::BounceOut,
                     Duration::from_secs(2),
@@ -55,7 +53,13 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                         end: Vec3::ONE,
                     },
                 );
-                let seq = delay.then(tween_scale);
+                let animator = if start_time_ms > 0 {
+                    let delay = Delay::new(Duration::from_millis(start_time_ms));
+                    Animator::new(delay.then(tween_scale))
+                } else {
+                    Animator::new(tween_scale)
+                };
+                start_time_ms += 500;
                 container
                     .spawn_bundle(NodeBundle {
                         node: Node {
@@ -76,7 +80,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                         ..default()
                     })
                     .insert(Name::new(format!("button:{}", text)))
-                    .insert(Animator::new(seq))
+                    .insert(animator)
                     .with_children(|parent| {
                         parent.spawn_bundle(TextBundle {
                             text: Text::from_section(

@@ -782,15 +782,20 @@ pub struct Delay {
 
 impl Delay {
     /// Create a new [`Delay`] with a given duration.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the duration is zero.
     #[must_use]
     pub fn new(duration: Duration) -> Self {
+        assert!(!duration.is_zero());
         Self {
             timer: Timer::new(duration, false),
         }
     }
 
-    /// Chain another [`Tweenable`] after this tween, making a sequence with the
-    /// two.
+    /// Chain another [`Tweenable`] after this tween, making a [`Sequence`] with
+    /// the two.
     #[must_use]
     pub fn then<T>(self, tween: impl Tweenable<T> + Send + Sync + 'static) -> Sequence<T> {
         Sequence::with_capacity(2).then(self).then(tween)
@@ -1471,5 +1476,11 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    #[should_panic]
+    fn delay_zero_duration_panics() {
+        let _ = Delay::new(Duration::ZERO);
     }
 }
