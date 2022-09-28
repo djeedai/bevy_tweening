@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed the `tweening_type` parameter from the signature of `Tween<T>::new()`; use `with_repeat_count()` and `with_repeat_strategy()` instead.
 - Animators now always have a tween (instead of it being optional). This means the default animator implementation was removed.
 - `Delay::new()` now panics if the `duration` is zero. This prevents creating no-op `Delay` objects, and avoids an internal edge case producing wrong results.
+- Tweens moving to `TweenState::Completed` are now guaranteed to freeze their state. In particular, this means that their direction will not flip at the end of the last loop if their repeat strategy is `RepeatStrategy::MirroredRepeat`.
 
 ### Removed
 
