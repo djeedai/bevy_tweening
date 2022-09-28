@@ -22,10 +22,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed `Tweenable::is_looping()`, which was not implemented for most tweenables.
 - Removed `TweeningType` in favor of `RepeatCount` and `RepeatStrategy`.
 
-### Fixed
-
-- Fixed `Tween::rewind()` restoring the original tween's direction even when using `RepeatStrategy::MirroredRepeat`.
-
 ## [0.5.0] - 2022-08-04
 
 ### Added
