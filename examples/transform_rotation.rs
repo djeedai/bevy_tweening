@@ -13,6 +13,7 @@ fn main() {
             ..default()
         })
         .add_plugins(DefaultPlugins)
+        .add_system(bevy::window::close_on_esc)
         .add_plugin(TweeningPlugin)
         .add_plugin(InspectorPlugin::<Options>::new())
         .add_startup_system(setup)
