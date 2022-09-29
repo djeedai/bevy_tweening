@@ -11,6 +11,7 @@ fn main() {
             ..default()
         })
         .add_plugins(DefaultPlugins)
+        .add_system(bevy::window::close_on_esc)
         .add_plugin(TweeningPlugin)
         .add_startup_system(setup)
         .run();
