@@ -201,7 +201,7 @@ fn interaction(
 
                 animator.set_tweenable(Tween::new(
                     EaseFunction::QuadraticIn,
-                    Duration::from_secs_f32(0.2),
+                    Duration::from_millis(200),
                     TransformScaleLens {
                         start: start_scale,
                         end: Vec3::ONE,
