@@ -10,15 +10,15 @@ const TEXT_COLOR: Color = Color::rgba(83. / 255., 163. / 255., 130. / 255., 1.);
 const INIT_TRANSITION_DONE: u64 = 1;
 
 /// The menu in this example has two set of animations:
-/// one for appearance, one for interaction. And interaction animation
-/// should only enabled after appearance animation finished.
-/// The logic is handled as:
-/// 1. Appearance animation send a TweenComplete event with INIT_TRANSITION_DONE
-/// 2. in system `enable_interaction_after_initial_animation`, it add a label component
-/// `InitTransitionDone` to button component.
-/// 3. `interaction` system only queries button with `InitTransitionDone`
+/// one for appearance, one for interaction. Interaction animations
+/// are only enabled after appearance animations finished.
 ///
-/// If your menu doesn't has appearance animation, then you can omit step 1 and 2.
+/// The logic is handled as:
+/// 1. Appearance animations send a `TweenComplete` event with `INIT_TRANSITION_DONE`
+/// 2. The `enable_interaction_after_initial_animation` system adds a label component
+/// `InitTransitionDone` to any button component which completed its appearance animation,
+/// to mark it as active.
+/// 3. The `interaction` system only queries buttons with a `InitTransitionDone` marker.
 fn main() {
     App::default()
         .insert_resource(WindowDescriptor {
