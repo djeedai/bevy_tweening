@@ -139,8 +139,6 @@ fn enable_interaction_after_initial_animation(
             commands.entity(event.entity).insert(InitTransitionDone);
         }
     }
-
-    reader.clear();
 }
 
 #[derive(Component)]
@@ -155,13 +153,18 @@ enum ButtonLabel {
 }
 
 fn interaction(
-    mut commands: Commands,
     mut interaction_query: Query<
-        (Entity, &Transform, &Interaction, &mut UiColor, &ButtonLabel),
+        (
+            &mut Animator<Transform>,
+            &Transform,
+            &Interaction,
+            &mut UiColor,
+            &ButtonLabel,
+        ),
         (Changed<Interaction>, With<InitTransitionDone>),
     >,
 ) {
-    for (entity, transform, interaction, mut color, button_label) in &mut interaction_query {
+    for (mut animator, transform, interaction, mut color, button_label) in &mut interaction_query {
         match *interaction {
             Interaction::Clicked => {
                 *color = CLICK_COLOR.into();
@@ -183,27 +186,27 @@ fn interaction(
             }
             Interaction::Hovered => {
                 *color = HOVER_COLOR.into();
-                commands.entity(entity).insert(Animator::new(Tween::new(
+                animator.set_tweenable(Tween::new(
                     EaseFunction::QuadraticIn,
                     Duration::from_secs_f32(0.2),
                     TransformScaleLens {
                         start: Vec3::ONE,
                         end: Vec3::splat(1.1),
                     },
-                )));
+                ));
             }
             Interaction::None => {
                 *color = NORMAL_COLOR.into();
                 let start_scale = transform.scale;
 
-                commands.entity(entity).insert(Animator::new(Tween::new(
+                animator.set_tweenable(Tween::new(
                     EaseFunction::QuadraticIn,
                     Duration::from_secs_f32(0.2),
                     TransformScaleLens {
                         start: start_scale,
                         end: Vec3::ONE,
                     },
-                )));
+                ));
             }
         }
     }
