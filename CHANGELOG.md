@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added `RepeatCount` and `RepeatStrategy` for more granular control over animation looping.
 - Added `with_repeat_count()` and `with_repeat_strategy()` builder methods to `Tween<T>`.
+- Added a `speed()` getter on `Animator<T>` and `AssetAnimator<T>`.
 
 ### Changed
 
@@ -21,6 +22,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Removed `Tweenable::is_looping()`, which was not implemented for most tweenables.
 - Removed `TweeningType` in favor of `RepeatCount` and `RepeatStrategy`.
+
+### Fixed
+
+- Fixed the animator speed feature, which got broken in #44.
 
 ## [0.5.0] - 2022-08-04
 
