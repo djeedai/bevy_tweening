@@ -799,6 +799,7 @@ mod tests {
         assert!(abs_diff_eq(animator.speed(), 3.5, 1e-5));
     }
 
+    #[cfg(feature = "bevy_asset")]
     #[test]
     fn asset_animator_set_tweenable() {
         let tween = Tween::new(
