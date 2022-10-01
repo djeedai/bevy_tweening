@@ -734,6 +734,7 @@ mod tests {
         assert!(animator.tweenable().progress().abs() <= 1e-5);
     }
 
+    #[cfg(feature = "bevy_asset")]
     #[test]
     fn asset_animator_speed() {
         let tween = Tween::new(
