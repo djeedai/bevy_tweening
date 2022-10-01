@@ -361,6 +361,15 @@ macro_rules! animator_impl {
             self.speed = speed;
         }
 
+        /// Get the animation speed.
+        ///
+        /// See [`set_speed()`] for a definition of what the animation speed is.
+        ///
+        /// [`set_speed()`]: Animator::speed
+        pub fn speed(&self) -> f32 {
+            self.speed
+        }
+
         /// Set the top-level tweenable item this animator controls.
         pub fn set_tweenable(&mut self, tween: impl Tweenable<T> + Send + Sync + 'static) {
             self.tweenable = Box::new(tween);
@@ -468,18 +477,23 @@ mod tests {
 
     use super::{lens::*, *};
 
+    /// Utility to compare floating-point values with a tolerance.
+    fn abs_diff_eq(a: f32, b: f32, tol: f32) -> bool {
+        (a - b).abs() < tol
+    }
+
     struct DummyLens {
         start: f32,
         end: f32,
     }
 
-    #[derive(Component)]
+    #[derive(Debug, Component)]
     struct DummyComponent {
         value: f32,
     }
 
     #[cfg(feature = "bevy_asset")]
-    #[derive(Reflect, TypeUuid)]
+    #[derive(Debug, Reflect, TypeUuid)]
     #[uuid = "a33abc11-264e-4bbb-82e8-b87226bb4383"]
     struct DummyAsset {
         value: f32,
@@ -574,6 +588,13 @@ mod tests {
             );
             let animator = Animator::new(tween).with_state(state);
             assert_eq!(animator.state, state);
+
+            // impl Debug
+            let debug_string = format!("{:?}", animator);
+            assert_eq!(
+                debug_string,
+                format!("Animator {{ state: {:?} }}", animator.state)
+            );
         }
     }
 
@@ -614,6 +635,30 @@ mod tests {
         assert!(animator.tweenable().progress().abs() <= 1e-5);
     }
 
+    #[test]
+    fn animator_speed() {
+        let tween = Tween::<DummyComponent>::new(
+            EaseFunction::QuadraticInOut,
+            Duration::from_secs(1),
+            DummyLens { start: 0., end: 1. },
+        );
+
+        let mut animator = Animator::new(tween);
+        assert!(abs_diff_eq(animator.speed(), 1., 1e-5)); // default speed
+
+        animator.set_speed(2.4);
+        assert!(abs_diff_eq(animator.speed(), 2.4, 1e-5));
+
+        let tween = Tween::<DummyComponent>::new(
+            EaseFunction::QuadraticInOut,
+            Duration::from_secs(1),
+            DummyLens { start: 0., end: 1. },
+        );
+
+        let animator = Animator::new(tween).with_speed(3.5);
+        assert!(abs_diff_eq(animator.speed(), 3.5, 1e-5));
+    }
+
     #[cfg(feature = "bevy_asset")]
     #[test]
     fn asset_animator_new() {
@@ -641,6 +686,13 @@ mod tests {
             let animator =
                 AssetAnimator::new(Handle::<DummyAsset>::default(), tween).with_state(state);
             assert_eq!(animator.state, state);
+
+            // impl Debug
+            let debug_string = format!("{:?}", animator);
+            assert_eq!(
+                debug_string,
+                format!("AssetAnimator {{ state: {:?} }}", animator.state)
+            );
         }
     }
 
@@ -680,5 +732,30 @@ mod tests {
         animator.stop();
         assert_eq!(animator.state, AnimatorState::Paused);
         assert!(animator.tweenable().progress().abs() <= 1e-5);
+    }
+
+    #[cfg(feature = "bevy_asset")]
+    #[test]
+    fn asset_animator_speed() {
+        let tween = Tween::new(
+            EaseFunction::QuadraticInOut,
+            Duration::from_secs(1),
+            DummyLens { start: 0., end: 1. },
+        );
+
+        let mut animator = AssetAnimator::new(Handle::<DummyAsset>::default(), tween);
+        assert!(abs_diff_eq(animator.speed(), 1., 1e-5)); // default speed
+
+        animator.set_speed(2.4);
+        assert!(abs_diff_eq(animator.speed(), 2.4, 1e-5));
+
+        let tween = Tween::new(
+            EaseFunction::QuadraticInOut,
+            Duration::from_secs(1),
+            DummyLens { start: 0., end: 1. },
+        );
+
+        let animator = AssetAnimator::new(Handle::<DummyAsset>::default(), tween).with_speed(3.5);
+        assert!(abs_diff_eq(animator.speed(), 3.5, 1e-5));
     }
 }
