@@ -607,6 +607,44 @@ mod tests {
         assert!(transform.scale.abs_diff_eq(Vec3::new(0.3, 0.6, -1.2), 1e-5));
     }
 
+    #[cfg(feature = "bevy_ui")]
+    #[test]
+    fn ui_position() {
+        let mut lens = UiPositionLens {
+            start: UiRect {
+                left: Val::Px(0.),
+                top: Val::Px(0.),
+                right: Val::Auto,
+                bottom: Val::Percent(25.),
+            },
+            end: UiRect {
+                left: Val::Px(1.),
+                top: Val::Px(5.),
+                right: Val::Auto,
+                bottom: Val::Percent(45.),
+            },
+        };
+        let mut style = Style::default();
+
+        lens.lerp(&mut style, 0.);
+        assert_eq!(style.position.left, Val::Px(0.));
+        assert_eq!(style.position.top, Val::Px(0.));
+        assert_eq!(style.position.right, Val::Auto);
+        assert_eq!(style.position.bottom, Val::Percent(25.));
+
+        lens.lerp(&mut style, 1.);
+        assert_eq!(style.position.left, Val::Px(1.));
+        assert_eq!(style.position.top, Val::Px(5.));
+        assert_eq!(style.position.right, Val::Auto);
+        assert_eq!(style.position.bottom, Val::Percent(45.));
+
+        lens.lerp(&mut style, 0.3);
+        assert_eq!(style.position.left, Val::Px(0.3));
+        assert_eq!(style.position.top, Val::Px(1.5));
+        assert_eq!(style.position.right, Val::Auto);
+        assert_eq!(style.position.bottom, Val::Percent(31.));
+    }
+
     #[cfg(feature = "bevy_sprite")]
     #[test]
     fn colormaterial_color() {

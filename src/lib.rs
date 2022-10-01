@@ -487,13 +487,13 @@ mod tests {
         end: f32,
     }
 
-    #[derive(Debug, Component)]
+    #[derive(Debug, Default, Component)]
     struct DummyComponent {
         value: f32,
     }
 
     #[cfg(feature = "bevy_asset")]
-    #[derive(Debug, Reflect, TypeUuid)]
+    #[derive(Debug, Default, Reflect, TypeUuid)]
     #[uuid = "a33abc11-264e-4bbb-82e8-b87226bb4383"]
     struct DummyAsset {
         value: f32,
@@ -505,10 +505,31 @@ mod tests {
         }
     }
 
+    #[test]
+    fn dummy_lens_component() {
+        let mut c = DummyComponent::default();
+        let mut l = DummyLens { start: 0., end: 1. };
+        for r in [0_f32, 0.01, 0.3, 0.5, 0.9, 0.999, 1.] {
+            l.lerp(&mut c, r);
+            assert!(abs_diff_eq(c.value, r, 1e-5));
+        }
+    }
+
     #[cfg(feature = "bevy_asset")]
     impl Lens<DummyAsset> for DummyLens {
         fn lerp(&mut self, target: &mut DummyAsset, ratio: f32) {
             target.value = self.start.lerp(&self.end, &ratio);
+        }
+    }
+
+    #[cfg(feature = "bevy_asset")]
+    #[test]
+    fn dummy_lens_asset() {
+        let mut a = DummyAsset::default();
+        let mut l = DummyLens { start: 0., end: 1. };
+        for r in [0_f32, 0.01, 0.3, 0.5, 0.9, 0.999, 1.] {
+            l.lerp(&mut a, r);
+            assert!(abs_diff_eq(a.value, r, 1e-5));
         }
     }
 
@@ -659,6 +680,25 @@ mod tests {
         assert!(abs_diff_eq(animator.speed(), 3.5, 1e-5));
     }
 
+    #[test]
+    fn animator_set_tweenable() {
+        let tween = Tween::<DummyComponent>::new(
+            EaseFunction::QuadraticInOut,
+            Duration::from_secs(1),
+            DummyLens { start: 0., end: 1. },
+        );
+        let mut animator = Animator::new(tween);
+
+        let tween2 = Tween::<DummyComponent>::new(
+            EaseFunction::QuadraticInOut,
+            Duration::from_secs(2),
+            DummyLens { start: 0., end: 1. },
+        );
+        animator.set_tweenable(tween2);
+
+        assert_eq!(animator.tweenable().duration(), Duration::from_secs(2));
+    }
+
     #[cfg(feature = "bevy_asset")]
     #[test]
     fn asset_animator_new() {
@@ -757,5 +797,25 @@ mod tests {
 
         let animator = AssetAnimator::new(Handle::<DummyAsset>::default(), tween).with_speed(3.5);
         assert!(abs_diff_eq(animator.speed(), 3.5, 1e-5));
+    }
+
+    #[cfg(feature = "bevy_asset")]
+    #[test]
+    fn asset_animator_set_tweenable() {
+        let tween = Tween::new(
+            EaseFunction::QuadraticInOut,
+            Duration::from_secs(1),
+            DummyLens { start: 0., end: 1. },
+        );
+        let mut animator = AssetAnimator::new(Handle::<DummyAsset>::default(), tween);
+
+        let tween2 = Tween::new(
+            EaseFunction::QuadraticInOut,
+            Duration::from_secs(2),
+            DummyLens { start: 0., end: 1. },
+        );
+        animator.set_tweenable(tween2);
+
+        assert_eq!(animator.tweenable().duration(), Duration::from_secs(2));
     }
 }
