@@ -607,6 +607,7 @@ mod tests {
         assert!(transform.scale.abs_diff_eq(Vec3::new(0.3, 0.6, -1.2), 1e-5));
     }
 
+    #[cfg(feature = "bevy_ui")]
     #[test]
     fn ui_position() {
         let mut lens = UiPositionLens {
