@@ -1359,6 +1359,22 @@ mod tests {
         assert_eq!(seq.times_completed(), 0);
     }
 
+    /// Sequence::from_single()
+    #[test]
+    fn seq_from_single() {
+        let tween = Tween::new(
+            EaseMethod::Linear,
+            Duration::from_secs(1),
+            TransformPositionLens {
+                start: Vec3::ZERO,
+                end: Vec3::ONE,
+            },
+        );
+        let seq = Sequence::from_single(tween);
+
+        assert_eq!(seq.duration(), Duration::from_secs(1));
+    }
+
     /// Test ticking parallel tracks of tweens.
     #[test]
     fn tracks_tick() {
@@ -1455,10 +1471,22 @@ mod tests {
         assert_eq!(tracks.times_completed(), 0); // no looping
     }
 
+    /// Delay::then()
+    #[test]
+    fn delay_then() {
+        let seq: Sequence<Transform> =
+            Delay::new(Duration::from_secs(1)).then(Delay::new(Duration::from_secs(2)));
+        assert_eq!(seq.duration(), Duration::from_secs(3));
+        assert_eq!(seq.tweens.len(), 2);
+        for (i, t) in seq.tweens.iter().enumerate() {
+            assert_eq!(t.duration(), Duration::from_secs(i as u64 + 1));
+        }
+    }
+
     /// Test ticking a delay.
     #[test]
     fn delay_tick() {
-        let duration = Duration::from_secs_f32(1.0);
+        let duration = Duration::from_secs(1);
         let mut delay = Delay::new(duration);
         {
             let tweenable: &dyn Tweenable<Transform> = &delay;
@@ -1474,7 +1502,7 @@ mod tests {
 
         for i in 1..=6 {
             let state = delay.tick(
-                Duration::from_secs_f32(0.2),
+                Duration::from_millis(200),
                 &mut transform,
                 entity,
                 &mut event_writer,
@@ -1483,14 +1511,31 @@ mod tests {
                 let tweenable: &dyn Tweenable<Transform> = &delay;
                 if i < 5 {
                     assert_eq!(state, TweenState::Active);
+                    assert_eq!(tweenable.times_completed(), 0);
                     let r = i as f32 * 0.2;
                     assert!((tweenable.progress() - r).abs() < 1e-5);
                 } else {
                     assert_eq!(state, TweenState::Completed);
+                    assert_eq!(tweenable.times_completed(), 1);
                     assert!((tweenable.progress() - 1.).abs() < 1e-5);
                 }
             }
         }
+
+        let tweenable: &mut dyn Tweenable<Transform> = &mut delay;
+
+        tweenable.rewind();
+        assert_eq!(tweenable.times_completed(), 0);
+        assert!(abs_diff_eq(tweenable.progress(), 0., 1e-5));
+        let state = tweenable.tick(Duration::ZERO, &mut transform, entity, &mut event_writer);
+        assert_eq!(state, TweenState::Active);
+
+        tweenable.set_progress(0.3);
+        assert_eq!(tweenable.times_completed(), 0);
+        assert!(abs_diff_eq(tweenable.progress(), 0.3, 1e-5));
+        tweenable.set_progress(1.);
+        assert_eq!(tweenable.times_completed(), 1);
+        assert!(abs_diff_eq(tweenable.progress(), 1., 1e-5));
     }
 
     #[test]
