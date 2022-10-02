@@ -14,11 +14,12 @@ const INIT_TRANSITION_DONE: u64 = 1;
 /// are only enabled after appearance animations finished.
 ///
 /// The logic is handled as:
-/// 1. Appearance animations send a `TweenComplete` event with `INIT_TRANSITION_DONE`
-/// 2. The `enable_interaction_after_initial_animation` system adds a label component
-/// `InitTransitionDone` to any button component which completed its appearance animation,
-/// to mark it as active.
-/// 3. The `interaction` system only queries buttons with a `InitTransitionDone` marker.
+/// 1. Appearance animations send a `TweenComplete` event with
+/// `INIT_TRANSITION_DONE` 2. The `enable_interaction_after_initial_animation`
+/// system adds a label component `InitTransitionDone` to any button component
+/// which completed its appearance animation, to mark it as active.
+/// 3. The `interaction` system only queries buttons with a `InitTransitionDone`
+/// marker.
 fn main() {
     App::default()
         .insert_resource(WindowDescriptor {
