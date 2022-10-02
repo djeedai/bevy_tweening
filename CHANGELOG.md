@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `RepeatCount` and `RepeatStrategy` for more granular control over animation looping.
 - Added `with_repeat_count()` and `with_repeat_strategy()` builder methods to `Tween<T>`.
 - Added a `speed()` getter on `Animator<T>` and `AssetAnimator<T>`.
+- Added `set_elapsed(Duration)` and `elapsed() -> Duration` to the `Tweenable<T>` trait. Those methods are preferable over `set_progress()` and `progress()` as they avoid the conversion to floating-point values and any rounding errors.
 
 ### Changed
 

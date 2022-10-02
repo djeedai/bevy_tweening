@@ -28,6 +28,8 @@ use crate::{EaseMethod, Lens, RepeatCount, RepeatStrategy, TweeningDirection};
 /// # struct MyTweenable;
 /// # impl Tweenable<Transform> for MyTweenable {
 /// #     fn duration(&self) -> Duration  { unimplemented!() }
+/// #     fn set_elapsed(&mut self, elapsed: Duration)  { unimplemented!() }
+/// #     fn elapsed(&self) -> Duration  { unimplemented!() }
 /// #     fn set_progress(&mut self, progress: f32)  { unimplemented!() }
 /// #     fn progress(&self) -> f32  { unimplemented!() }
 /// #     fn tick(&mut self, delta: Duration, target: &mut Transform, entity: Entity, event_writer: &mut EventWriter<TweenCompleted>) -> TweenState  { unimplemented!() }
@@ -96,11 +98,17 @@ pub struct TweenCompleted {
     pub user_data: u64,
 }
 
+/// Calculate the progress fraction in \[0:1\] of the ratio between two
+/// [`Duration`]s.
+fn fraction_progress(n: Duration, d: Duration) -> f32 {
+    // TODO - Replace with div_duration_f32() once it's stable
+    (n.as_secs_f64() / d.as_secs_f64()).fract() as f32
+}
+
 #[derive(Debug)]
 struct AnimClock {
     elapsed: Duration,
     duration: Duration,
-    times_completed: u32,
     total_duration: TotalDuration,
     strategy: RepeatStrategy,
 }
@@ -111,34 +119,47 @@ impl AnimClock {
             elapsed: Duration::ZERO,
             duration,
             total_duration: compute_total_duration(duration, RepeatCount::default()),
-            times_completed: 0,
             strategy: RepeatStrategy::default(),
         }
     }
 
-    fn tick(&mut self, tick: Duration) -> (TweenState, u32) {
-        let duration = self.duration.as_nanos();
-        let prev_times_completed = self.elapsed.as_nanos() / duration;
-
-        self.elapsed = self.elapsed.saturating_add(tick);
-        let state = if let TotalDuration::Finite(duration) = self.total_duration {
-            if self.elapsed >= duration {
-                self.elapsed = duration;
-                TweenState::Completed
-            } else {
-                TweenState::Active
-            }
-        } else {
-            TweenState::Active
-        };
-
-        let times_completed = (self.elapsed.as_nanos() / duration - prev_times_completed) as u32;
-        self.times_completed = self.times_completed.saturating_add(times_completed);
-        (state, times_completed)
+    fn tick(&mut self, tick: Duration) -> (TweenState, i32) {
+        self.set_elapsed(self.elapsed.saturating_add(tick))
     }
 
-    fn set_progress(&mut self, progress: f32) {
-        self.elapsed = self.duration.mul_f32(progress.max(0.));
+    fn times_completed(&self) -> u32 {
+        (self.elapsed.as_nanos() / self.duration.as_nanos()) as u32
+    }
+
+    fn set_elapsed(&mut self, elapsed: Duration) -> (TweenState, i32) {
+        let old_times_completed = self.times_completed();
+
+        self.elapsed = elapsed;
+
+        let state = match self.total_duration {
+            TotalDuration::Finite(total_duration) => {
+                if self.elapsed >= total_duration {
+                    self.elapsed = total_duration;
+                    TweenState::Completed
+                } else {
+                    TweenState::Active
+                }
+            }
+            TotalDuration::Infinite => TweenState::Active,
+        };
+
+        (
+            state,
+            self.times_completed() as i32 - old_times_completed as i32,
+        )
+    }
+
+    fn elapsed(&self) -> Duration {
+        self.elapsed
+    }
+
+    fn set_progress(&mut self, progress: f32) -> (TweenState, i32) {
+        self.set_elapsed(self.duration.mul_f32(progress.max(0.)))
     }
 
     fn progress(&self) -> f32 {
@@ -147,13 +168,13 @@ impl AnimClock {
                 return 1.;
             }
         }
-        (self.elapsed.as_secs_f32() / self.duration.as_secs_f32()).fract()
+        fraction_progress(self.elapsed, self.duration)
     }
 
     fn state(&self) -> TweenState {
         match self.total_duration {
-            TotalDuration::Finite(duration) => {
-                if self.elapsed >= duration {
+            TotalDuration::Finite(total_duration) => {
+                if self.elapsed >= total_duration {
                     TweenState::Completed
                 } else {
                     TweenState::Active
@@ -164,7 +185,6 @@ impl AnimClock {
     }
 
     fn reset(&mut self) {
-        self.times_completed = 0;
         self.elapsed = Duration::ZERO;
     }
 }
@@ -195,9 +215,39 @@ pub trait Tweenable<T>: Send + Sync {
     /// same state in this case is the double of the returned value.
     fn duration(&self) -> Duration;
 
+    /// Set the current animation playback elapsed time.
+    ///
+    /// See [`elapsed()`] for details on the meaning. If `elapsed` is greater
+    /// than or equal to [`duration()`], then the animation completes.
+    ///
+    /// Setting the elapsed time seeks the animation to a new position, but does
+    /// not apply that change to the underlying component being animated. To
+    /// force the change to apply, call [`tick()`] with a `delta` of
+    /// `Duration::ZERO`.
+    ///
+    /// [`elapsed()`]: Tweenable::elapsed
+    /// [`duration()`]: Tweenable::duration
+    /// [`tick()`]: Tweenable::tick
+    fn set_elapsed(&mut self, elapsed: Duration);
+
+    /// Get the current elapsed duration.
+    ///
+    /// While looping, the exact value returned by [`duration()`] is never
+    /// reached, since the tweenable loops over to zero immediately when it
+    /// changes direction at either endpoint. Upon completion, the tweenable
+    /// always reports the same value as [`duration()`].
+    ///
+    /// [`duration()`]: Tweenable::duration
+    fn elapsed(&self) -> Duration;
+
     /// Set the current animation playback progress.
     ///
     /// See [`progress()`] for details on the meaning.
+    ///
+    /// Setting the progress seeks the animation to a new position, but does not
+    /// apply that change to the underlying component being animated. To
+    /// force the change to apply, call [`tick()`] with a `delta` of
+    /// `Duration::ZERO`.
     ///
     /// [`progress()`]: Tweenable::progress
     fn set_progress(&mut self, progress: f32);
@@ -484,6 +534,14 @@ impl<T> Tweenable<T> for Tween<T> {
         self.clock.duration
     }
 
+    fn set_elapsed(&mut self, elapsed: Duration) {
+        self.clock.set_elapsed(elapsed);
+    }
+
+    fn elapsed(&self) -> Duration {
+        self.clock.elapsed()
+    }
+
     fn set_progress(&mut self, progress: f32) {
         self.clock.set_progress(progress);
     }
@@ -541,7 +599,7 @@ impl<T> Tweenable<T> for Tween<T> {
     }
 
     fn times_completed(&self) -> u32 {
-        self.clock.times_completed
+        self.clock.times_completed()
     }
 
     fn rewind(&mut self) {
@@ -550,7 +608,7 @@ impl<T> Tweenable<T> for Tween<T> {
             // direction on Tween creation, we count the number of completions, ignoring the
             // last one if the Tween is currently in TweenState::Completed because that one
             // freezes all parameters.
-            let mut times_completed = self.clock.times_completed;
+            let mut times_completed = self.clock.times_completed();
             if self.clock.state() == TweenState::Completed {
                 debug_assert!(times_completed > 0);
                 times_completed -= 1;
@@ -568,7 +626,7 @@ pub struct Sequence<T> {
     tweens: Vec<BoxedTweenable<T>>,
     index: usize,
     duration: Duration,
-    time: Duration,
+    elapsed: Duration,
     times_completed: u32,
 }
 
@@ -589,7 +647,7 @@ impl<T> Sequence<T> {
             tweens,
             index: 0,
             duration,
-            time: Duration::ZERO,
+            elapsed: Duration::ZERO,
             times_completed: 0,
         }
     }
@@ -603,7 +661,7 @@ impl<T> Sequence<T> {
             tweens: vec![boxed],
             index: 0,
             duration,
-            time: Duration::ZERO,
+            elapsed: Duration::ZERO,
             times_completed: 0,
         }
     }
@@ -615,7 +673,7 @@ impl<T> Sequence<T> {
             tweens: Vec::with_capacity(capacity),
             index: 0,
             duration: Duration::ZERO,
-            time: Duration::ZERO,
+            elapsed: Duration::ZERO,
             times_completed: 0,
         }
     }
@@ -646,26 +704,24 @@ impl<T> Tweenable<T> for Sequence<T> {
         self.duration
     }
 
-    fn set_progress(&mut self, progress: f32) {
-        self.times_completed = if progress >= 1. { 1 } else { 0 };
-        let progress = progress.clamp(0., 1.); // not looping
-                                               // Set the total sequence progress
-        let total_elapsed_secs = self.duration().as_secs_f64() * progress as f64;
-        self.time = Duration::from_secs_f64(total_elapsed_secs);
+    fn set_elapsed(&mut self, elapsed: Duration) {
+        // Set the total sequence progress
+        self.elapsed = elapsed;
+        self.times_completed = if elapsed >= self.duration { 1 } else { 0 };
 
         // Find which tween is active in the sequence
-        let mut accum_duration = 0.;
+        let mut accum_duration = Duration::ZERO;
         for index in 0..self.tweens.len() {
             let tween = &mut self.tweens[index];
-            let tween_duration = tween.duration().as_secs_f64();
-            if total_elapsed_secs < accum_duration + tween_duration {
+            let tween_duration = tween.duration();
+            if elapsed < accum_duration + tween_duration {
                 self.index = index;
-                let local_duration = total_elapsed_secs - accum_duration;
-                tween.set_progress((local_duration / tween_duration) as f32);
+                let local_duration = elapsed - accum_duration;
+                tween.set_elapsed(local_duration);
                 // TODO?? set progress of other tweens after that one to 0. ??
                 return;
             }
-            tween.set_progress(1.); // ?? to prepare for next loop/rewind?
+            tween.set_elapsed(tween.duration()); // ?? to prepare for next loop/rewind?
             accum_duration += tween_duration;
         }
 
@@ -673,8 +729,20 @@ impl<T> Tweenable<T> for Sequence<T> {
         self.index = self.tweens.len();
     }
 
+    fn elapsed(&self) -> Duration {
+        self.elapsed
+    }
+
+    fn set_progress(&mut self, progress: f32) {
+        self.set_elapsed(self.duration.mul_f32(progress.max(0.)))
+    }
+
     fn progress(&self) -> f32 {
-        self.time.as_secs_f32() / self.duration.as_secs_f32()
+        if self.elapsed >= self.duration {
+            1.
+        } else {
+            fraction_progress(self.elapsed, self.duration)
+        }
     }
 
     fn tick(
@@ -684,7 +752,7 @@ impl<T> Tweenable<T> for Sequence<T> {
         entity: Entity,
         event_writer: &mut EventWriter<TweenCompleted>,
     ) -> TweenState {
-        self.time = (self.time + delta).min(self.duration);
+        self.elapsed = self.elapsed.saturating_add(delta).min(self.duration);
         while self.index < self.tweens.len() {
             let tween = &mut self.tweens[self.index];
             let tween_remaining = tween.duration().mul_f32(1.0 - tween.progress());
@@ -706,7 +774,7 @@ impl<T> Tweenable<T> for Sequence<T> {
     }
 
     fn rewind(&mut self) {
-        self.time = Duration::ZERO;
+        self.elapsed = Duration::ZERO;
         self.index = 0;
         self.times_completed = 0;
         for tween in &mut self.tweens {
@@ -720,7 +788,7 @@ impl<T> Tweenable<T> for Sequence<T> {
 pub struct Tracks<T> {
     tracks: Vec<BoxedTweenable<T>>,
     duration: Duration,
-    time: Duration,
+    elapsed: Duration,
     times_completed: u32,
 }
 
@@ -739,7 +807,7 @@ impl<T> Tracks<T> {
         Self {
             tracks,
             duration,
-            time: Duration::ZERO,
+            elapsed: Duration::ZERO,
             times_completed: 0,
         }
     }
@@ -750,19 +818,29 @@ impl<T> Tweenable<T> for Tracks<T> {
         self.duration
     }
 
-    fn set_progress(&mut self, progress: f32) {
-        self.times_completed = if progress >= 1. { 1 } else { 0 }; // not looping
-        let progress = progress.clamp(0., 1.); // not looping
-        let time_secs = self.duration.as_secs_f64() * progress as f64;
-        self.time = Duration::from_secs_f64(time_secs);
+    fn set_elapsed(&mut self, elapsed: Duration) {
+        self.elapsed = elapsed;
+        self.times_completed = if elapsed >= self.duration { 1 } else { 0 }; // not looping
+
         for tweenable in &mut self.tracks {
-            let progress = time_secs / tweenable.duration().as_secs_f64();
-            tweenable.set_progress(progress as f32);
+            tweenable.set_elapsed(elapsed);
         }
     }
 
+    fn elapsed(&self) -> Duration {
+        self.elapsed
+    }
+
+    fn set_progress(&mut self, progress: f32) {
+        self.set_elapsed(self.duration.mul_f32(progress.max(0.)))
+    }
+
     fn progress(&self) -> f32 {
-        self.time.as_secs_f32() / self.duration.as_secs_f32()
+        if self.elapsed >= self.duration {
+            1.
+        } else {
+            fraction_progress(self.elapsed, self.duration)
+        }
     }
 
     fn tick(
@@ -772,7 +850,7 @@ impl<T> Tweenable<T> for Tracks<T> {
         entity: Entity,
         event_writer: &mut EventWriter<TweenCompleted>,
     ) -> TweenState {
-        self.time = (self.time + delta).min(self.duration);
+        self.elapsed = self.elapsed.saturating_add(delta).min(self.duration);
         let mut any_active = false;
         for tweenable in &mut self.tracks {
             let state = tweenable.tick(delta, target, entity, event_writer);
@@ -791,7 +869,7 @@ impl<T> Tweenable<T> for Tracks<T> {
     }
 
     fn rewind(&mut self) {
-        self.time = Duration::ZERO;
+        self.elapsed = Duration::ZERO;
         self.times_completed = 0;
         for tween in &mut self.tracks {
             tween.rewind();
@@ -836,14 +914,20 @@ impl<T> Tweenable<T> for Delay {
         self.timer.duration()
     }
 
-    fn set_progress(&mut self, progress: f32) {
+    fn set_elapsed(&mut self, elapsed: Duration) {
         // need to reset() to clear finished() unfortunately
         self.timer.reset();
-        self.timer.set_elapsed(Duration::from_secs_f64(
-            self.timer.duration().as_secs_f64() * progress as f64,
-        ));
+        self.timer.set_elapsed(elapsed);
         // set_elapsed() does not update finished() etc. which we rely on
         self.timer.tick(Duration::ZERO);
+    }
+
+    fn elapsed(&self) -> Duration {
+        self.timer.elapsed()
+    }
+
+    fn set_progress(&mut self, progress: f32) {
+        <Delay as Tweenable<T>>::set_elapsed(self, self.timer.duration().mul_f32(progress.max(0.)));
     }
 
     fn progress(&self) -> f32 {
@@ -943,7 +1027,7 @@ mod tests {
         }
 
         assert_eq!(
-            (total_duration.as_secs_f64() / duration.as_secs_f64()) as u32,
+            (total_duration.as_secs_f64() / duration.as_secs_f64()) as i32,
             times_completed
         );
     }
@@ -1233,6 +1317,29 @@ mod tests {
         assert!(transform.translation.abs_diff_eq(Vec3::splat(0.6), 1e-5));
     }
 
+    #[test]
+    fn tween_elapsed() {
+        let mut tween = make_test_tween();
+
+        let duration = tween.duration();
+        let elapsed = tween.elapsed();
+
+        assert_eq!(elapsed, Duration::ZERO);
+        assert_eq!(duration, Duration::from_secs(1));
+
+        for ms in [0, 1, 500, 100, 300, 999, 847, 1000, 900] {
+            let elapsed = Duration::from_millis(ms);
+            tween.set_elapsed(elapsed);
+            assert_eq!(tween.elapsed(), elapsed);
+
+            let progress = (elapsed.as_secs_f64() / duration.as_secs_f64()) as f32;
+            assert_approx_eq!(tween.progress(), progress);
+
+            let times_completed = if ms == 1000 { 1 } else { 0 };
+            assert_eq!(tween.times_completed(), times_completed);
+        }
+    }
+
     /// Test ticking a sequence of tweens.
     #[test]
     fn seq_tick() {
@@ -1367,6 +1474,31 @@ mod tests {
         let seq = Sequence::from_single(tween);
 
         assert_eq!(seq.duration(), Duration::from_secs(1));
+    }
+
+    #[test]
+    fn seq_elapsed() {
+        let mut seq = Sequence::new((1..5).map(|i| {
+            Tween::new(
+                EaseMethod::Linear,
+                Duration::from_millis(200 * i),
+                TransformPositionLens {
+                    start: Vec3::ZERO,
+                    end: Vec3::ONE,
+                },
+            )
+        }));
+
+        let mut elapsed = Duration::ZERO;
+        for i in 1..5 {
+            assert_eq!(seq.index(), i - 1);
+            assert_eq!(seq.elapsed(), elapsed);
+            let duration = Duration::from_millis(200 * i as u64);
+            assert_eq!(seq.current().duration(), duration);
+            elapsed += duration;
+            seq.set_elapsed(elapsed);
+            assert_eq!(seq.times_completed(), if i == 4 { 1 } else { 0 });
+        }
     }
 
     /// Test ticking parallel tracks of tweens.
@@ -1530,6 +1662,24 @@ mod tests {
         tweenable.set_progress(1.);
         assert_eq!(tweenable.times_completed(), 1);
         assert_approx_eq!(tweenable.progress(), 1.);
+    }
+
+    #[test]
+    fn delay_elapsed() {
+        let mut delay = Delay::new(Duration::from_secs(1));
+        let tweenable: &mut dyn Tweenable<Transform> = &mut delay;
+        let duration = tweenable.duration();
+        for ms in [0, 1, 500, 100, 300, 999, 847, 1000, 900] {
+            let elapsed = Duration::from_millis(ms);
+            tweenable.set_elapsed(elapsed);
+            assert_eq!(tweenable.elapsed(), elapsed);
+
+            let progress = (elapsed.as_secs_f64() / duration.as_secs_f64()) as f32;
+            assert_approx_eq!(tweenable.progress(), progress);
+
+            let times_completed = if ms == 1000 { 1 } else { 0 };
+            assert_eq!(tweenable.times_completed(), times_completed);
+        }
     }
 
     #[test]
