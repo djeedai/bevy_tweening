@@ -171,6 +171,9 @@ pub mod lens;
 mod plugin;
 mod tweenable;
 
+#[cfg(test)]
+mod test_utils;
+
 /// How many times to repeat a tween animation. See also: [`RepeatStrategy`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RepeatCount {
@@ -475,12 +478,8 @@ mod tests {
     #[cfg(feature = "bevy_asset")]
     use bevy::reflect::TypeUuid;
 
-    use super::{lens::*, *};
-
-    /// Utility to compare floating-point values with a tolerance.
-    fn abs_diff_eq(a: f32, b: f32, tol: f32) -> bool {
-        (a - b).abs() < tol
-    }
+    use super::*;
+    use crate::test_utils::*;
 
     struct DummyLens {
         start: f32,
@@ -511,7 +510,7 @@ mod tests {
         let mut l = DummyLens { start: 0., end: 1. };
         for r in [0_f32, 0.01, 0.3, 0.5, 0.9, 0.999, 1.] {
             l.lerp(&mut c, r);
-            assert!(abs_diff_eq(c.value, r, 1e-5));
+            assert_approx_eq!(c.value, r);
         }
     }
 
@@ -529,7 +528,7 @@ mod tests {
         let mut l = DummyLens { start: 0., end: 1. };
         for r in [0_f32, 0.01, 0.3, 0.5, 0.9, 0.999, 1.] {
             l.lerp(&mut a, r);
-            assert!(abs_diff_eq(a.value, r, 1e-5));
+            assert_approx_eq!(a.value, r);
         }
     }
 
@@ -628,32 +627,32 @@ mod tests {
         );
         let mut animator = Animator::new(tween);
         assert_eq!(animator.state, AnimatorState::Playing);
-        assert!(animator.tweenable().progress().abs() <= 1e-5);
+        assert_approx_eq!(animator.tweenable().progress(), 0.);
 
         animator.stop();
         assert_eq!(animator.state, AnimatorState::Paused);
-        assert!(animator.tweenable().progress().abs() <= 1e-5);
+        assert_approx_eq!(animator.tweenable().progress(), 0.);
 
         animator.tweenable_mut().set_progress(0.5);
         assert_eq!(animator.state, AnimatorState::Paused);
-        assert!((animator.tweenable().progress() - 0.5).abs() <= 1e-5);
+        assert_approx_eq!(animator.tweenable().progress(), 0.5);
 
         animator.tweenable_mut().rewind();
         assert_eq!(animator.state, AnimatorState::Paused);
-        assert!(animator.tweenable().progress().abs() <= 1e-5);
+        assert_approx_eq!(animator.tweenable().progress(), 0.);
 
         animator.tweenable_mut().set_progress(0.5);
         animator.state = AnimatorState::Playing;
         assert_eq!(animator.state, AnimatorState::Playing);
-        assert!((animator.tweenable().progress() - 0.5).abs() <= 1e-5);
+        assert_approx_eq!(animator.tweenable().progress(), 0.5);
 
         animator.tweenable_mut().rewind();
         assert_eq!(animator.state, AnimatorState::Playing);
-        assert!(animator.tweenable().progress().abs() <= 1e-5);
+        assert_approx_eq!(animator.tweenable().progress(), 0.);
 
         animator.stop();
         assert_eq!(animator.state, AnimatorState::Paused);
-        assert!(animator.tweenable().progress().abs() <= 1e-5);
+        assert_approx_eq!(animator.tweenable().progress(), 0.);
     }
 
     #[test]
@@ -665,10 +664,10 @@ mod tests {
         );
 
         let mut animator = Animator::new(tween);
-        assert!(abs_diff_eq(animator.speed(), 1., 1e-5)); // default speed
+        assert_approx_eq!(animator.speed(), 1.); // default speed
 
         animator.set_speed(2.4);
-        assert!(abs_diff_eq(animator.speed(), 2.4, 1e-5));
+        assert_approx_eq!(animator.speed(), 2.4);
 
         let tween = Tween::<DummyComponent>::new(
             EaseFunction::QuadraticInOut,
@@ -677,7 +676,7 @@ mod tests {
         );
 
         let animator = Animator::new(tween).with_speed(3.5);
-        assert!(abs_diff_eq(animator.speed(), 3.5, 1e-5));
+        assert_approx_eq!(animator.speed(), 3.5);
     }
 
     #[test]
@@ -746,32 +745,32 @@ mod tests {
         );
         let mut animator = AssetAnimator::new(Handle::<DummyAsset>::default(), tween);
         assert_eq!(animator.state, AnimatorState::Playing);
-        assert!(animator.tweenable().progress().abs() <= 1e-5);
+        assert_approx_eq!(animator.tweenable().progress(), 0.);
 
         animator.stop();
         assert_eq!(animator.state, AnimatorState::Paused);
-        assert!(animator.tweenable().progress().abs() <= 1e-5);
+        assert_approx_eq!(animator.tweenable().progress(), 0.);
 
         animator.tweenable_mut().set_progress(0.5);
         assert_eq!(animator.state, AnimatorState::Paused);
-        assert!((animator.tweenable().progress() - 0.5).abs() <= 1e-5);
+        assert_approx_eq!(animator.tweenable().progress(), 0.5);
 
         animator.tweenable_mut().rewind();
         assert_eq!(animator.state, AnimatorState::Paused);
-        assert!(animator.tweenable().progress().abs() <= 1e-5);
+        assert_approx_eq!(animator.tweenable().progress(), 0.);
 
         animator.tweenable_mut().set_progress(0.5);
         animator.state = AnimatorState::Playing;
         assert_eq!(animator.state, AnimatorState::Playing);
-        assert!((animator.tweenable().progress() - 0.5).abs() <= 1e-5);
+        assert_approx_eq!(animator.tweenable().progress(), 0.5);
 
         animator.tweenable_mut().rewind();
         assert_eq!(animator.state, AnimatorState::Playing);
-        assert!(animator.tweenable().progress().abs() <= 1e-5);
+        assert_approx_eq!(animator.tweenable().progress(), 0.);
 
         animator.stop();
         assert_eq!(animator.state, AnimatorState::Paused);
-        assert!(animator.tweenable().progress().abs() <= 1e-5);
+        assert_approx_eq!(animator.tweenable().progress(), 0.);
     }
 
     #[cfg(feature = "bevy_asset")]
@@ -784,10 +783,10 @@ mod tests {
         );
 
         let mut animator = AssetAnimator::new(Handle::<DummyAsset>::default(), tween);
-        assert!(abs_diff_eq(animator.speed(), 1., 1e-5)); // default speed
+        assert_approx_eq!(animator.speed(), 1.); // default speed
 
         animator.set_speed(2.4);
-        assert!(abs_diff_eq(animator.speed(), 2.4, 1e-5));
+        assert_approx_eq!(animator.speed(), 2.4);
 
         let tween = Tween::new(
             EaseFunction::QuadraticInOut,
@@ -796,7 +795,7 @@ mod tests {
         );
 
         let animator = AssetAnimator::new(Handle::<DummyAsset>::default(), tween).with_speed(3.5);
-        assert!(abs_diff_eq(animator.speed(), 3.5, 1e-5));
+        assert_approx_eq!(animator.speed(), 3.5);
     }
 
     #[cfg(feature = "bevy_asset")]

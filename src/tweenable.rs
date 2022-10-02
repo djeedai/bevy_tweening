@@ -301,7 +301,7 @@ impl<T: 'static> Tween<T> {
     /// # use std::time::Duration;
     /// let tween1 = Tween::new(
     ///     EaseFunction::QuadraticInOut,
-    ///     Duration::from_secs_f32(1.0),
+    ///     Duration::from_secs(1),
     ///     TransformPositionLens {
     ///         start: Vec3::ZERO,
     ///         end: Vec3::new(3.5, 0., 0.),
@@ -309,7 +309,7 @@ impl<T: 'static> Tween<T> {
     /// );
     /// let tween2 = Tween::new(
     ///     EaseFunction::QuadraticInOut,
-    ///     Duration::from_secs_f32(1.0),
+    ///     Duration::from_secs(1),
     ///     TransformRotationLens {
     ///         start: Quat::IDENTITY,
     ///         end: Quat::from_rotation_x(90.0_f32.to_radians()),
@@ -333,7 +333,7 @@ impl<T> Tween<T> {
     /// # use std::time::Duration;
     /// let tween = Tween::new(
     ///     EaseFunction::QuadraticInOut,
-    ///     Duration::from_secs_f32(1.0),
+    ///     Duration::from_secs(1),
     ///     TransformPositionLens {
     ///         start: Vec3::ZERO,
     ///         end: Vec3::new(3.5, 0., 0.),
@@ -369,7 +369,7 @@ impl<T> Tween<T> {
     /// let tween = Tween::new(
     ///     // [...]
     /// #    EaseFunction::QuadraticInOut,
-    /// #    Duration::from_secs_f32(1.0),
+    /// #    Duration::from_secs(1),
     /// #    TransformPositionLens {
     /// #        start: Vec3::ZERO,
     /// #        end: Vec3::new(3.5, 0., 0.),
@@ -887,14 +887,8 @@ mod tests {
 
     use bevy::ecs::{event::Events, system::SystemState};
 
-    use crate::lens::*;
-
     use super::*;
-
-    /// Utility to compare floating-point values with a tolerance.
-    fn abs_diff_eq(a: f32, b: f32, tol: f32) -> bool {
-        (a - b).abs() < tol
-    }
+    use crate::{lens::*, test_utils::*};
 
     #[derive(Default, Copy, Clone)]
     struct CallbackMonitor {
@@ -1005,7 +999,7 @@ mod tests {
                 assert_eq!(tween.event_data.unwrap(), USER_DATA);
 
                 // Loop over 2.2 seconds, so greater than one ping-pong loop
-                let tick_duration = Duration::from_secs_f32(0.2);
+                let tick_duration = Duration::from_millis(200);
                 for i in 1..=11 {
                     // Calculate expected values
                     let (progress, times_completed, mut direction, expected_state, just_completed) =
@@ -1136,7 +1130,7 @@ mod tests {
                     // Check actual values
                     assert_eq!(tween.direction(), direction);
                     assert_eq!(actual_state, expected_state);
-                    assert!(abs_diff_eq(tween.progress(), progress, 1e-5));
+                    assert_approx_eq!(tween.progress(), progress);
                     assert_eq!(tween.times_completed(), times_completed);
                     assert!(transform
                         .translation
@@ -1163,7 +1157,7 @@ mod tests {
                 // Rewind
                 tween.rewind();
                 assert_eq!(tween.direction(), *tweening_direction); // does not change
-                assert!(abs_diff_eq(tween.progress(), 0., 1e-5));
+                assert_approx_eq!(tween.progress(), 0.);
                 assert_eq!(tween.times_completed(), 0);
 
                 // Dummy tick to update target
@@ -1200,26 +1194,26 @@ mod tests {
 
         // Default
         assert_eq!(tween.direction(), TweeningDirection::Forward);
-        assert!(abs_diff_eq(tween.progress(), 0.0, 1e-5));
+        assert_approx_eq!(tween.progress(), 0.0);
 
         // no-op
         tween.set_direction(TweeningDirection::Forward);
         assert_eq!(tween.direction(), TweeningDirection::Forward);
-        assert!(abs_diff_eq(tween.progress(), 0.0, 1e-5));
+        assert_approx_eq!(tween.progress(), 0.0);
 
         // Backward
         tween.set_direction(TweeningDirection::Backward);
         assert_eq!(tween.direction(), TweeningDirection::Backward);
         // progress is independent of direction
-        assert!(abs_diff_eq(tween.progress(), 0.0, 1e-5));
+        assert_approx_eq!(tween.progress(), 0.0);
 
         // Progress-invariant
         tween.set_direction(TweeningDirection::Forward);
         tween.set_progress(0.3);
-        assert!(abs_diff_eq(tween.progress(), 0.3, 1e-5));
+        assert_approx_eq!(tween.progress(), 0.3);
         tween.set_direction(TweeningDirection::Backward);
         // progress is independent of direction
-        assert!(abs_diff_eq(tween.progress(), 0.3, 1e-5));
+        assert_approx_eq!(tween.progress(), 0.3);
 
         let (mut world, entity, mut transform) = make_test_env();
         let mut event_writer_system_state: SystemState<EventWriter<TweenCompleted>> =
@@ -1228,14 +1222,14 @@ mod tests {
 
         // Progress always increases alongside the current direction
         tween.set_direction(TweeningDirection::Backward);
-        assert!(abs_diff_eq(tween.progress(), 0.3, 1e-5));
+        assert_approx_eq!(tween.progress(), 0.3);
         tween.tick(
-            Duration::from_secs_f32(0.1),
+            Duration::from_millis(100),
             &mut transform,
             entity,
             &mut event_writer,
         );
-        assert!(abs_diff_eq(tween.progress(), 0.4, 1e-5));
+        assert_approx_eq!(tween.progress(), 0.4);
         assert!(transform.translation.abs_diff_eq(Vec3::splat(0.6), 1e-5));
     }
 
@@ -1244,7 +1238,7 @@ mod tests {
     fn seq_tick() {
         let tween1 = Tween::new(
             EaseMethod::Linear,
-            Duration::from_secs_f32(1.0),
+            Duration::from_secs(1),
             TransformPositionLens {
                 start: Vec3::ZERO,
                 end: Vec3::ONE,
@@ -1252,7 +1246,7 @@ mod tests {
         );
         let tween2 = Tween::new(
             EaseMethod::Linear,
-            Duration::from_secs_f32(1.0),
+            Duration::from_secs(1),
             TransformRotationLens {
                 start: Quat::IDENTITY,
                 end: Quat::from_rotation_x(90_f32.to_radians()),
@@ -1267,7 +1261,7 @@ mod tests {
 
         for i in 1..=16 {
             let state = seq.tick(
-                Duration::from_secs_f32(0.2),
+                Duration::from_millis(200),
                 &mut transform,
                 entity,
                 &mut event_writer,
@@ -1317,9 +1311,9 @@ mod tests {
         // - Finish the first tween
         // - Start and finish the second tween
         // - Start the third tween
-        for delta in [0.5, 2.0] {
+        for delta_ms in [500, 2000] {
             seq.tick(
-                Duration::from_secs_f32(delta),
+                Duration::from_millis(delta_ms),
                 &mut transform,
                 entity,
                 &mut event_writer,
@@ -1335,7 +1329,7 @@ mod tests {
         let mut seq = Sequence::new((1..5).map(|i| {
             Tween::new(
                 EaseMethod::Linear,
-                Duration::from_secs_f32(0.2 * i as f32),
+                Duration::from_millis(200 * i),
                 TransformPositionLens {
                     start: Vec3::ZERO,
                     end: Vec3::ONE,
@@ -1346,9 +1340,9 @@ mod tests {
         let mut progress = 0.;
         for i in 1..5 {
             assert_eq!(seq.index(), i - 1);
-            assert!((seq.progress() - progress).abs() < 1e-5);
-            let secs = 0.2 * i as f32;
-            assert_eq!(seq.current().duration(), Duration::from_secs_f32(secs));
+            assert_approx_eq!(seq.progress(), progress);
+            let duration = Duration::from_millis(200 * i as u64);
+            assert_eq!(seq.current().duration(), duration);
             progress += 0.25;
             seq.set_progress(progress);
             assert_eq!(seq.times_completed(), if i == 4 { 1 } else { 0 });
@@ -1395,7 +1389,7 @@ mod tests {
             },
         );
         let mut tracks = Tracks::new([tween1, tween2]);
-        assert_eq!(tracks.duration(), Duration::from_secs_f32(1.)); // max(1., 0.8)
+        assert_eq!(tracks.duration(), Duration::from_secs(1)); // max(1., 0.8)
 
         let (mut world, entity, mut transform) = make_test_env();
         let mut system_state: SystemState<EventWriter<TweenCompleted>> =
@@ -1404,7 +1398,7 @@ mod tests {
 
         for i in 1..=6 {
             let state = tracks.tick(
-                Duration::from_secs_f32(0.2),
+                Duration::from_millis(200),
                 &mut transform,
                 entity,
                 &mut event_writer,
@@ -1413,7 +1407,7 @@ mod tests {
                 assert_eq!(state, TweenState::Active);
                 assert_eq!(tracks.times_completed(), 0);
                 let r = i as f32 * 0.2;
-                assert!((tracks.progress() - r).abs() < 1e-5);
+                assert_approx_eq!(tracks.progress(), r);
                 let alpha_deg = 22.5 * i as f32;
                 assert!(transform.translation.abs_diff_eq(Vec3::splat(r), 1e-5));
                 assert!(transform
@@ -1422,7 +1416,7 @@ mod tests {
             } else {
                 assert_eq!(state, TweenState::Completed);
                 assert_eq!(tracks.times_completed(), 1);
-                assert!((tracks.progress() - 1.).abs() < 1e-5);
+                assert_approx_eq!(tracks.progress(), 1.);
                 assert!(transform.translation.abs_diff_eq(Vec3::ONE, 1e-5));
                 assert!(transform
                     .rotation
@@ -1432,13 +1426,13 @@ mod tests {
 
         tracks.rewind();
         assert_eq!(tracks.times_completed(), 0);
-        assert!(tracks.progress().abs() < 1e-5);
+        assert_approx_eq!(tracks.progress(), 0.);
 
         tracks.set_progress(0.9);
-        assert!((tracks.progress() - 0.9).abs() < 1e-5);
+        assert_approx_eq!(tracks.progress(), 0.9);
         // tick to udpate state (set_progress() does not update state)
         let state = tracks.tick(
-            Duration::from_secs_f32(0.),
+            Duration::ZERO,
             &mut transform,
             Entity::from_raw(0),
             &mut event_writer,
@@ -1447,10 +1441,10 @@ mod tests {
         assert_eq!(tracks.times_completed(), 0);
 
         tracks.set_progress(3.2);
-        assert!((tracks.progress() - 1.).abs() < 1e-5);
+        assert_approx_eq!(tracks.progress(), 1.);
         // tick to udpate state (set_progress() does not update state)
         let state = tracks.tick(
-            Duration::from_secs_f32(0.),
+            Duration::ZERO,
             &mut transform,
             Entity::from_raw(0),
             &mut event_writer,
@@ -1459,10 +1453,10 @@ mod tests {
         assert_eq!(tracks.times_completed(), 1); // no looping
 
         tracks.set_progress(-0.5);
-        assert!(tracks.progress().abs() < 1e-5);
+        assert_approx_eq!(tracks.progress(), 0.);
         // tick to udpate state (set_progress() does not update state)
         let state = tracks.tick(
-            Duration::from_secs_f32(0.),
+            Duration::ZERO,
             &mut transform,
             Entity::from_raw(0),
             &mut event_writer,
@@ -1491,7 +1485,7 @@ mod tests {
         {
             let tweenable: &dyn Tweenable<Transform> = &delay;
             assert_eq!(tweenable.duration(), duration);
-            assert!(tweenable.progress().abs() < 1e-5);
+            assert_approx_eq!(tweenable.progress(), 0.);
         }
 
         // Dummy world and event writer
@@ -1513,11 +1507,11 @@ mod tests {
                     assert_eq!(state, TweenState::Active);
                     assert_eq!(tweenable.times_completed(), 0);
                     let r = i as f32 * 0.2;
-                    assert!((tweenable.progress() - r).abs() < 1e-5);
+                    assert_approx_eq!(tweenable.progress(), r);
                 } else {
                     assert_eq!(state, TweenState::Completed);
                     assert_eq!(tweenable.times_completed(), 1);
-                    assert!((tweenable.progress() - 1.).abs() < 1e-5);
+                    assert_approx_eq!(tweenable.progress(), 1.);
                 }
             }
         }
@@ -1526,16 +1520,16 @@ mod tests {
 
         tweenable.rewind();
         assert_eq!(tweenable.times_completed(), 0);
-        assert!(abs_diff_eq(tweenable.progress(), 0., 1e-5));
+        assert_approx_eq!(tweenable.progress(), 0.);
         let state = tweenable.tick(Duration::ZERO, &mut transform, entity, &mut event_writer);
         assert_eq!(state, TweenState::Active);
 
         tweenable.set_progress(0.3);
         assert_eq!(tweenable.times_completed(), 0);
-        assert!(abs_diff_eq(tweenable.progress(), 0.3, 1e-5));
+        assert_approx_eq!(tweenable.progress(), 0.3);
         tweenable.set_progress(1.);
         assert_eq!(tweenable.times_completed(), 1);
-        assert!(abs_diff_eq(tweenable.progress(), 1., 1e-5));
+        assert_approx_eq!(tweenable.progress(), 1.);
     }
 
     #[test]
@@ -1550,7 +1544,7 @@ mod tests {
             .with_repeat_count(RepeatCount::Finite(5))
             .with_repeat_strategy(RepeatStrategy::Repeat);
 
-        assert!(abs_diff_eq(tween.progress(), 0., 1e-5));
+        assert_approx_eq!(tween.progress(), 0.);
 
         let (mut world, entity, mut transform) = make_test_env();
         let mut event_writer_system_state: SystemState<EventWriter<TweenCompleted>> =
@@ -1566,7 +1560,7 @@ mod tests {
         );
         assert_eq!(TweenState::Active, state);
         assert_eq!(0, tween.times_completed());
-        assert!(abs_diff_eq(tween.progress(), 0.1, 1e-5));
+        assert_approx_eq!(tween.progress(), 0.1);
         assert!(transform.translation.abs_diff_eq(Vec3::splat(0.1), 1e-5));
 
         // 130%
@@ -1578,7 +1572,7 @@ mod tests {
         );
         assert_eq!(TweenState::Active, state);
         assert_eq!(1, tween.times_completed());
-        assert!(abs_diff_eq(tween.progress(), 0.3, 1e-5));
+        assert_approx_eq!(tween.progress(), 0.3);
         assert!(transform.translation.abs_diff_eq(Vec3::splat(0.3), 1e-5));
 
         // 480%
@@ -1590,7 +1584,7 @@ mod tests {
         );
         assert_eq!(TweenState::Active, state);
         assert_eq!(4, tween.times_completed());
-        assert!(abs_diff_eq(tween.progress(), 0.8, 1e-5));
+        assert_approx_eq!(tween.progress(), 0.8);
         assert!(transform.translation.abs_diff_eq(Vec3::splat(0.8), 1e-5));
 
         // 500% - done
@@ -1602,7 +1596,7 @@ mod tests {
         );
         assert_eq!(TweenState::Completed, state);
         assert_eq!(5, tween.times_completed());
-        assert!(abs_diff_eq(tween.progress(), 1.0, 1e-5));
+        assert_approx_eq!(tween.progress(), 1.0);
         assert!(transform.translation.abs_diff_eq(Vec3::ONE, 1e-5));
     }
 
@@ -1612,7 +1606,7 @@ mod tests {
             .with_repeat_count(RepeatCount::Finite(4))
             .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
-        assert!(abs_diff_eq(tween.progress(), 0., 1e-5));
+        assert_approx_eq!(tween.progress(), 0.);
 
         let (mut world, entity, mut transform) = make_test_env();
         let mut event_writer_system_state: SystemState<EventWriter<TweenCompleted>> =
@@ -1629,14 +1623,14 @@ mod tests {
         assert_eq!(TweenState::Active, state);
         assert_eq!(TweeningDirection::Forward, tween.direction());
         assert_eq!(0, tween.times_completed());
-        assert!(abs_diff_eq(tween.progress(), 0.1, 1e-5));
+        assert_approx_eq!(tween.progress(), 0.1);
         assert!(transform.translation.abs_diff_eq(Vec3::splat(0.1), 1e-5));
 
         // rewind
         tween.rewind();
         assert_eq!(TweeningDirection::Forward, tween.direction());
         assert_eq!(0, tween.times_completed());
-        assert!(abs_diff_eq(tween.progress(), 0., 1e-5));
+        assert_approx_eq!(tween.progress(), 0.);
         assert!(transform.translation.abs_diff_eq(Vec3::splat(0.1), 1e-5)); // no-op, rewind doesn't apply Lens
 
         // 120% - mirror
@@ -1649,14 +1643,14 @@ mod tests {
         assert_eq!(TweeningDirection::Backward, tween.direction());
         assert_eq!(TweenState::Active, state);
         assert_eq!(1, tween.times_completed());
-        assert!(abs_diff_eq(tween.progress(), 0.2, 1e-5));
+        assert_approx_eq!(tween.progress(), 0.2);
         assert!(transform.translation.abs_diff_eq(Vec3::splat(0.8), 1e-5));
 
         // rewind
         tween.rewind();
         assert_eq!(TweeningDirection::Forward, tween.direction()); // restored
         assert_eq!(0, tween.times_completed());
-        assert!(abs_diff_eq(tween.progress(), 0., 1e-5));
+        assert_approx_eq!(tween.progress(), 0.);
         assert!(transform.translation.abs_diff_eq(Vec3::splat(0.8), 1e-5)); // no-op, rewind doesn't apply Lens
 
         // 400% - done mirror (because Completed freezes the state)
@@ -1669,14 +1663,14 @@ mod tests {
         assert_eq!(TweenState::Completed, state);
         assert_eq!(TweeningDirection::Backward, tween.direction()); // frozen from last loop
         assert_eq!(4, tween.times_completed());
-        assert!(abs_diff_eq(tween.progress(), 1., 1e-5)); // Completed
+        assert_approx_eq!(tween.progress(), 1.); // Completed
         assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
 
         // rewind
         tween.rewind();
         assert_eq!(TweeningDirection::Forward, tween.direction()); // restored
         assert_eq!(0, tween.times_completed());
-        assert!(abs_diff_eq(tween.progress(), 0., 1e-5));
+        assert_approx_eq!(tween.progress(), 0.);
         assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5)); // no-op, rewind doesn't apply Lens
     }
 }
