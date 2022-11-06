@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `with_repeat_count()` and `with_repeat_strategy()` builder methods to `Tween<T>`.
 - Added a `speed()` getter on `Animator<T>` and `AssetAnimator<T>`.
 - Added `set_elapsed(Duration)` and `elapsed() -> Duration` to the `Tweenable<T>` trait. Those methods are preferable over `set_progress()` and `progress()` as they avoid the conversion to floating-point values and any rounding errors.
+- Added `Targetable`, `ComponentTarget`, and `AssetTarget`, which should be considered private even though they appear in the public API. They are a workaround for Bevy 0.8 and will likely be removed in the future once the related Bevy limitation is lifted.
 
 ### Changed
 
@@ -18,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Animators now always have a tween (instead of it being optional). This means the default animator implementation was removed.
 - `Delay::new()` now panics if the `duration` is zero. This prevents creating no-op `Delay` objects, and avoids an internal edge case producing wrong results.
 - Tweens moving to `TweenState::Completed` are now guaranteed to freeze their state. In particular, this means that their direction will not flip at the end of the last loop if their repeat strategy is `RepeatStrategy::MirroredRepeat`.
+- Changed the signature of the `component_animator_system()` and `asset_animator_system()` public functions to directly consume a `ResMut<Events<TweenCompleted>>` instead of an `EventWriter<TweenCompleted>`, to work around some internal limitations.
 
 ### Removed
 
@@ -27,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fixed the animator speed feature, which got broken in #44.
+- Fixed change detection triggering unconditionally when `component_animator_system()` or `asset_animator_system()` are ticked, even when the animator did not mutate its target component or asset. (#33)
 
 ## [0.5.0] - 2022-08-04
 

@@ -3,8 +3,8 @@ use bevy::asset::Asset;
 use bevy::{ecs::component::Component, prelude::*};
 
 #[cfg(feature = "bevy_asset")]
-use crate::AssetAnimator;
-use crate::{Animator, AnimatorState, TweenCompleted};
+use crate::{tweenable::AssetTarget, AssetAnimator};
+use crate::{tweenable::ComponentTarget, Animator, AnimatorState, TweenCompleted};
 
 /// Plugin to add systems related to tweening of common components and assets.
 ///
@@ -71,16 +71,18 @@ pub enum AnimationSystem {
 pub fn component_animator_system<T: Component>(
     time: Res<Time>,
     mut query: Query<(Entity, &mut T, &mut Animator<T>)>,
-    mut event_writer: EventWriter<TweenCompleted>,
+    events: ResMut<Events<TweenCompleted>>,
 ) {
-    for (entity, ref mut target, ref mut animator) in query.iter_mut() {
+    let mut events: Mut<Events<TweenCompleted>> = events.into();
+    for (entity, target, mut animator) in query.iter_mut() {
         if animator.state != AnimatorState::Paused {
             let speed = animator.speed();
+            let mut target = ComponentTarget::new(target);
             animator.tweenable_mut().tick(
                 time.delta().mul_f32(speed),
-                target,
+                &mut target,
                 entity,
-                &mut event_writer,
+                &mut events,
             );
         }
     }
@@ -95,21 +97,169 @@ pub fn component_animator_system<T: Component>(
 #[cfg(feature = "bevy_asset")]
 pub fn asset_animator_system<T: Asset>(
     time: Res<Time>,
-    mut assets: ResMut<Assets<T>>,
+    assets: ResMut<Assets<T>>,
     mut query: Query<(Entity, &mut AssetAnimator<T>)>,
-    mut event_writer: EventWriter<TweenCompleted>,
+    events: ResMut<Events<TweenCompleted>>,
 ) {
-    for (entity, ref mut animator) in query.iter_mut() {
+    let mut events: Mut<Events<TweenCompleted>> = events.into();
+    let mut target = AssetTarget::new(assets);
+    for (entity, mut animator) in query.iter_mut() {
         if animator.state != AnimatorState::Paused {
-            let speed = animator.speed();
-            if let Some(target) = assets.get_mut(&animator.handle()) {
-                animator.tweenable_mut().tick(
-                    time.delta().mul_f32(speed),
-                    target,
-                    entity,
-                    &mut event_writer,
-                );
+            target.handle = animator.handle().clone();
+            if !target.is_valid() {
+                continue;
             }
+            let speed = animator.speed();
+            animator.tweenable_mut().tick(
+                time.delta().mul_f32(speed),
+                &mut target,
+                entity,
+                &mut events,
+            );
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bevy::prelude::{Events, IntoSystem, System, Transform, World};
+
+    use crate::{lens::TransformPositionLens, *};
+
+    /// A simple isolated test environment with a [`World`] and a single
+    /// [`Entity`] in it.
+    struct TestEnv {
+        world: World,
+        entity: Entity,
+    }
+
+    impl TestEnv {
+        /// Create a new test environment containing a single entity with a
+        /// [`Transform`], and add the given animator on that same entity.
+        pub fn new<T: Component>(animator: T) -> Self {
+            let mut world = World::new();
+            world.init_resource::<Events<TweenCompleted>>();
+
+            let mut time = Time::default();
+            time.update();
+            world.insert_resource(time);
+
+            let entity = world
+                .spawn()
+                .insert(Transform::default())
+                .insert(animator)
+                .id();
+
+            Self { world, entity }
+        }
+
+        /// Get the test world.
+        pub fn world_mut(&mut self) -> &mut World {
+            &mut self.world
+        }
+
+        /// Tick the test environment, updating the simulation time and ticking
+        /// the given system.
+        pub fn tick(&mut self, duration: Duration, system: &mut dyn System<In = (), Out = ()>) {
+            // Simulate time passing by updating the simulation time resource
+            {
+                let mut time = self.world.resource_mut::<Time>();
+                let last_update = time.last_update().unwrap();
+                time.update_with_instant(last_update + duration);
+            }
+
+            // Reset world-related change detection
+            self.world.clear_trackers();
+            assert!(!self.transform().is_changed());
+
+            // Tick system
+            system.run((), &mut self.world);
+
+            // Update events after system ticked, in case system emitted some events
+            let mut events = self.world.resource_mut::<Events<TweenCompleted>>();
+            events.update();
+        }
+
+        /// Get the animator for the transform.
+        pub fn animator(&self) -> &Animator<Transform> {
+            self.world
+                .entity(self.entity)
+                .get::<Animator<Transform>>()
+                .unwrap()
+        }
+
+        /// Get the transform component.
+        pub fn transform(&mut self) -> Mut<Transform> {
+            self.world.get_mut::<Transform>(self.entity).unwrap()
+        }
+
+        /// Get the emitted event count since last tick.
+        pub fn event_count(&self) -> usize {
+            let events = self.world.resource::<Events<TweenCompleted>>();
+            events.get_reader().len(&events)
+        }
+    }
+
+    #[test]
+    fn change_detect_component() {
+        let tween = Tween::new(
+            EaseMethod::Linear,
+            Duration::from_secs(1),
+            TransformPositionLens {
+                start: Vec3::ZERO,
+                end: Vec3::ONE,
+            },
+        )
+        .with_completed_event(0);
+
+        let mut env = TestEnv::new(Animator::new(tween));
+
+        // After being inserted, components are always considered changed
+        let transform = env.transform();
+        assert!(transform.is_changed());
+
+        //fn nit() {}
+        //let mut system = IntoSystem::into_system(nit);
+        let mut system = IntoSystem::into_system(component_animator_system::<Transform>);
+        system.initialize(env.world_mut());
+
+        env.tick(Duration::ZERO, &mut system);
+
+        let animator = env.animator();
+        assert_eq!(animator.state, AnimatorState::Playing);
+        assert_eq!(animator.tweenable().times_completed(), 0);
+        let transform = env.transform();
+        assert!(transform.is_changed());
+        assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
+
+        env.tick(Duration::from_millis(500), &mut system);
+
+        assert_eq!(env.event_count(), 0);
+        let animator = env.animator();
+        assert_eq!(animator.state, AnimatorState::Playing);
+        assert_eq!(animator.tweenable().times_completed(), 0);
+        let transform = env.transform();
+        assert!(transform.is_changed());
+        assert!(transform.translation.abs_diff_eq(Vec3::splat(0.5), 1e-5));
+
+        env.tick(Duration::from_millis(500), &mut system);
+
+        assert_eq!(env.event_count(), 1);
+        let animator = env.animator();
+        assert_eq!(animator.state, AnimatorState::Playing);
+        assert_eq!(animator.tweenable().times_completed(), 1);
+        let transform = env.transform();
+        assert!(transform.is_changed());
+        assert!(transform.translation.abs_diff_eq(Vec3::ONE, 1e-5));
+
+        env.tick(Duration::from_millis(100), &mut system);
+
+        assert_eq!(env.event_count(), 0);
+        let animator = env.animator();
+        assert_eq!(animator.state, AnimatorState::Playing);
+        assert_eq!(animator.tweenable().times_completed(), 1);
+        let transform = env.transform();
+        assert!(!transform.is_changed());
+        assert!(transform.translation.abs_diff_eq(Vec3::ONE, 1e-5));
     }
 }
