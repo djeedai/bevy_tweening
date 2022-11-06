@@ -79,7 +79,7 @@ pub trait Lens<T> {
 ///
 /// [`color`]: https://docs.rs/bevy/0.8.0/bevy/text/struct.TextStyle.html#structfield.color
 /// [`Text`]: https://docs.rs/bevy/0.8.0/bevy/text/struct.Text.html
-#[cfg(feature = "bevy_ui")]
+#[cfg(feature = "bevy_text")]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct TextColorLens {
     /// Start color.
@@ -90,7 +90,7 @@ pub struct TextColorLens {
     pub section: usize,
 }
 
-#[cfg(feature = "bevy_ui")]
+#[cfg(feature = "bevy_text")]
 impl Lens<Text> for TextColorLens {
     fn lerp(&mut self, target: &mut Text, ratio: f32) {
         // Note: Add<f32> for Color affects alpha, but not Mul<f32>. So use Vec4 for
@@ -377,7 +377,7 @@ mod tests {
 
     use super::*;
 
-    #[cfg(feature = "bevy_ui")]
+    #[cfg(feature = "bevy_text")]
     #[test]
     fn text_color() {
         let mut lens = TextColorLens {
