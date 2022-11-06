@@ -1,6 +1,6 @@
 [package]
 name = "bevy_tweening"
-version = "0.5.0"
+version = "0.5.1"
 authors = ["François Mockers <mockersf@gmail.com>", "Jerome Humbert <djeedai@gmail.com>"]
 edition = "2021"
 description = "Tweening animation plugin for the Bevy game engine"
@@ -13,13 +13,15 @@ readme = "README.md"
 exclude = ["examples/*.gif", ".github", "release.md"]
 
 [features]
-default = ["bevy_sprite", "bevy_ui", "bevy_asset"]
+default = ["bevy_sprite", "bevy_ui", "bevy_asset", "bevy_text"]
 # Enable support for Asset animation
 bevy_asset = ["bevy/bevy_asset"]
 # Enable built-in lenses for Bevy sprites
 bevy_sprite = ["bevy/bevy_sprite", "bevy/bevy_render"]
 # Enable built-in lenses for Bevy UI
-bevy_ui = ["bevy/bevy_ui", "bevy/bevy_text", "bevy/bevy_render"]
+bevy_ui = ["bevy/bevy_ui", "bevy/bevy_render"]
+# Enable built-in lenses for Bevy Text
+bevy_text = ["bevy/bevy_text", "bevy/bevy_render"]
 
 [dependencies]
 interpolation = "0.2"
@@ -54,7 +56,7 @@ required-features = [ "bevy_ui", "bevy/bevy_winit" ]
 
 [[example]]
 name = "text_color"
-required-features = [ "bevy_ui", "bevy/bevy_winit" ]
+required-features = [ "bevy_text", "bevy/bevy_winit" ]
 
 [[example]]
 name = "sequence"
