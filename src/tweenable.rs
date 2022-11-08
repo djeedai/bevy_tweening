@@ -1,9 +1,9 @@
 use std::{ops::DerefMut, time::Duration};
 
-use bevy::{
-    asset::{Asset, HandleId},
-    prelude::*,
-};
+use bevy::prelude::*;
+
+#[cfg(feature = "bevy_asset")]
+use bevy::asset::{Asset, HandleId};
 
 use crate::{EaseMethod, Lens, RepeatCount, RepeatStrategy, TweeningDirection};
 
