@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `set_elapsed(Duration)` and `elapsed() -> Duration` to the `Tweenable<T>` trait. Those methods are preferable over `set_progress()` and `progress()` as they avoid the conversion to floating-point values and any rounding errors.
 - Added a new `bevy_text` feature for `Text`-related built-in lenses.
 - Added `Targetable`, `ComponentTarget`, and `AssetTarget`, which should be considered private even though they appear in the public API. They are a workaround for Bevy 0.8 and will likely be removed in the future once the related Bevy limitation is lifted.
+- Added the missing `Tween::with_completed()` to raise a callback.
+- Added completion event and callback support to `Delay<T>`, similar to what existed for `Tween<T>`.
 
 ### Changed
 
@@ -22,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tweens moving to `TweenState::Completed` are now guaranteed to freeze their state. In particular, this means that their direction will not flip at the end of the last loop if their repeat strategy is `RepeatStrategy::MirroredRepeat`.
 - Moved the `TextColorLens` lens from the `bevy_ui` feature to the new `bevy_text` one, to allow using it without the Bevy UI crate.
 - Changed the signature of the `component_animator_system()` and `asset_animator_system()` public functions to directly consume a `ResMut<Events<TweenCompleted>>` instead of an `EventWriter<TweenCompleted>`, to work around some internal limitations.
+- Changed `Delay` into `Delay<T>`, taking the animation target type like other tweenables, to be able to emit events and raise callbacks.
+- Changed `CompletedCallback<T>` to take the tweenable type itself, instead of the target type. Users upgrading should replace `CompletedCallback<T>` with `CompletedCallback<Tween<T>>`.
 
 ### Removed
 

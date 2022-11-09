@@ -73,7 +73,7 @@
 //! - [`Sequence`] - A series of tweenables executing in series, one after the
 //!   other.
 //! - [`Tracks`] - A collection of tweenables executing in parallel.
-//! - [`Delay`] - A time delay.
+//! - [`Delay`] - A time delay. This doesn't animate anything.
 //!
 //! ## Chaining animations
 //!

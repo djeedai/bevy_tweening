@@ -198,7 +198,7 @@ mod tests {
         /// Get the emitted event count since last tick.
         pub fn event_count(&self) -> usize {
             let events = self.world.resource::<Events<TweenCompleted>>();
-            events.get_reader().len(&events)
+            events.get_reader().len(events)
         }
     }
 
