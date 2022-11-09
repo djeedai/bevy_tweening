@@ -164,7 +164,8 @@ pub use lens::Lens;
 pub use plugin::asset_animator_system;
 pub use plugin::{component_animator_system, AnimationSystem, TweeningPlugin};
 pub use tweenable::{
-    BoxedTweenable, Delay, Sequence, Tracks, Tween, TweenCompleted, TweenState, Tweenable,
+    BoxedTweenable, Delay, Sequence, Targetable, Tracks, Tween, TweenCompleted, TweenState,
+    Tweenable,
 };
 
 pub mod lens;
