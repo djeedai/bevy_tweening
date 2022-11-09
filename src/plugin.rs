@@ -44,8 +44,7 @@ impl Plugin for TweeningPlugin {
         );
 
         #[cfg(feature = "bevy_ui")]
-        app.add_system(component_animator_system::<Text>.label(AnimationSystem::AnimationUpdate))
-            .add_system(component_animator_system::<Style>.label(AnimationSystem::AnimationUpdate));
+        app.add_system(component_animator_system::<Style>.label(AnimationSystem::AnimationUpdate));
 
         #[cfg(feature = "bevy_sprite")]
         app.add_system(component_animator_system::<Sprite>.label(AnimationSystem::AnimationUpdate));
@@ -54,6 +53,9 @@ impl Plugin for TweeningPlugin {
         app.add_system(
             asset_animator_system::<ColorMaterial>.label(AnimationSystem::AnimationUpdate),
         );
+
+        #[cfg(feature = "bevy_text")]
+        app.add_system(component_animator_system::<Text>.label(AnimationSystem::AnimationUpdate));
     }
 }
 
