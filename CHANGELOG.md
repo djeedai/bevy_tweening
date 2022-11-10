@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `Targetable`, `ComponentTarget`, and `AssetTarget`, which should be considered private even though they appear in the public API. They are a workaround for Bevy 0.8 and will likely be removed in the future once the related Bevy limitation is lifted.
 - Added the missing `Tween::with_completed()` to raise a callback.
 - Added completion event and callback support to `Delay<T>`, similar to what existed for `Tween<T>`.
+- Added `TotalDuration` and a new `Tweenable<T>::total_duration()` method to retrieve the total duration of the animation including looping.
 
 ### Changed
 
@@ -26,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changed the signature of the `component_animator_system()` and `asset_animator_system()` public functions to directly consume a `ResMut<Events<TweenCompleted>>` instead of an `EventWriter<TweenCompleted>`, to work around some internal limitations.
 - Changed `Delay` into `Delay<T>`, taking the animation target type like other tweenables, to be able to emit events and raise callbacks.
 - Changed `CompletedCallback<T>` to take the tweenable type itself, instead of the target type. Users upgrading should replace `CompletedCallback<T>` with `CompletedCallback<Tween<T>>`.
+- The `set_progress()`, `progress()`, and `times_completed()` method of `Tweenable<T>` now have a default implementation, and all built-in tweenables use that implementation.
 
 ### Removed
 
