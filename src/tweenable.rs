@@ -262,7 +262,8 @@ pub trait Tweenable<T>: Send + Sync {
 
     /// Get the total duration of the entire animation, including looping.
     ///
-    /// For [`TotalDuration::Finite`], this is the number of repeats times the duration of a single iteration ([`duration()`]).
+    /// For [`TotalDuration::Finite`], this is the number of repeats times the
+    /// duration of a single iteration ([`duration()`]).
     ///
     /// [`duration()`]: Tweenable::duration
     fn total_duration(&self) -> TotalDuration;
@@ -968,7 +969,7 @@ impl<T> Delay<T> {
     pub fn new(duration: Duration) -> Self {
         assert!(!duration.is_zero());
         Self {
-            timer: Timer::new(duration, false),
+            timer: Timer::new(duration, TimerMode::Once),
             on_completed: None,
             event_data: None,
         }
@@ -1193,7 +1194,7 @@ mod tests {
     fn make_test_env() -> (World, Entity) {
         let mut world = World::new();
         world.init_resource::<Events<TweenCompleted>>();
-        let entity = world.spawn().insert(Transform::default()).id();
+        let entity = world.spawn(Transform::default()).id();
         (world, entity)
     }
 

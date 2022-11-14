@@ -1,6 +1,6 @@
 [package]
 name = "bevy_tweening"
-version = "0.5.1"
+version = "0.6.0"
 authors = ["François Mockers <mockersf@gmail.com>", "Jerome Humbert <djeedai@gmail.com>"]
 edition = "2021"
 description = "Tweening animation plugin for the Bevy game engine"
@@ -25,10 +25,10 @@ bevy_text = ["bevy/bevy_text", "bevy/bevy_render"]
 
 [dependencies]
 interpolation = "0.2"
-bevy = { version = "0.8", default-features = false }
+bevy = { version = "0.9", default-features = false }
 
 [dev-dependencies]
-bevy-inspector-egui = "0.12"
+bevy-inspector-egui = "0.14"
 
 [[example]]
 name = "menu"
