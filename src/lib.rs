@@ -164,8 +164,8 @@ pub use lens::Lens;
 pub use plugin::asset_animator_system;
 pub use plugin::{component_animator_system, AnimationSystem, TweeningPlugin};
 pub use tweenable::{
-    BoxedTweenable, Delay, Sequence, Targetable, Tracks, Tween, TweenCompleted, TweenState,
-    Tweenable,
+    BoxedTweenable, Delay, Sequence, Targetable, TotalDuration, Tracks, Tween, TweenCompleted,
+    TweenState, Tweenable,
 };
 
 pub mod lens;
@@ -375,19 +375,19 @@ macro_rules! animator_impl {
         }
 
         /// Set the top-level tweenable item this animator controls.
-        pub fn set_tweenable(&mut self, tween: impl Tweenable<T> + Send + Sync + 'static) {
+        pub fn set_tweenable(&mut self, tween: impl Tweenable<T> + 'static) {
             self.tweenable = Box::new(tween);
         }
 
         /// Get the top-level tweenable this animator is currently controlling.
         #[must_use]
-        pub fn tweenable(&self) -> &(dyn Tweenable<T> + Send + Sync + 'static) {
+        pub fn tweenable(&self) -> &dyn Tweenable<T> {
             self.tweenable.as_ref()
         }
 
         /// Get the top-level mutable tweenable this animator is currently controlling.
         #[must_use]
-        pub fn tweenable_mut(&mut self) -> &mut (dyn Tweenable<T> + Send + Sync + 'static) {
+        pub fn tweenable_mut(&mut self) -> &mut dyn Tweenable<T> {
             self.tweenable.as_mut()
         }
 
@@ -422,7 +422,7 @@ impl<T: Component + std::fmt::Debug> std::fmt::Debug for Animator<T> {
 impl<T: Component> Animator<T> {
     /// Create a new animator component from a single tweenable.
     #[must_use]
-    pub fn new(tween: impl Tweenable<T> + Send + Sync + 'static) -> Self {
+    pub fn new(tween: impl Tweenable<T> + 'static) -> Self {
         Self {
             state: default(),
             tweenable: Box::new(tween),
@@ -457,7 +457,7 @@ impl<T: Asset + std::fmt::Debug> std::fmt::Debug for AssetAnimator<T> {
 impl<T: Asset> AssetAnimator<T> {
     /// Create a new asset animator component from a single tweenable.
     #[must_use]
-    pub fn new(handle: Handle<T>, tween: impl Tweenable<T> + Send + Sync + 'static) -> Self {
+    pub fn new(handle: Handle<T>, tween: impl Tweenable<T> + 'static) -> Self {
         Self {
             state: default(),
             tweenable: Box::new(tween),
