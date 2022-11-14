@@ -144,12 +144,12 @@
 //! lens can also be created by implementing the trait, allowing to animate
 //! virtually any field of any Bevy component or asset.
 //!
-//! [`Transform::translation`]: https://docs.rs/bevy/0.8.0/bevy/transform/components/struct.Transform.html#structfield.translation
-//! [`Entity`]: https://docs.rs/bevy/0.8.0/bevy/ecs/entity/struct.Entity.html
-//! [`Query`]: https://docs.rs/bevy/0.8.0/bevy/ecs/system/struct.Query.html
-//! [`ColorMaterial`]: https://docs.rs/bevy/0.8.0/bevy/sprite/struct.ColorMaterial.html
-//! [`Sprite`]: https://docs.rs/bevy/0.8.0/bevy/sprite/struct.Sprite.html
-//! [`Transform`]: https://docs.rs/bevy/0.8.0/bevy/transform/components/struct.Transform.html
+//! [`Transform::translation`]: https://docs.rs/bevy/0.9.0/bevy/transform/components/struct.Transform.html#structfield.translation
+//! [`Entity`]: https://docs.rs/bevy/0.9.0/bevy/ecs/entity/struct.Entity.html
+//! [`Query`]: https://docs.rs/bevy/0.9.0/bevy/ecs/system/struct.Query.html
+//! [`ColorMaterial`]: https://docs.rs/bevy/0.9.0/bevy/sprite/struct.ColorMaterial.html
+//! [`Sprite`]: https://docs.rs/bevy/0.9.0/bevy/sprite/struct.Sprite.html
+//! [`Transform`]: https://docs.rs/bevy/0.9.0/bevy/transform/components/struct.Transform.html
 
 use std::time::Duration;
 
