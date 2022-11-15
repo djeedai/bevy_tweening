@@ -22,14 +22,16 @@ const INIT_TRANSITION_DONE: u64 = 1;
 /// marker.
 fn main() {
     App::default()
-        .insert_resource(WindowDescriptor {
-            title: "Menu".to_string(),
-            width: 800.,
-            height: 400.,
-            present_mode: bevy::window::PresentMode::Fifo, // vsync
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            window: WindowDescriptor {
+                title: "Menu".to_string(),
+                width: 800.,
+                height: 400.,
+                present_mode: bevy::window::PresentMode::Fifo, // vsync
+                ..default()
+            },
             ..default()
-        })
-        .add_plugins(DefaultPlugins)
+        }))
         .add_system(bevy::window::close_on_esc)
         .add_system(interaction)
         .add_system(enable_interaction_after_initial_animation)
@@ -40,28 +42,30 @@ fn main() {
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn_bundle(Camera2dBundle::default());
+    commands.spawn(Camera2dBundle::default());
 
     let font = asset_server.load("fonts/FiraMono-Regular.ttf");
 
     commands
-        .spawn_bundle(NodeBundle {
-            style: Style {
-                position_type: PositionType::Absolute,
-                position: UiRect::all(Val::Px(0.)),
-                margin: UiRect::all(Val::Px(16.)),
-                padding: UiRect::all(Val::Px(16.)),
-                flex_direction: FlexDirection::ColumnReverse,
-                align_content: AlignContent::Center,
-                align_items: AlignItems::Center,
-                align_self: AlignSelf::Center,
-                justify_content: JustifyContent::Center,
+        .spawn((
+            NodeBundle {
+                style: Style {
+                    position_type: PositionType::Absolute,
+                    position: UiRect::all(Val::Px(0.)),
+                    margin: UiRect::all(Val::Px(16.)),
+                    padding: UiRect::all(Val::Px(16.)),
+                    flex_direction: FlexDirection::ColumnReverse,
+                    align_content: AlignContent::Center,
+                    align_items: AlignItems::Center,
+                    align_self: AlignSelf::Center,
+                    justify_content: JustifyContent::Center,
+                    ..default()
+                },
+                background_color: BackgroundColor(Color::NONE),
                 ..default()
             },
-            color: UiColor(Color::NONE),
-            ..default()
-        })
-        .insert(Name::new("menu"))
+            Name::new("menu"),
+        ))
         .with_children(|container| {
             let mut start_time_ms = 0;
             for (text, label) in [
@@ -89,29 +93,28 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
                 start_time_ms += 500;
                 container
-                    .spawn_bundle(ButtonBundle {
-                        node: Node {
-                            size: Vec2::new(300., 80.),
-                        },
-                        style: Style {
-                            min_size: Size::new(Val::Px(300.), Val::Px(80.)),
-                            margin: UiRect::all(Val::Px(8.)),
-                            padding: UiRect::all(Val::Px(8.)),
-                            align_content: AlignContent::Center,
-                            align_items: AlignItems::Center,
-                            align_self: AlignSelf::Center,
-                            justify_content: JustifyContent::Center,
+                    .spawn((
+                        ButtonBundle {
+                            style: Style {
+                                min_size: Size::new(Val::Px(300.), Val::Px(80.)),
+                                margin: UiRect::all(Val::Px(8.)),
+                                padding: UiRect::all(Val::Px(8.)),
+                                align_content: AlignContent::Center,
+                                align_items: AlignItems::Center,
+                                align_self: AlignSelf::Center,
+                                justify_content: JustifyContent::Center,
+                                ..default()
+                            },
+                            background_color: BackgroundColor(NORMAL_COLOR),
+                            transform: Transform::from_scale(Vec3::splat(0.01)),
                             ..default()
                         },
-                        color: UiColor(NORMAL_COLOR),
-                        transform: Transform::from_scale(Vec3::splat(0.01)),
-                        ..default()
-                    })
-                    .insert(Name::new(format!("button:{}", text)))
-                    .insert(animator)
-                    .insert(label)
+                        Name::new(format!("button:{}", text)),
+                        animator,
+                        label,
+                    ))
                     .with_children(|parent| {
-                        parent.spawn_bundle(TextBundle {
+                        parent.spawn(TextBundle {
                             text: Text::from_section(
                                 text.to_string(),
                                 TextStyle {
@@ -159,7 +162,7 @@ fn interaction(
             &mut Animator<Transform>,
             &Transform,
             &Interaction,
-            &mut UiColor,
+            &mut BackgroundColor,
             &ButtonLabel,
         ),
         (Changed<Interaction>, With<InitTransitionDone>),

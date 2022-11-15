@@ -55,11 +55,12 @@
 //!     },
 //! );
 //!
-//! commands
+//! commands.spawn((
 //!     // Spawn an entity to animate the position of.
-//!     .spawn_bundle(TransformBundle::default())
+//!     TransformBundle::default(),
 //!     // Add an Animator component to control and execute the animation.
-//!     .insert(Animator::new(tween));
+//!     Animator::new(tween),
+//! ));
 //! # }
 //! ```
 //!

@@ -7,14 +7,16 @@ use std::time::Duration;
 
 fn main() {
     App::default()
-        .insert_resource(WindowDescriptor {
-            title: "ColorMaterialColorLens".to_string(),
-            width: 1200.,
-            height: 600.,
-            present_mode: bevy::window::PresentMode::Fifo, // vsync
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            window: WindowDescriptor {
+                title: "ColorMaterialColorLens".to_string(),
+                width: 1200.,
+                height: 600.,
+                present_mode: bevy::window::PresentMode::Fifo, // vsync
+                ..default()
+            },
             ..default()
-        })
-        .add_plugins(DefaultPlugins)
+        }))
         .add_system(bevy::window::close_on_esc)
         .add_plugin(TweeningPlugin)
         .add_startup_system(setup)
@@ -26,7 +28,7 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    commands.spawn_bundle(Camera2dBundle::default());
+    commands.spawn(Camera2dBundle::default());
 
     let size = 80.;
 
@@ -87,15 +89,16 @@ fn setup(
         .with_repeat_count(RepeatCount::Infinite)
         .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
-        commands
-            .spawn_bundle(MaterialMesh2dBundle {
+        commands.spawn((
+            MaterialMesh2dBundle {
                 mesh: quad_mesh.clone(),
                 transform: Transform::from_translation(Vec3::new(x, y, 0.))
                     .with_scale(Vec3::splat(size)),
                 material: unique_material.clone(),
                 ..default()
-            })
-            .insert(AssetAnimator::new(unique_material.clone(), tween));
+            },
+            AssetAnimator::new(unique_material.clone(), tween),
+        ));
         y -= size * spacing;
         if y < -screen_y {
             x += size * spacing;

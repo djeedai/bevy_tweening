@@ -6,14 +6,16 @@ const HEIGHT: f32 = 600.;
 
 fn main() {
     App::default()
-        .insert_resource(WindowDescriptor {
-            title: "TextColorLens".to_string(),
-            width: WIDTH,
-            height: HEIGHT,
-            present_mode: bevy::window::PresentMode::Fifo, // vsync
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            window: WindowDescriptor {
+                title: "TextColorLens".to_string(),
+                width: WIDTH,
+                height: HEIGHT,
+                present_mode: bevy::window::PresentMode::Fifo, // vsync
+                ..default()
+            },
             ..default()
-        })
-        .add_plugins(DefaultPlugins)
+        }))
         .add_system(bevy::window::close_on_esc)
         .add_plugin(TweeningPlugin)
         .add_startup_system(setup)
@@ -21,7 +23,7 @@ fn main() {
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn_bundle(Camera2dBundle::default());
+    commands.spawn(Camera2dBundle::default());
 
     let font = asset_server.load("fonts/FiraMono-Regular.ttf");
 
@@ -79,8 +81,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         .with_repeat_count(RepeatCount::Infinite)
         .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
-        commands
-            .spawn_bundle(TextBundle {
+        commands.spawn((
+            TextBundle {
                 style: Style {
                     size: Size::new(Val::Px(size_x), Val::Px(size_y)),
                     position: UiRect {
@@ -105,8 +107,9 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     },
                 ),
                 ..default()
-            })
-            .insert(Animator::new(tween));
+            },
+            Animator::new(tween),
+        ));
 
         y += delta_y;
         iy += 1;

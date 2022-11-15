@@ -5,14 +5,16 @@ use bevy_tweening::{lens::*, *};
 
 fn main() {
     App::default()
-        .insert_resource(WindowDescriptor {
-            title: "UiPositionLens".to_string(),
-            width: 1400.,
-            height: 600.,
-            present_mode: bevy::window::PresentMode::Fifo, // vsync
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            window: WindowDescriptor {
+                title: "UiPositionLens".to_string(),
+                width: 1400.,
+                height: 600.,
+                present_mode: bevy::window::PresentMode::Fifo, // vsync
+                ..default()
+            },
             ..default()
-        })
-        .add_plugins(DefaultPlugins)
+        }))
         .add_system(bevy::window::close_on_esc)
         .add_plugin(TweeningPlugin)
         .add_plugin(InspectorPlugin::<Options>::new())
@@ -21,7 +23,7 @@ fn main() {
         .run();
 }
 
-#[derive(Copy, Clone, PartialEq, Inspectable)]
+#[derive(Copy, Clone, PartialEq, Inspectable, Resource)]
 struct Options {
     #[inspectable(min = 0.01, max = 100.)]
     speed: f32,
@@ -34,7 +36,7 @@ impl Default for Options {
 }
 
 fn setup(mut commands: Commands) {
-    commands.spawn_bundle(Camera2dBundle::default());
+    commands.spawn(Camera2dBundle::default());
 
     let size = 25.;
 
@@ -96,8 +98,8 @@ fn setup(mut commands: Commands) {
         .with_repeat_count(RepeatCount::Infinite)
         .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
-        commands
-            .spawn_bundle(NodeBundle {
+        commands.spawn((
+            NodeBundle {
                 style: Style {
                     size: Size::new(Val::Px(size), Val::Px(size)),
                     position: UiRect {
@@ -113,10 +115,11 @@ fn setup(mut commands: Commands) {
                     justify_content: JustifyContent::Center,
                     ..default()
                 },
-                color: UiColor(Color::RED),
+                background_color: BackgroundColor(Color::RED),
                 ..default()
-            })
-            .insert(Animator::new(tween));
+            },
+            Animator::new(tween),
+        ));
 
         x += offset_x;
     }
