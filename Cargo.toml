@@ -10,7 +10,7 @@ documentation = "https://docs.rs/bevy_tweening"
 keywords = ["bevy", "animation", "easing", "tweening"]
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-exclude = ["examples/*.gif", ".github", "release.md"]
+exclude = ["examples/*.gif", ".github", "release.md", "run_examples.bat"]
 
 [features]
 default = ["bevy_sprite", "bevy_ui", "bevy_asset", "bevy_text"]
