@@ -5,14 +5,16 @@ use bevy_tweening::{lens::*, *};
 
 fn main() {
     App::default()
-        .insert_resource(WindowDescriptor {
-            title: "TransformRotationLens".to_string(),
-            width: 1400.,
-            height: 600.,
-            present_mode: bevy::window::PresentMode::Fifo, // vsync
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            window: WindowDescriptor {
+                title: "TransformRotationLens".to_string(),
+                width: 1400.,
+                height: 600.,
+                present_mode: bevy::window::PresentMode::Fifo, // vsync
+                ..default()
+            },
             ..default()
-        })
-        .add_plugins(DefaultPlugins)
+        }))
         .add_system(bevy::window::close_on_esc)
         .add_plugin(TweeningPlugin)
         .add_plugin(InspectorPlugin::<Options>::new())
@@ -21,7 +23,7 @@ fn main() {
         .run();
 }
 
-#[derive(Copy, Clone, PartialEq, Inspectable)]
+#[derive(Copy, Clone, PartialEq, Inspectable, Resource)]
 struct Options {
     #[inspectable(min = 0.01, max = 100.)]
     speed: f32,
@@ -34,7 +36,7 @@ impl Default for Options {
 }
 
 fn setup(mut commands: Commands) {
-    commands.spawn_bundle(Camera2dBundle::default());
+    commands.spawn(Camera2dBundle::default());
 
     let size = 80.;
 
@@ -88,21 +90,22 @@ fn setup(mut commands: Commands) {
         .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
         commands
-            .spawn_bundle(SpatialBundle {
+            .spawn(SpatialBundle {
                 transform: Transform::from_translation(Vec3::new(x, y, 0.)),
                 ..default()
             })
             .with_children(|parent| {
-                parent
-                    .spawn_bundle(SpriteBundle {
+                parent.spawn((
+                    SpriteBundle {
                         sprite: Sprite {
                             color: Color::RED,
                             custom_size: Some(Vec2::new(size, size * 0.5)),
                             ..default()
                         },
                         ..default()
-                    })
-                    .insert(Animator::new(tween));
+                    },
+                    Animator::new(tween),
+                ));
             });
 
         y -= size * spacing;
