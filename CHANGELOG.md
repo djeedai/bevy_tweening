@@ -3,6 +3,16 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unrelease]
+
+### Added
+
+- Added `From<u32>` and `From<Duration>` for `RepeatCount`, respectively yielding `RepeatCount::Finite(value)` and `RepeatCount::For(value)`.
+
+### Changed
+
+- Changed the signature of `with_repeat_count()` to take an `impl Into<RepeatCount>` instead of a `RepeatCount` by value.
+
 ## [0.6.0] - 2022-11-15
 
 ### Added
