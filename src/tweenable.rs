@@ -574,8 +574,8 @@ impl<T> Tween<T> {
 
     /// Set the number of times to repeat the animation.
     #[must_use]
-    pub fn with_repeat_count(mut self, count: RepeatCount) -> Self {
-        self.clock.total_duration = compute_total_duration(self.clock.duration, count);
+    pub fn with_repeat_count(mut self, count: impl Into<RepeatCount>) -> Self {
+        self.clock.total_duration = compute_total_duration(self.clock.duration, count.into());
         self
     }
 
@@ -1242,6 +1242,37 @@ mod tests {
         assert_eq!(
             (total_duration.as_secs_f64() / duration.as_secs_f64()) as i32,
             times_completed
+        );
+    }
+
+    #[test]
+    fn into_repeat_count() {
+        let tween = Tween::new(
+            EaseMethod::Linear,
+            Duration::from_secs(1),
+            TransformPositionLens {
+                start: Vec3::ZERO,
+                end: Vec3::ONE,
+            },
+        )
+        .with_repeat_count(5);
+        assert_eq!(
+            tween.total_duration(),
+            TotalDuration::Finite(Duration::from_secs(5))
+        );
+
+        let tween = Tween::new(
+            EaseMethod::Linear,
+            Duration::from_secs(1),
+            TransformPositionLens {
+                start: Vec3::ZERO,
+                end: Vec3::ONE,
+            },
+        )
+        .with_repeat_count(Duration::from_secs(3));
+        assert_eq!(
+            tween.total_duration(),
+            TotalDuration::Finite(Duration::from_secs(3))
         );
     }
 

@@ -187,7 +187,26 @@ pub enum RepeatCount {
     Infinite,
 }
 
-/// What to do when a tween animation needs to be repeated.
+impl Default for RepeatCount {
+    fn default() -> Self {
+        Self::Finite(1)
+    }
+}
+
+impl From<u32> for RepeatCount {
+    fn from(value: u32) -> Self {
+        Self::Finite(value)
+    }
+}
+
+impl From<Duration> for RepeatCount {
+    fn from(value: Duration) -> Self {
+        Self::For(value)
+    }
+}
+
+/// What to do when a tween animation needs to be repeated. See also
+/// [`RepeatCount`].
 ///
 /// Only applicable when [`RepeatCount`] is greater than the animation duration.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -202,12 +221,6 @@ pub enum RepeatStrategy {
     /// is, a 1 second animation will take 2 seconds to end up back where it
     /// started.
     MirroredRepeat,
-}
-
-impl Default for RepeatCount {
-    fn default() -> Self {
-        Self::Finite(1)
-    }
 }
 
 impl Default for RepeatStrategy {
