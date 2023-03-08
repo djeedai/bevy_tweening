@@ -19,10 +19,7 @@ fn text_color_lens(c: &mut Criterion) {
             color: Color::WHITE,
         },
     )
-    .with_alignment(TextAlignment {
-        vertical: VerticalAlign::Center,
-        horizontal: HorizontalAlign::Center,
-    });
+    .with_alignment(TextAlignment::Center);
     c.bench_function("TextColorLens", |b| {
         b.iter(|| lens.lerp(&mut text, black_box(0.3)))
     });

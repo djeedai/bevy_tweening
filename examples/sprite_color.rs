@@ -4,13 +4,12 @@ use bevy_tweening::{lens::*, *};
 fn main() {
     App::default()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
-            window: WindowDescriptor {
+            primary_window: Some(Window {
                 title: "SpriteColorLens".to_string(),
-                width: 1200.,
-                height: 600.,
+                resolution: (1200., 600.).into(),
                 present_mode: bevy::window::PresentMode::Fifo, // vsync
                 ..default()
-            },
+            }),
             ..default()
         }))
         .add_system(bevy::window::close_on_esc)

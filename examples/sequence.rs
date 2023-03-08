@@ -7,13 +7,12 @@ use bevy_tweening::{lens::*, *};
 fn main() {
     App::default()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
-            window: WindowDescriptor {
+            primary_window: Some(Window {
                 title: "Sequence".to_string(),
-                width: 600.,
-                height: 600.,
+                resolution: (600., 600.).into(),
                 present_mode: bevy::window::PresentMode::Fifo, // vsync
                 ..default()
-            },
+            }),
             ..default()
         }))
         .add_system(bevy::window::close_on_esc)
@@ -50,10 +49,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         color: Color::BLUE,
     };
 
-    let text_alignment = TextAlignment {
-        vertical: VerticalAlign::Center,
-        horizontal: HorizontalAlign::Center,
-    };
+    let text_alignment = TextAlignment::Center;
 
     // Text with the index of the active tween in the sequence
     commands.spawn((
@@ -70,6 +66,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     },
                 ],
                 alignment: text_alignment,
+                ..default()
             },
             transform: Transform::from_translation(Vec3::new(0., 40., 0.)),
             ..default()
@@ -92,6 +89,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     },
                 ],
                 alignment: text_alignment,
+                ..default()
             },
             transform: Transform::from_translation(Vec3::new(0., -40., 0.)),
             ..default()

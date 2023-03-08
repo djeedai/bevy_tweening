@@ -1,31 +1,31 @@
 use bevy::prelude::*;
-use bevy_inspector_egui::{Inspectable, InspectorPlugin};
+use bevy_inspector_egui::{prelude::*, quick::ResourceInspectorPlugin};
 
 use bevy_tweening::{lens::*, *};
 
 fn main() {
     App::default()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
-            window: WindowDescriptor {
+            primary_window: Some(Window {
                 title: "UiPositionLens".to_string(),
-                width: 1400.,
-                height: 600.,
+                resolution: (1400., 600.).into(),
                 present_mode: bevy::window::PresentMode::Fifo, // vsync
                 ..default()
-            },
+            }),
             ..default()
         }))
+        .init_resource::<Options>()
         .add_system(bevy::window::close_on_esc)
         .add_plugin(TweeningPlugin)
-        .add_plugin(InspectorPlugin::<Options>::new())
+        .add_plugin(ResourceInspectorPlugin::<Options>::new())
         .add_startup_system(setup)
         .add_system(update_animation_speed)
         .run();
 }
 
-#[derive(Copy, Clone, PartialEq, Inspectable, Resource)]
+#[derive(Copy, Clone, PartialEq, Resource, Reflect, InspectorOptions)]
 struct Options {
-    #[inspectable(min = 0.01, max = 100.)]
+    #[inspector(min = 0.01, max = 100.)]
     speed: f32,
 }
 

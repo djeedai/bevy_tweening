@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Compatible with Bevy 0.10
 - Changed the signature of `with_repeat_count()` to take an `impl Into<RepeatCount>` instead of a `RepeatCount` by value.
 
 ## [0.6.0] - 2022-11-15

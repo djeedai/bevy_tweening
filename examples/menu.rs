@@ -1,5 +1,5 @@
 use bevy::prelude::*;
-use bevy_inspector_egui::WorldInspectorPlugin;
+use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_tweening::{lens::*, *};
 use std::time::Duration;
 
@@ -23,13 +23,12 @@ const INIT_TRANSITION_DONE: u64 = 1;
 fn main() {
     App::default()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
-            window: WindowDescriptor {
+            primary_window: Some(Window {
                 title: "Menu".to_string(),
-                width: 800.,
-                height: 400.,
+                resolution: (800., 400.).into(),
                 present_mode: bevy::window::PresentMode::Fifo, // vsync
                 ..default()
-            },
+            }),
             ..default()
         }))
         .add_system(bevy::window::close_on_esc)
@@ -54,7 +53,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     position: UiRect::all(Val::Px(0.)),
                     margin: UiRect::all(Val::Px(16.)),
                     padding: UiRect::all(Val::Px(16.)),
-                    flex_direction: FlexDirection::ColumnReverse,
+                    flex_direction: FlexDirection::Column,
                     align_content: AlignContent::Center,
                     align_items: AlignItems::Center,
                     align_self: AlignSelf::Center,
@@ -123,10 +122,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                                     color: TEXT_COLOR,
                                 },
                             )
-                            .with_alignment(TextAlignment {
-                                vertical: VerticalAlign::Center,
-                                horizontal: HorizontalAlign::Center,
-                            }),
+                            .with_alignment(TextAlignment::Center),
                             ..default()
                         });
                     });
