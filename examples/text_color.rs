@@ -7,13 +7,12 @@ const HEIGHT: f32 = 600.;
 fn main() {
     App::default()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
-            window: WindowDescriptor {
+            primary_window: Some(Window {
                 title: "TextColorLens".to_string(),
-                width: WIDTH,
-                height: HEIGHT,
+                resolution: (WIDTH, HEIGHT).into(),
                 present_mode: bevy::window::PresentMode::Fifo, // vsync
                 ..default()
-            },
+            }),
             ..default()
         }))
         .add_system(bevy::window::close_on_esc)

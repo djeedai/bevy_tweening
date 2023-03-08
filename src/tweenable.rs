@@ -309,10 +309,10 @@ pub trait Tweenable<T>: Send + Sync {
     ///
     /// [`rewind()`]: Tweenable::rewind
     /// [`set_progress()`]: Tweenable::set_progress
-    fn tick<'a>(
+    fn tick(
         &mut self,
         delta: Duration,
-        target: &'a mut dyn Targetable<T>,
+        target: &mut dyn Targetable<T>,
         entity: Entity,
         events: &mut Mut<Events<TweenCompleted>>,
     ) -> TweenState;
@@ -650,10 +650,10 @@ impl<T> Tweenable<T> for Tween<T> {
         self.clock.elapsed()
     }
 
-    fn tick<'a>(
+    fn tick(
         &mut self,
         delta: Duration,
-        target: &'a mut dyn Targetable<T>,
+        target: &mut dyn Targetable<T>,
         entity: Entity,
         events: &mut Mut<Events<TweenCompleted>>,
     ) -> TweenState {
@@ -829,10 +829,10 @@ impl<T> Tweenable<T> for Sequence<T> {
         self.elapsed
     }
 
-    fn tick<'a>(
+    fn tick(
         &mut self,
         mut delta: Duration,
-        target: &'a mut dyn Targetable<T>,
+        target: &mut dyn Targetable<T>,
         entity: Entity,
         events: &mut Mut<Events<TweenCompleted>>,
     ) -> TweenState {
@@ -910,10 +910,10 @@ impl<T> Tweenable<T> for Tracks<T> {
         self.elapsed
     }
 
-    fn tick<'a>(
+    fn tick(
         &mut self,
         delta: Duration,
-        target: &'a mut dyn Targetable<T>,
+        target: &mut dyn Targetable<T>,
         entity: Entity,
         events: &mut Mut<Events<TweenCompleted>>,
     ) -> TweenState {
@@ -1126,10 +1126,10 @@ impl<T> Tweenable<T> for Delay<T> {
         self.timer.elapsed()
     }
 
-    fn tick<'a>(
+    fn tick(
         &mut self,
         delta: Duration,
-        _target: &'a mut dyn Targetable<T>,
+        _target: &mut dyn Targetable<T>,
         entity: Entity,
         events: &mut Mut<Events<TweenCompleted>>,
     ) -> TweenState {

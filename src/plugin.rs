@@ -40,27 +40,29 @@ pub struct TweeningPlugin;
 impl Plugin for TweeningPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<TweenCompleted>().add_system(
-            component_animator_system::<Transform>.label(AnimationSystem::AnimationUpdate),
+            component_animator_system::<Transform>.in_set(AnimationSystem::AnimationUpdate),
         );
 
         #[cfg(feature = "bevy_ui")]
-        app.add_system(component_animator_system::<Style>.label(AnimationSystem::AnimationUpdate));
+        app.add_system(component_animator_system::<Style>.in_set(AnimationSystem::AnimationUpdate));
 
         #[cfg(feature = "bevy_sprite")]
-        app.add_system(component_animator_system::<Sprite>.label(AnimationSystem::AnimationUpdate));
+        app.add_system(
+            component_animator_system::<Sprite>.in_set(AnimationSystem::AnimationUpdate),
+        );
 
         #[cfg(all(feature = "bevy_sprite", feature = "bevy_asset"))]
         app.add_system(
-            asset_animator_system::<ColorMaterial>.label(AnimationSystem::AnimationUpdate),
+            asset_animator_system::<ColorMaterial>.in_set(AnimationSystem::AnimationUpdate),
         );
 
         #[cfg(feature = "bevy_text")]
-        app.add_system(component_animator_system::<Text>.label(AnimationSystem::AnimationUpdate));
+        app.add_system(component_animator_system::<Text>.in_set(AnimationSystem::AnimationUpdate));
     }
 }
 
 /// Label enum for the systems relating to animations
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, SystemLabel)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, SystemSet)]
 pub enum AnimationSystem {
     /// Ticks animations
     AnimationUpdate,
