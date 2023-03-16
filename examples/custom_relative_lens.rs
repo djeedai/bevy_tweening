@@ -3,13 +3,16 @@ use bevy_tweening::{lens::*, *};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     App::default()
-        .insert_resource(WindowDescriptor {
-            title: "CustomRelativeLens".to_string(),
-            width: 1400.,
-            height: 600.,
-            ..Default::default()
-        })
-        .add_plugins(DefaultPlugins)
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                title: "CustomRelativeLens".to_string(),
+                resolution: (1200., 600.).into(),
+                present_mode: bevy::window::PresentMode::Fifo, // vsync
+                ..default()
+            }),
+            ..default()
+        }))
+        .add_system(bevy::window::close_on_esc)
         .add_plugin(TweeningPlugin)
         .add_startup_system(setup)
         .run();
@@ -18,7 +21,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn setup(mut commands: Commands) {
-    commands.spawn_bundle(Camera2dBundle::default());
+    commands.spawn(Camera2dBundle::default());
 
     let size = 25.;
     let screen_y = 150.;
@@ -33,7 +36,7 @@ fn setup(mut commands: Commands) {
     );
 
     commands
-        .spawn_bundle(SpriteBundle {
+        .spawn(SpriteBundle {
             sprite: Sprite {
                 color: Color::RED,
                 custom_size: Some(Vec2::new(size, size)),

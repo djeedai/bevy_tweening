@@ -665,7 +665,7 @@ impl<T> Tweenable<T> for Tween<T> {
             && self.direction == TweeningDirection::Forward
             && self.progress() == 0.
         {
-            self.lens.update_on_tween_start(target);
+            self.lens.update_on_tween_start(target.target_mut());
         }
 
         // Tick the animation clock
