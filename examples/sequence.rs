@@ -6,14 +6,16 @@ use bevy_tweening::{lens::*, *};
 
 fn main() {
     App::default()
-        .insert_resource(WindowDescriptor {
-            title: "Sequence".to_string(),
-            width: 600.,
-            height: 600.,
-            present_mode: bevy::window::PresentMode::Fifo, // vsync
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                title: "Sequence".to_string(),
+                resolution: (600., 600.).into(),
+                present_mode: bevy::window::PresentMode::Fifo, // vsync
+                ..default()
+            }),
             ..default()
-        })
-        .add_plugins(DefaultPlugins)
+        }))
+        .add_system(bevy::window::close_on_esc)
         .add_plugin(TweeningPlugin)
         .add_startup_system(setup)
         .add_system(update_text)
@@ -33,7 +35,7 @@ struct RedSprite;
 struct BlueSprite;
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn_bundle(Camera2dBundle::default());
+    commands.spawn(Camera2dBundle::default());
 
     let font = asset_server.load("fonts/FiraMono-Regular.ttf");
     let text_style_red = TextStyle {
@@ -47,14 +49,11 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         color: Color::BLUE,
     };
 
-    let text_alignment = TextAlignment {
-        vertical: VerticalAlign::Center,
-        horizontal: HorizontalAlign::Center,
-    };
+    let text_alignment = TextAlignment::Center;
 
     // Text with the index of the active tween in the sequence
-    commands
-        .spawn_bundle(Text2dBundle {
+    commands.spawn((
+        Text2dBundle {
             text: Text {
                 sections: vec![
                     TextSection {
@@ -67,15 +66,17 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     },
                 ],
                 alignment: text_alignment,
+                ..default()
             },
             transform: Transform::from_translation(Vec3::new(0., 40., 0.)),
             ..default()
-        })
-        .insert(RedProgress);
+        },
+        RedProgress,
+    ));
 
     // Text with progress of the active tween in the sequence
-    commands
-        .spawn_bundle(Text2dBundle {
+    commands.spawn((
+        Text2dBundle {
             text: Text {
                 sections: vec![
                     TextSection {
@@ -88,11 +89,13 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     },
                 ],
                 alignment: text_alignment,
+                ..default()
             },
             transform: Transform::from_translation(Vec3::new(0., -40., 0.)),
             ..default()
-        })
-        .insert(BlueProgress);
+        },
+        BlueProgress,
+    ));
 
     let size = 25.;
 
@@ -136,17 +139,18 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         ])
     }));
 
-    commands
-        .spawn_bundle(SpriteBundle {
+    commands.spawn((
+        SpriteBundle {
             sprite: Sprite {
                 color: Color::RED,
                 custom_size: Some(Vec2::new(size, size)),
                 ..default()
             },
             ..default()
-        })
-        .insert(RedSprite)
-        .insert(Animator::new(seq));
+        },
+        RedSprite,
+        Animator::new(seq),
+    ));
 
     // First move from left to right, then rotate around self 180 degrees while
     // scaling size at the same time.
@@ -182,17 +186,18 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     // manually to a BoxedTweenable: first move, then { rotate + scale }.
     let seq2 = Sequence::new([Box::new(tween_move) as BoxedTweenable<_>, tracks.into()]);
 
-    commands
-        .spawn_bundle(SpriteBundle {
+    commands.spawn((
+        SpriteBundle {
             sprite: Sprite {
                 color: Color::BLUE,
                 custom_size: Some(Vec2::new(size * 3., size)),
                 ..default()
             },
             ..Default::default()
-        })
-        .insert(BlueSprite)
-        .insert(Animator::new(seq2));
+        },
+        BlueSprite,
+        Animator::new(seq2),
+    ));
 }
 
 fn update_text(

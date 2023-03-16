@@ -1,28 +1,31 @@
 use bevy::prelude::*;
-use bevy_inspector_egui::{Inspectable, InspectorPlugin};
+use bevy_inspector_egui::{prelude::*, quick::ResourceInspectorPlugin};
 
 use bevy_tweening::{lens::*, *};
 
 fn main() {
     App::default()
-        .insert_resource(WindowDescriptor {
-            title: "TransformPositionLens".to_string(),
-            width: 1400.,
-            height: 600.,
-            present_mode: bevy::window::PresentMode::Fifo, // vsync
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                title: "TransformPositionLens".to_string(),
+                resolution: (1400., 600.).into(),
+                present_mode: bevy::window::PresentMode::Fifo, // vsync
+                ..default()
+            }),
             ..default()
-        })
-        .add_plugins(DefaultPlugins)
+        }))
+        .init_resource::<Options>()
+        .add_system(bevy::window::close_on_esc)
         .add_plugin(TweeningPlugin)
-        .add_plugin(InspectorPlugin::<Options>::new())
+        .add_plugin(ResourceInspectorPlugin::<Options>::default())
         .add_startup_system(setup)
         .add_system(update_animation_speed)
         .run();
 }
 
-#[derive(Copy, Clone, PartialEq, Inspectable)]
+#[derive(Copy, Clone, PartialEq, Resource, Reflect, InspectorOptions)]
 struct Options {
-    #[inspectable(min = 0.01, max = 100.)]
+    #[inspector(min = 0.01, max = 100.)]
     speed: f32,
 }
 
@@ -33,7 +36,7 @@ impl Default for Options {
 }
 
 fn setup(mut commands: Commands) {
-    commands.spawn_bundle(Camera2dBundle::default());
+    commands.spawn(Camera2dBundle::default());
 
     let size = 25.;
 
@@ -85,16 +88,17 @@ fn setup(mut commands: Commands) {
         .with_repeat_count(RepeatCount::Infinite)
         .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
-        commands
-            .spawn_bundle(SpriteBundle {
+        commands.spawn((
+            SpriteBundle {
                 sprite: Sprite {
                     color: Color::RED,
                     custom_size: Some(Vec2::new(size, size)),
                     ..default()
                 },
                 ..default()
-            })
-            .insert(Animator::new(tween));
+            },
+            Animator::new(tween),
+        ));
 
         x += size * spacing;
     }

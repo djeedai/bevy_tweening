@@ -31,9 +31,9 @@
 //! - [`TransformRotateZLens`]
 //! - [`TransformRotateAxisLens`]
 //!
-//! [`rotation`]: https://docs.rs/bevy/0.8.0/bevy/transform/components/struct.Transform.html#structfield.rotation
-//! [`Transform`]: https://docs.rs/bevy/0.8.0/bevy/transform/components/struct.Transform.html
-//! [`Quat::slerp()`]: https://docs.rs/bevy/0.8.0/bevy/math/struct.Quat.html#method.slerp
+//! [`rotation`]: https://docs.rs/bevy/0.10.0/bevy/transform/components/struct.Transform.html#structfield.rotation
+//! [`Transform`]: https://docs.rs/bevy/0.10.0/bevy/transform/components/struct.Transform.html
+//! [`Quat::slerp()`]: https://docs.rs/bevy/0.10.0/bevy/math/struct.Quat.html#method.slerp
 
 use bevy::prelude::*;
 
@@ -82,9 +82,9 @@ pub trait Lens<T> {
 /// A lens to manipulate the [`color`] field of a section of a [`Text`]
 /// component.
 ///
-/// [`color`]: https://docs.rs/bevy/0.8.0/bevy/text/struct.TextStyle.html#structfield.color
-/// [`Text`]: https://docs.rs/bevy/0.8.0/bevy/text/struct.Text.html
-#[cfg(feature = "bevy_ui")]
+/// [`color`]: https://docs.rs/bevy/0.10.0/bevy/text/struct.TextStyle.html#structfield.color
+/// [`Text`]: https://docs.rs/bevy/0.10.0/bevy/text/struct.Text.html
+#[cfg(feature = "bevy_text")]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct TextColorLens {
     /// Start color.
@@ -95,7 +95,7 @@ pub struct TextColorLens {
     pub section: usize,
 }
 
-#[cfg(feature = "bevy_ui")]
+#[cfg(feature = "bevy_text")]
 impl Lens<Text> for TextColorLens {
     fn lerp(&mut self, target: &mut Text, ratio: f32) {
         // Note: Add<f32> for Color affects alpha, but not Mul<f32>. So use Vec4 for
@@ -109,8 +109,8 @@ impl Lens<Text> for TextColorLens {
 
 /// A lens to manipulate the [`translation`] field of a [`Transform`] component.
 ///
-/// [`translation`]: https://docs.rs/bevy/0.8.0/bevy/transform/components/struct.Transform.html#structfield.translation
-/// [`Transform`]: https://docs.rs/bevy/0.8.0/bevy/transform/components/struct.Transform.html
+/// [`translation`]: https://docs.rs/bevy/0.10.0/bevy/transform/components/struct.Transform.html#structfield.translation
+/// [`Transform`]: https://docs.rs/bevy/0.10.0/bevy/transform/components/struct.Transform.html
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct TransformPositionLens {
     /// Start value of the translation.
@@ -139,9 +139,9 @@ impl Lens<Transform> for TransformPositionLens {
 /// See the [top-level `lens` module documentation] for a comparison of rotation
 /// lenses.
 ///
-/// [`rotation`]: https://docs.rs/bevy/0.8.0/bevy/transform/components/struct.Transform.html#structfield.rotation
-/// [`Transform`]: https://docs.rs/bevy/0.8.0/bevy/transform/components/struct.Transform.html
-/// [`Quat::slerp()`]: https://docs.rs/bevy/0.8.0/bevy/math/struct.Quat.html#method.slerp
+/// [`rotation`]: https://docs.rs/bevy/0.10.0/bevy/transform/components/struct.Transform.html#structfield.rotation
+/// [`Transform`]: https://docs.rs/bevy/0.10.0/bevy/transform/components/struct.Transform.html
+/// [`Quat::slerp()`]: https://docs.rs/bevy/0.10.0/bevy/math/struct.Quat.html#method.slerp
 /// [top-level `lens` module documentation]: crate::lens
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct TransformRotationLens {
@@ -167,7 +167,7 @@ impl Lens<Transform> for TransformRotationLens {
 /// See the [top-level `lens` module documentation] for a comparison of rotation
 /// lenses.
 ///
-/// [`Transform`]: https://docs.rs/bevy/0.8.0/bevy/transform/components/struct.Transform.html
+/// [`Transform`]: https://docs.rs/bevy/0.10.0/bevy/transform/components/struct.Transform.html
 /// [top-level `lens` module documentation]: crate::lens
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct TransformRotateXLens {
@@ -194,7 +194,7 @@ impl Lens<Transform> for TransformRotateXLens {
 /// See the [top-level `lens` module documentation] for a comparison of rotation
 /// lenses.
 ///
-/// [`Transform`]: https://docs.rs/bevy/0.8.0/bevy/transform/components/struct.Transform.html
+/// [`Transform`]: https://docs.rs/bevy/0.10.0/bevy/transform/components/struct.Transform.html
 /// [top-level `lens` module documentation]: crate::lens
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct TransformRotateYLens {
@@ -221,7 +221,7 @@ impl Lens<Transform> for TransformRotateYLens {
 /// See the [top-level `lens` module documentation] for a comparison of rotation
 /// lenses.
 ///
-/// [`Transform`]: https://docs.rs/bevy/0.8.0/bevy/transform/components/struct.Transform.html
+/// [`Transform`]: https://docs.rs/bevy/0.10.0/bevy/transform/components/struct.Transform.html
 /// [top-level `lens` module documentation]: crate::lens
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct TransformRotateZLens {
@@ -252,7 +252,7 @@ impl Lens<Transform> for TransformRotateZLens {
 ///
 /// This method panics if the `axis` vector is not normalized.
 ///
-/// [`Transform`]: https://docs.rs/bevy/0.8.0/bevy/transform/components/struct.Transform.html
+/// [`Transform`]: https://docs.rs/bevy/0.10.0/bevy/transform/components/struct.Transform.html
 /// [top-level `lens` module documentation]: crate::lens
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct TransformRotateAxisLens {
@@ -273,8 +273,8 @@ impl Lens<Transform> for TransformRotateAxisLens {
 
 /// A lens to manipulate the [`scale`] field of a [`Transform`] component.
 ///
-/// [`scale`]: https://docs.rs/bevy/0.8.0/bevy/transform/components/struct.Transform.html#structfield.scale
-/// [`Transform`]: https://docs.rs/bevy/0.8.0/bevy/transform/components/struct.Transform.html
+/// [`scale`]: https://docs.rs/bevy/0.10.0/bevy/transform/components/struct.Transform.html#structfield.scale
+/// [`Transform`]: https://docs.rs/bevy/0.10.0/bevy/transform/components/struct.Transform.html
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct TransformScaleLens {
     /// Start value of the scale.
@@ -292,15 +292,15 @@ impl Lens<Transform> for TransformScaleLens {
 
 /// A lens to manipulate the [`position`] field of a UI [`Style`] component.
 ///
-/// [`position`]: https://docs.rs/bevy/0.8.0/bevy/ui/struct.Style.html#structfield.position
-/// [`Style`]: https://docs.rs/bevy/0.8.0/bevy/ui/struct.Style.html
+/// [`position`]: https://docs.rs/bevy/0.10.0/bevy/ui/struct.Style.html#structfield.position
+/// [`Style`]: https://docs.rs/bevy/0.10.0/bevy/ui/struct.Style.html
 #[cfg(feature = "bevy_ui")]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct UiPositionLens {
     /// Start position.
-    pub start: UiRect<Val>,
+    pub start: UiRect,
     /// End position.
-    pub end: UiRect<Val>,
+    pub end: UiRect,
 }
 
 #[cfg(feature = "bevy_ui")]
@@ -328,8 +328,8 @@ impl Lens<Style> for UiPositionLens {
 
 /// A lens to manipulate the [`color`] field of a [`ColorMaterial`] asset.
 ///
-/// [`color`]: https://docs.rs/bevy/0.8.0/bevy/sprite/struct.ColorMaterial.html#structfield.color
-/// [`ColorMaterial`]: https://docs.rs/bevy/0.8.0/bevy/sprite/struct.ColorMaterial.html
+/// [`color`]: https://docs.rs/bevy/0.10.0/bevy/sprite/struct.ColorMaterial.html#structfield.color
+/// [`ColorMaterial`]: https://docs.rs/bevy/0.10.0/bevy/sprite/struct.ColorMaterial.html
 #[cfg(feature = "bevy_sprite")]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct ColorMaterialColorLens {
@@ -353,8 +353,8 @@ impl Lens<ColorMaterial> for ColorMaterialColorLens {
 
 /// A lens to manipulate the [`color`] field of a [`Sprite`] asset.
 ///
-/// [`color`]: https://docs.rs/bevy/0.8.0/bevy/sprite/struct.Sprite.html#structfield.color
-/// [`Sprite`]: https://docs.rs/bevy/0.8.0/bevy/sprite/struct.Sprite.html
+/// [`color`]: https://docs.rs/bevy/0.10.0/bevy/sprite/struct.Sprite.html#structfield.color
+/// [`Sprite`]: https://docs.rs/bevy/0.10.0/bevy/sprite/struct.Sprite.html
 #[cfg(feature = "bevy_sprite")]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct SpriteColorLens {
@@ -382,7 +382,7 @@ mod tests {
 
     use super::*;
 
-    #[cfg(feature = "bevy_ui")]
+    #[cfg(feature = "bevy_text")]
     #[test]
     fn text_color() {
         let mut lens = TextColorLens {
@@ -610,6 +610,44 @@ mod tests {
         assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
         assert!(transform.rotation.abs_diff_eq(Quat::IDENTITY, 1e-5));
         assert!(transform.scale.abs_diff_eq(Vec3::new(0.3, 0.6, -1.2), 1e-5));
+    }
+
+    #[cfg(feature = "bevy_ui")]
+    #[test]
+    fn ui_position() {
+        let mut lens = UiPositionLens {
+            start: UiRect {
+                left: Val::Px(0.),
+                top: Val::Px(0.),
+                right: Val::Auto,
+                bottom: Val::Percent(25.),
+            },
+            end: UiRect {
+                left: Val::Px(1.),
+                top: Val::Px(5.),
+                right: Val::Auto,
+                bottom: Val::Percent(45.),
+            },
+        };
+        let mut style = Style::default();
+
+        lens.lerp(&mut style, 0.);
+        assert_eq!(style.position.left, Val::Px(0.));
+        assert_eq!(style.position.top, Val::Px(0.));
+        assert_eq!(style.position.right, Val::Auto);
+        assert_eq!(style.position.bottom, Val::Percent(25.));
+
+        lens.lerp(&mut style, 1.);
+        assert_eq!(style.position.left, Val::Px(1.));
+        assert_eq!(style.position.top, Val::Px(5.));
+        assert_eq!(style.position.right, Val::Auto);
+        assert_eq!(style.position.bottom, Val::Percent(45.));
+
+        lens.lerp(&mut style, 0.3);
+        assert_eq!(style.position.left, Val::Px(0.3));
+        assert_eq!(style.position.top, Val::Px(1.5));
+        assert_eq!(style.position.right, Val::Auto);
+        assert_eq!(style.position.bottom, Val::Percent(31.));
     }
 
     #[cfg(feature = "bevy_sprite")]
