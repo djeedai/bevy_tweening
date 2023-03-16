@@ -1,23 +1,25 @@
-use bevy::prelude::*;
-use bevy_tweening::{lens::*, *};
 use std::time::Duration;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+use bevy::prelude::*;
+
+use bevy_tweening::{lens::*, *};
+
+fn main() {
     App::default()
-        .insert_resource(WindowDescriptor {
-            title: "Sequence".to_string(),
-            width: 600.,
-            height: 600.,
-            vsync: true,
-            ..Default::default()
-        })
-        .add_plugins(DefaultPlugins)
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                title: "Sequence".to_string(),
+                resolution: (600., 600.).into(),
+                present_mode: bevy::window::PresentMode::Fifo, // vsync
+                ..default()
+            }),
+            ..default()
+        }))
+        .add_system(bevy::window::close_on_esc)
         .add_plugin(TweeningPlugin)
         .add_startup_system(setup)
         .add_system(update_text)
         .run();
-
-    Ok(())
 }
 
 #[derive(Component)]
@@ -33,7 +35,7 @@ struct RedSprite;
 struct BlueSprite;
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+    commands.spawn(Camera2dBundle::default());
 
     let font = asset_server.load("fonts/FiraMono-Regular.ttf");
     let text_style_red = TextStyle {
@@ -47,14 +49,11 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         color: Color::BLUE,
     };
 
-    let text_alignment = TextAlignment {
-        vertical: VerticalAlign::Center,
-        horizontal: HorizontalAlign::Center,
-    };
+    let text_alignment = TextAlignment::Center;
 
     // Text with the index of the active tween in the sequence
-    commands
-        .spawn_bundle(Text2dBundle {
+    commands.spawn((
+        Text2dBundle {
             text: Text {
                 sections: vec![
                     TextSection {
@@ -67,15 +66,17 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     },
                 ],
                 alignment: text_alignment,
+                ..default()
             },
             transform: Transform::from_translation(Vec3::new(0., 40., 0.)),
-            ..Default::default()
-        })
-        .insert(RedProgress);
+            ..default()
+        },
+        RedProgress,
+    ));
 
     // Text with progress of the active tween in the sequence
-    commands
-        .spawn_bundle(Text2dBundle {
+    commands.spawn((
+        Text2dBundle {
             text: Text {
                 sections: vec![
                     TextSection {
@@ -88,11 +89,13 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     },
                 ],
                 alignment: text_alignment,
+                ..default()
             },
             transform: Transform::from_translation(Vec3::new(0., -40., 0.)),
-            ..Default::default()
-        })
-        .insert(BlueProgress);
+            ..default()
+        },
+        BlueProgress,
+    ));
 
     let size = 25.;
 
@@ -109,47 +112,59 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         Vec3::new(margin, screen_y - margin, 0.),
         Vec3::new(margin, margin, 0.),
     ];
-    // Build a sequence from an iterator over a Tweenable (here, a Tween<Transform>)
+    // Build a sequence from an iterator over a Tweenable (here, a
+    // Tracks<Transform>)
     let seq = Sequence::new(dests.windows(2).enumerate().map(|(index, pair)| {
-        Tween::new(
-            EaseFunction::QuadraticInOut,
-            TweeningType::Once,
-            Duration::from_secs(1),
-            TransformPositionLens {
-                start: pair[0] - center,
-                end: pair[1] - center,
-            },
-        )
-        .with_completed_event(true, index as u64) // Get an event after each segment
+        Tracks::new([
+            Tween::new(
+                EaseFunction::QuadraticInOut,
+                Duration::from_millis(250),
+                TransformRotateZLens {
+                    start: 0.,
+                    end: 180_f32.to_radians(),
+                },
+            )
+            .with_repeat_count(RepeatCount::Finite(4))
+            .with_repeat_strategy(RepeatStrategy::MirroredRepeat),
+            Tween::new(
+                EaseFunction::QuadraticInOut,
+                Duration::from_secs(1),
+                TransformPositionLens {
+                    start: pair[0] - center,
+                    end: pair[1] - center,
+                },
+            )
+            // Get an event after each segment
+            .with_completed_event(index as u64),
+        ])
     }));
 
-    commands
-        .spawn_bundle(SpriteBundle {
+    commands.spawn((
+        SpriteBundle {
             sprite: Sprite {
                 color: Color::RED,
                 custom_size: Some(Vec2::new(size, size)),
-                ..Default::default()
+                ..default()
             },
-            ..Default::default()
-        })
-        .insert(RedSprite)
-        .insert(Animator::new(seq));
+            ..default()
+        },
+        RedSprite,
+        Animator::new(seq),
+    ));
 
-    // First move from left to right, then rotate around self 180 degrees while scaling
-    // size at the same time.
+    // First move from left to right, then rotate around self 180 degrees while
+    // scaling size at the same time.
     let tween_move = Tween::new(
         EaseFunction::QuadraticInOut,
-        TweeningType::Once,
         Duration::from_secs(1),
         TransformPositionLens {
             start: Vec3::new(-200., 100., 0.),
             end: Vec3::new(200., 100., 0.),
         },
     )
-    .with_completed_event(true, 99); // Get an event once move completed
+    .with_completed_event(99); // Get an event once move completed
     let tween_rotate = Tween::new(
         EaseFunction::QuadraticInOut,
-        TweeningType::Once,
         Duration::from_secs(1),
         TransformRotationLens {
             start: Quat::IDENTITY,
@@ -158,33 +173,31 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     );
     let tween_scale = Tween::new(
         EaseFunction::QuadraticInOut,
-        TweeningType::Once,
         Duration::from_secs(1),
         TransformScaleLens {
             start: Vec3::ONE,
             end: Vec3::splat(2.0),
         },
     );
-    // Build parallel tracks executing two tweens at the same time : rotate and scale.
+    // Build parallel tracks executing two tweens at the same time: rotate and
+    // scale.
     let tracks = Tracks::new([tween_rotate, tween_scale]);
-    // Build a sequence from an heterogeneous list of tweenables by casting them manually
-    // to a boxed Tweenable<Transform> : first move, then { rotate + scale }.
-    let seq2 = Sequence::new([
-        Box::new(tween_move) as Box<dyn Tweenable<Transform> + Send + Sync + 'static>,
-        Box::new(tracks) as Box<dyn Tweenable<Transform> + Send + Sync + 'static>,
-    ]);
+    // Build a sequence from an heterogeneous list of tweenables by casting them
+    // manually to a BoxedTweenable: first move, then { rotate + scale }.
+    let seq2 = Sequence::new([Box::new(tween_move) as BoxedTweenable<_>, tracks.into()]);
 
-    commands
-        .spawn_bundle(SpriteBundle {
+    commands.spawn((
+        SpriteBundle {
             sprite: Sprite {
                 color: Color::BLUE,
                 custom_size: Some(Vec2::new(size * 3., size)),
-                ..Default::default()
+                ..default()
             },
             ..Default::default()
-        })
-        .insert(BlueSprite)
-        .insert(Animator::new(seq2));
+        },
+        BlueSprite,
+        Animator::new(seq2),
+    ));
 }
 
 fn update_text(
@@ -195,12 +208,10 @@ fn update_text(
     mut query_event: EventReader<TweenCompleted>,
 ) {
     let anim_red = query_anim_red.single();
-    let tween_red = anim_red.tweenable().unwrap();
-    let progress_red = tween_red.progress();
+    let progress_red = anim_red.tweenable().progress();
 
     let anim_blue = query_anim_blue.single();
-    let tween_blue = anim_blue.tweenable().unwrap();
-    let progress_blue = tween_blue.progress();
+    let progress_blue = anim_blue.tweenable().progress();
 
     let mut red_text = query_text_red.single_mut();
     red_text.sections[1].value = format!("{:5.1}%", progress_red * 100.);

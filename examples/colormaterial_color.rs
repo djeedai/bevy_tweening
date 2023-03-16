@@ -5,21 +5,21 @@ use bevy::{
 use bevy_tweening::{lens::*, *};
 use std::time::Duration;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() {
     App::default()
-        .insert_resource(WindowDescriptor {
-            title: "ColorMaterialColorLens".to_string(),
-            width: 1200.,
-            height: 600.,
-            vsync: true,
-            ..Default::default()
-        })
-        .add_plugins(DefaultPlugins)
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                title: "ColorMaterialColorLens".to_string(),
+                resolution: (1200., 600.).into(),
+                present_mode: bevy::window::PresentMode::Fifo, // vsync
+                ..default()
+            }),
+            ..default()
+        }))
+        .add_system(bevy::window::close_on_esc)
         .add_plugin(TweeningPlugin)
         .add_startup_system(setup)
         .run();
-
-    Ok(())
 }
 
 fn setup(
@@ -27,7 +27,7 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+    commands.spawn(Camera2dBundle::default());
 
     let size = 80.;
 
@@ -79,23 +79,25 @@ fn setup(
 
         let tween = Tween::new(
             *ease_function,
-            TweeningType::PingPong,
             Duration::from_secs(1),
             ColorMaterialColorLens {
                 start: Color::RED,
                 end: Color::BLUE,
             },
-        );
+        )
+        .with_repeat_count(RepeatCount::Infinite)
+        .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
-        commands
-            .spawn_bundle(MaterialMesh2dBundle {
+        commands.spawn((
+            MaterialMesh2dBundle {
                 mesh: quad_mesh.clone(),
                 transform: Transform::from_translation(Vec3::new(x, y, 0.))
                     .with_scale(Vec3::splat(size)),
                 material: unique_material.clone(),
-                ..Default::default()
-            })
-            .insert(AssetAnimator::new(unique_material.clone(), tween));
+                ..default()
+            },
+            AssetAnimator::new(unique_material.clone(), tween),
+        ));
         y -= size * spacing;
         if y < -screen_y {
             x += size * spacing;

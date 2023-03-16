@@ -4,25 +4,25 @@ use bevy_tweening::{lens::*, *};
 const WIDTH: f32 = 1200.;
 const HEIGHT: f32 = 600.;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() {
     App::default()
-        .insert_resource(WindowDescriptor {
-            title: "TextColorLens".to_string(),
-            width: WIDTH,
-            height: HEIGHT,
-            vsync: true,
-            ..Default::default()
-        })
-        .add_plugins(DefaultPlugins)
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                title: "TextColorLens".to_string(),
+                resolution: (WIDTH, HEIGHT).into(),
+                present_mode: bevy::window::PresentMode::Fifo, // vsync
+                ..default()
+            }),
+            ..default()
+        }))
+        .add_system(bevy::window::close_on_esc)
         .add_plugin(TweeningPlugin)
         .add_startup_system(setup)
         .run();
-
-    Ok(())
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn_bundle(UiCameraBundle::default());
+    commands.spawn(Camera2dBundle::default());
 
     let font = asset_server.load("fonts/FiraMono-Regular.ttf");
 
@@ -70,20 +70,21 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     ] {
         let tween = Tween::new(
             *ease_function,
-            TweeningType::PingPong,
             std::time::Duration::from_secs(1),
             TextColorLens {
                 start: Color::RED,
                 end: Color::BLUE,
                 section: 0,
             },
-        );
+        )
+        .with_repeat_count(RepeatCount::Infinite)
+        .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
-        commands
-            .spawn_bundle(TextBundle {
+        commands.spawn((
+            TextBundle {
                 style: Style {
                     size: Size::new(Val::Px(size_x), Val::Px(size_y)),
-                    position: Rect {
+                    position: UiRect {
                         left: Val::Px(x),
                         top: Val::Px(y),
                         right: Val::Auto,
@@ -94,21 +95,20 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     align_items: AlignItems::Center,
                     align_self: AlignSelf::Center,
                     justify_content: JustifyContent::Center,
-                    ..Default::default()
+                    ..default()
                 },
-                text: Text::with_section(
+                text: Text::from_section(
                     *ease_name,
                     TextStyle {
                         font: font.clone(),
                         font_size: 24.0,
                         color: Color::WHITE,
                     },
-                    // you can still use Default
-                    Default::default(),
                 ),
-                ..Default::default()
-            })
-            .insert(Animator::new(tween));
+                ..default()
+            },
+            Animator::new(tween),
+        ));
 
         y += delta_y;
         iy += 1;

@@ -3,6 +3,70 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0] - 2023-03-09
+
+### Added
+
+- Added `From<u32>` and `From<Duration>` for `RepeatCount`, respectively yielding `RepeatCount::Finite(value)` and `RepeatCount::For(value)`.
+
+### Changed
+
+- Compatible with Bevy 0.10
+- Changed the signature of `with_repeat_count()` to take an `impl Into<RepeatCount>` instead of a `RepeatCount` by value.
+
+## [0.6.0] - 2022-11-15
+
+### Added
+
+- Added `RepeatCount` and `RepeatStrategy` for more granular control over animation looping.
+- Added `with_repeat_count()` and `with_repeat_strategy()` builder methods to `Tween<T>`.
+- Added a `speed()` getter on `Animator<T>` and `AssetAnimator<T>`.
+- Added `set_elapsed(Duration)` and `elapsed() -> Duration` to the `Tweenable<T>` trait. Those methods are preferable over `set_progress()` and `progress()` as they avoid the conversion to floating-point values and any rounding errors.
+- Added a new `bevy_text` feature for `Text`-related built-in lenses.
+- Added `Targetable`, `ComponentTarget`, and `AssetTarget`, which should be considered private even though they appear in the public API. They are a workaround for Bevy 0.8 and will likely be removed in the future once the related Bevy limitation is lifted.
+- Added the missing `Tween::with_completed()` to raise a callback.
+- Added completion event and callback support to `Delay<T>`, similar to what existed for `Tween<T>`.
+- Added `TotalDuration` and a new `Tweenable<T>::total_duration()` method to retrieve the total duration of the animation including looping.
+
+### Changed
+
+- Compatible with Bevy 0.9
+- Removed the `tweening_type` parameter from the signature of `Tween<T>::new()`; use `with_repeat_count()` and `with_repeat_strategy()` instead.
+- Animators now always have a tween (instead of it being optional). This means the default animator implementation was removed.
+- `Delay::new()` now panics if the `duration` is zero. This prevents creating no-op `Delay` objects, and avoids an internal edge case producing wrong results.
+- Tweens moving to `TweenState::Completed` are now guaranteed to freeze their state. In particular, this means that their direction will not flip at the end of the last loop if their repeat strategy is `RepeatStrategy::MirroredRepeat`.
+- Moved the `TextColorLens` lens from the `bevy_ui` feature to the new `bevy_text` one, to allow using it without the Bevy UI crate.
+- Changed the signature of the `component_animator_system()` and `asset_animator_system()` public functions to directly consume a `ResMut<Events<TweenCompleted>>` instead of an `EventWriter<TweenCompleted>`, to work around some internal limitations.
+- Changed `Delay` into `Delay<T>`, taking the animation target type like other tweenables, to be able to emit events and raise callbacks.
+- Changed `CompletedCallback<T>` to take the tweenable type itself, instead of the target type. Users upgrading should replace `CompletedCallback<T>` with `CompletedCallback<Tween<T>>`.
+- The `set_progress()`, `progress()`, and `times_completed()` method of `Tweenable<T>` now have a default implementation, and all built-in tweenables use that implementation.
+
+### Removed
+
+- Removed `Tweenable::is_looping()`, which was not implemented for most tweenables.
+- Removed `TweeningType` in favor of `RepeatCount` and `RepeatStrategy`.
+
+### Fixed
+
+- Fixed the animator speed feature, which got broken in #44.
+- Fixed change detection triggering unconditionally when `component_animator_system()` or `asset_animator_system()` are ticked, even when the animator did not mutate its target component or asset. (#33)
+
+## [0.5.0] - 2022-08-04
+
+### Added
+
+- Added `is_forward()` and `is_backward()` convenience helpers to `TweeningDirection`.
+- Added `Tween::set_direction()` and `Tween::with_direction()` which allow configuring the playback direction of a tween, allowing to play it backward from end to start.
+- Added support for dynamically changing an animation's speed with `Animator::set_speed`.
+- Added `AnimationSystem` label to tweening tick systems.
+- Added a `BoxedTweenable` trait to make working with `Box<dyn Tweenable + ...>` easier.
+
+### Changed
+
+- Compatible with Bevy 0.8
+- Double boxing in `Sequence` and `Tracks` was fixed. As a result, any custom tweenables
+  should implement `From` for `BoxedTweenable` to make those APIs easier to use.
+
 ## [0.4.0] - 2022-04-16
 
 ### Changed

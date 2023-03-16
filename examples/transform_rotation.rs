@@ -1,25 +1,42 @@
 use bevy::prelude::*;
+use bevy_inspector_egui::{prelude::*, quick::ResourceInspectorPlugin};
+
 use bevy_tweening::{lens::*, *};
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() {
     App::default()
-        .insert_resource(WindowDescriptor {
-            title: "TransformRotationLens".to_string(),
-            width: 1400.,
-            height: 600.,
-            vsync: true,
-            ..Default::default()
-        })
-        .add_plugins(DefaultPlugins)
+        .add_plugins(DefaultPlugins.set(WindowPlugin {
+            primary_window: Some(Window {
+                title: "TransformRotationLens".to_string(),
+                resolution: (1400., 600.).into(),
+                present_mode: bevy::window::PresentMode::Fifo, // vsync
+                ..default()
+            }),
+            ..default()
+        }))
+        .init_resource::<Options>()
+        .add_system(bevy::window::close_on_esc)
         .add_plugin(TweeningPlugin)
+        .add_plugin(ResourceInspectorPlugin::<Options>::new())
         .add_startup_system(setup)
+        .add_system(update_animation_speed)
         .run();
+}
 
-    Ok(())
+#[derive(Copy, Clone, PartialEq, Resource, Reflect, InspectorOptions)]
+struct Options {
+    #[inspector(min = 0.01, max = 100.)]
+    speed: f32,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Self { speed: 1. }
+    }
 }
 
 fn setup(mut commands: Commands) {
-    commands.spawn_bundle(OrthographicCameraBundle::new_2d());
+    commands.spawn(Camera2dBundle::default());
 
     let size = 80.;
 
@@ -63,30 +80,32 @@ fn setup(mut commands: Commands) {
     ] {
         let tween = Tween::new(
             *ease_function,
-            TweeningType::PingPong,
             std::time::Duration::from_secs(1),
             TransformRotationLens {
                 start: Quat::IDENTITY,
                 end: Quat::from_axis_angle(Vec3::Z, std::f32::consts::PI / 2.),
             },
-        );
+        )
+        .with_repeat_count(RepeatCount::Infinite)
+        .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
         commands
-            .spawn_bundle((
-                Transform::from_translation(Vec3::new(x, y, 0.)),
-                GlobalTransform::default(),
-            ))
+            .spawn(SpatialBundle {
+                transform: Transform::from_translation(Vec3::new(x, y, 0.)),
+                ..default()
+            })
             .with_children(|parent| {
-                parent
-                    .spawn_bundle(SpriteBundle {
+                parent.spawn((
+                    SpriteBundle {
                         sprite: Sprite {
                             color: Color::RED,
                             custom_size: Some(Vec2::new(size, size * 0.5)),
-                            ..Default::default()
+                            ..default()
                         },
-                        ..Default::default()
-                    })
-                    .insert(Animator::new(tween));
+                        ..default()
+                    },
+                    Animator::new(tween),
+                ));
             });
 
         y -= size * spacing;
@@ -94,5 +113,15 @@ fn setup(mut commands: Commands) {
             x += size * spacing;
             y = screen_y;
         }
+    }
+}
+
+fn update_animation_speed(options: Res<Options>, mut animators: Query<&mut Animator<Transform>>) {
+    if !options.is_changed() {
+        return;
+    }
+
+    for mut animator in animators.iter_mut() {
+        animator.set_speed(options.speed);
     }
 }
