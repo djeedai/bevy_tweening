@@ -661,11 +661,12 @@ impl<T> Tweenable<T> for Tween<T> {
             return TweenState::Completed;
         }
 
-        if self.times_completed() == 0
-            && self.direction == TweeningDirection::Forward
-            && self.progress() == 0.
-        {
-            self.lens.update_on_tween_start(target.target_mut());
+        let target = target.target_mut();
+        let times_completed_before = self.times_completed();
+
+        // Check for the start of the tween
+        if self.elapsed().is_zero() && times_completed_before == 0 && self.direction.is_forward() {
+            self.lens.update_on_tween_start(target, self.direction, 0);
         }
 
         // Tick the animation clock
@@ -678,6 +679,12 @@ impl<T> Tweenable<T> for Tween<T> {
             && times_completed_for_direction & 1 != 0
         {
             self.direction = !self.direction;
+
+            self.lens
+                .update_on_tween_start(target, self.direction, times_completed);
+        } else if times_completed != times_completed_before {
+            self.lens
+                .update_on_tween_start(target, self.direction, times_completed);
         }
 
         // Apply the lens, even if the animation finished, to ensure the state is
@@ -687,7 +694,6 @@ impl<T> Tweenable<T> for Tween<T> {
             factor = 1. - factor;
         }
         let factor = self.ease_function.sample(factor);
-        let target = target.target_mut();
         self.lens.lerp(target, factor);
 
         // If completed at least once this frame, notify the user

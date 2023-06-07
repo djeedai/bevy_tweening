@@ -37,6 +37,8 @@
 
 use bevy::prelude::*;
 
+use crate::TweeningDirection;
+
 /// A lens over a subset of a component.
 ///
 /// The lens takes a `target` component or asset from a query, as a mutable
@@ -76,7 +78,13 @@ pub trait Lens<T> {
     /// Update lens on tween start
     /// Can be used for relative lenses
     #[allow(unused_variables)]
-    fn update_on_tween_start(&mut self, target: &T) {}
+    fn update_on_tween_start(
+        &mut self,
+        target: &T,
+        direction: TweeningDirection,
+        times_completed: u32,
+    ) {
+    }
 }
 
 /// A lens to manipulate the [`color`] field of a section of a [`Text`]
