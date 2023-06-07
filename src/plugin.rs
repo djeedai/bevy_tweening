@@ -4,7 +4,7 @@ use bevy::{ecs::component::Component, prelude::*};
 
 #[cfg(feature = "bevy_asset")]
 use crate::{tweenable::AssetTarget, AssetAnimator};
-use crate::{tweenable::ComponentTarget, Animator, AnimatorState, TweenCompleted};
+use crate::{tweenable::ComponentTarget, Animator, AnimatorState, TweenCompleted, TweenSettings};
 
 /// Plugin to add systems related to tweening of common components and assets.
 ///
@@ -39,10 +39,12 @@ pub struct TweeningPlugin;
 
 impl Plugin for TweeningPlugin {
     fn build(&self, app: &mut App) {
-        app.add_event::<TweenCompleted>().add_systems(
-            Update,
-            component_animator_system::<Transform>.in_set(AnimationSystem::AnimationUpdate),
-        );
+        app.init_resource::<TweenSettings>()
+            .add_event::<TweenCompleted>()
+            .add_systems(
+                Update,
+                component_animator_system::<Transform>.in_set(AnimationSystem::AnimationUpdate),
+            );
 
         #[cfg(feature = "bevy_ui")]
         app.add_systems(
@@ -85,6 +87,7 @@ pub fn component_animator_system<T: Component>(
     time: Res<Time>,
     mut query: Query<(Entity, &mut T, &mut Animator<T>)>,
     events: ResMut<Events<TweenCompleted>>,
+    settings: Res<TweenSettings>,
 ) {
     let mut events: Mut<Events<TweenCompleted>> = events.into();
     for (entity, target, mut animator) in query.iter_mut() {
@@ -96,6 +99,7 @@ pub fn component_animator_system<T: Component>(
                 &mut target,
                 entity,
                 &mut events,
+                &settings,
             );
         }
     }
@@ -113,6 +117,7 @@ pub fn asset_animator_system<T: Asset>(
     assets: ResMut<Assets<T>>,
     mut query: Query<(Entity, &mut AssetAnimator<T>)>,
     events: ResMut<Events<TweenCompleted>>,
+    settings: Res<TweenSettings>,
 ) {
     let mut events: Mut<Events<TweenCompleted>> = events.into();
     let mut target = AssetTarget::new(assets);
@@ -128,6 +133,7 @@ pub fn asset_animator_system<T: Asset>(
                 &mut target,
                 entity,
                 &mut events,
+                &settings,
             );
         }
     }
@@ -222,6 +228,7 @@ mod tests {
         .with_completed_event(0);
 
         let mut env = TestEnv::new(Animator::new(tween));
+        env.world_mut().init_resource::<TweenSettings>();
 
         // After being inserted, components are always considered changed
         let transform = env.transform();
