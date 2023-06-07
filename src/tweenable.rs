@@ -682,7 +682,7 @@ impl<T> Tweenable<T> for Tween<T> {
 
             self.lens
                 .update_on_tween_start(target, self.direction, times_completed);
-        } else if times_completed != times_completed_before {
+        } else if times_completed as u32 != times_completed_before {
             self.lens
                 .update_on_tween_start(target, self.direction, times_completed);
         }

@@ -82,7 +82,7 @@ pub trait Lens<T> {
         &mut self,
         target: &T,
         direction: TweeningDirection,
-        times_completed: u32,
+        times_completed: i32,
     ) {
     }
 }
