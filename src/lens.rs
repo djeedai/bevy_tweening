@@ -398,6 +398,21 @@ mod tests {
 
         lens.lerp(&mut text, 0.3);
         assert_eq!(text.sections[0].style.color, Color::rgba(0.7, 0., 0.3, 1.0));
+
+        let mut lens_section1 = TextColorLens{
+            start: Color::RED,
+            end: Color::BLUE,
+            section: 1,
+        };
+
+        lens_section1.lerp(&mut text, 1.);
+        //Should not have changed because the lens targets section 1
+        assert_eq!(text.sections[0].style.color, Color::rgba(0.7, 0., 0.3, 1.0));
+
+        text.sections.push(TextSection { value: "".to_string(), style: Default::default() });
+
+        lens_section1.lerp(&mut text, 0.3);
+        assert_eq!(text.sections[1].style.color, Color::rgba(0.7, 0., 0.3, 1.0));
     }
 
     #[test]
