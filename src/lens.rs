@@ -98,7 +98,10 @@ impl Lens<Text> for TextColorLens {
         let start: Vec4 = self.start.into();
         let end: Vec4 = self.end.into();
         let value = start.lerp(end, ratio);
-        target.sections[self.section].style.color = value.into();
+
+        if let Some(section) = target.sections.get_mut(self.section){
+            section.style.color = value.into();
+        }
     }
 }
 
