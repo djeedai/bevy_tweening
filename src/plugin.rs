@@ -39,25 +39,34 @@ pub struct TweeningPlugin;
 
 impl Plugin for TweeningPlugin {
     fn build(&self, app: &mut App) {
-        app.add_event::<TweenCompleted>().add_system(
+        app.add_event::<TweenCompleted>().add_systems(
+            Update,
             component_animator_system::<Transform>.in_set(AnimationSystem::AnimationUpdate),
         );
 
         #[cfg(feature = "bevy_ui")]
-        app.add_system(component_animator_system::<Style>.in_set(AnimationSystem::AnimationUpdate));
+        app.add_systems(
+            Update,
+            component_animator_system::<Style>.in_set(AnimationSystem::AnimationUpdate),
+        );
 
         #[cfg(feature = "bevy_sprite")]
-        app.add_system(
+        app.add_systems(
+            Update,
             component_animator_system::<Sprite>.in_set(AnimationSystem::AnimationUpdate),
         );
 
         #[cfg(all(feature = "bevy_sprite", feature = "bevy_asset"))]
-        app.add_system(
+        app.add_systems(
+            Update,
             asset_animator_system::<ColorMaterial>.in_set(AnimationSystem::AnimationUpdate),
         );
 
         #[cfg(feature = "bevy_text")]
-        app.add_system(component_animator_system::<Text>.in_set(AnimationSystem::AnimationUpdate));
+        app.add_systems(
+            Update,
+            component_animator_system::<Text>.in_set(AnimationSystem::AnimationUpdate),
+        );
     }
 }
 
