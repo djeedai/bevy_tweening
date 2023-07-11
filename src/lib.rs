@@ -27,8 +27,7 @@
 //! use bevy_tweening::*;
 //!
 //! App::default()
-//!     .add_plugins(DefaultPlugins)
-//!     .add_plugin(TweeningPlugin)
+//!     .add_plugins((DefaultPlugins, TweeningPlugin))
 //!     .run();
 //! ```
 //!

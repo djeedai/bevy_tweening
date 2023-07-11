@@ -312,12 +312,10 @@ fn lerp_val(start: &Val, end: &Val, ratio: f32) -> Val {
 #[cfg(feature = "bevy_ui")]
 impl Lens<Style> for UiPositionLens {
     fn lerp(&mut self, target: &mut Style, ratio: f32) {
-        target.position = UiRect {
-            left: lerp_val(&self.start.left, &self.end.left, ratio),
-            right: lerp_val(&self.start.right, &self.end.right, ratio),
-            top: lerp_val(&self.start.top, &self.end.top, ratio),
-            bottom: lerp_val(&self.start.bottom, &self.end.bottom, ratio),
-        };
+        target.left = lerp_val(&self.start.left, &self.end.left, ratio);
+        target.right = lerp_val(&self.start.right, &self.end.right, ratio);
+        target.top = lerp_val(&self.start.top, &self.end.top, ratio);
+        target.bottom = lerp_val(&self.start.bottom, &self.end.bottom, ratio);
     }
 }
 
@@ -627,22 +625,22 @@ mod tests {
         let mut style = Style::default();
 
         lens.lerp(&mut style, 0.);
-        assert_eq!(style.position.left, Val::Px(0.));
-        assert_eq!(style.position.top, Val::Px(0.));
-        assert_eq!(style.position.right, Val::Auto);
-        assert_eq!(style.position.bottom, Val::Percent(25.));
+        assert_eq!(style.left, Val::Px(0.));
+        assert_eq!(style.top, Val::Px(0.));
+        assert_eq!(style.right, Val::Auto);
+        assert_eq!(style.bottom, Val::Percent(25.));
 
         lens.lerp(&mut style, 1.);
-        assert_eq!(style.position.left, Val::Px(1.));
-        assert_eq!(style.position.top, Val::Px(5.));
-        assert_eq!(style.position.right, Val::Auto);
-        assert_eq!(style.position.bottom, Val::Percent(45.));
+        assert_eq!(style.left, Val::Px(1.));
+        assert_eq!(style.top, Val::Px(5.));
+        assert_eq!(style.right, Val::Auto);
+        assert_eq!(style.bottom, Val::Percent(45.));
 
         lens.lerp(&mut style, 0.3);
-        assert_eq!(style.position.left, Val::Px(0.3));
-        assert_eq!(style.position.top, Val::Px(1.5));
-        assert_eq!(style.position.right, Val::Auto);
-        assert_eq!(style.position.bottom, Val::Percent(31.));
+        assert_eq!(style.left, Val::Px(0.3));
+        assert_eq!(style.top, Val::Px(1.5));
+        assert_eq!(style.right, Val::Auto);
+        assert_eq!(style.bottom, Val::Percent(31.));
     }
 
     #[cfg(feature = "bevy_sprite")]
