@@ -839,7 +839,7 @@ impl<T> Tweenable<T> for Sequence<T> {
         self.elapsed = self.elapsed.saturating_add(delta).min(self.duration);
         while self.index < self.tweens.len() {
             let tween = &mut self.tweens[self.index];
-            let tween_remaining = tween.duration() - tween.elapsed();
+            let tween_remaining = tween.duration().mul_f32(1.0 - tween.progress());
             if let TweenState::Active = tween.tick(delta, target, entity, events) {
                 return TweenState::Active;
             }
@@ -2074,5 +2074,36 @@ mod tests {
         assert_approx_eq!(tween.progress(), 0.);
         let transform = world.entity(entity).get::<Transform>().unwrap();
         assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5)); // no-op, rewind doesn't apply Lens
+    }
+
+    #[test]
+    fn tick_mirrored_seq() {
+        let tween1 = Tween::new(
+            EaseMethod::Linear,
+            Duration::from_secs(1),
+            TransformPositionLens {
+                start: Vec3::ZERO,
+                end: Vec3::ONE,
+            },
+        );
+        let tween2 = Tween::new(
+            EaseMethod::Linear,
+            Duration::from_secs(1),
+            TransformRotationLens {
+                start: Quat::IDENTITY,
+                end: Quat::from_rotation_x(90_f32.to_radians()),
+            },
+        )
+        .with_repeat_count(RepeatCount::Infinite)
+        .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
+
+        let mut seq = tween1.then(tween2);
+        let (mut world, entity) = make_test_env();
+
+        for i in 0..200 {
+            let duration = Duration::from_millis(200);
+            println!("{:?}", i);
+            manual_tick_component(duration, &mut seq, &mut world, entity);
+        }
     }
 }
