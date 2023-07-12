@@ -15,11 +15,11 @@ fn main() {
             ..default()
         }))
         .init_resource::<Options>()
-        .add_system(bevy::window::close_on_esc)
-        .add_plugin(TweeningPlugin)
-        .add_plugin(ResourceInspectorPlugin::<Options>::new())
-        .add_startup_system(setup)
-        .add_system(update_animation_speed)
+        .add_systems(Update, bevy::window::close_on_esc)
+        .add_plugins(TweeningPlugin)
+        .add_plugins(ResourceInspectorPlugin::<Options>::new())
+        .add_systems(Startup, setup)
+        .add_systems(Update, update_animation_speed)
         .run();
 }
 
@@ -101,13 +101,12 @@ fn setup(mut commands: Commands) {
         commands.spawn((
             NodeBundle {
                 style: Style {
-                    size: Size::new(Val::Px(size), Val::Px(size)),
-                    position: UiRect {
-                        left: Val::Px(x),
-                        top: Val::Px(10.),
-                        right: Val::Auto,
-                        bottom: Val::Auto,
-                    },
+                    width: Val::Px(size),
+                    height: Val::Px(size),
+                    left: Val::Px(x),
+                    top: Val::Px(10.),
+                    right: Val::Auto,
+                    bottom: Val::Auto,
                     position_type: PositionType::Absolute,
                     align_content: AlignContent::Center,
                     align_items: AlignItems::Center,

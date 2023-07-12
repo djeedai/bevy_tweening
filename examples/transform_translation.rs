@@ -15,11 +15,11 @@ fn main() {
             ..default()
         }))
         .init_resource::<Options>()
-        .add_system(bevy::window::close_on_esc)
-        .add_plugin(TweeningPlugin)
-        .add_plugin(ResourceInspectorPlugin::<Options>::default())
-        .add_startup_system(setup)
-        .add_system(update_animation_speed)
+        .add_systems(Update, bevy::window::close_on_esc)
+        .add_plugins(TweeningPlugin)
+        .add_plugins(ResourceInspectorPlugin::<Options>::default())
+        .add_systems(Startup, setup)
+        .add_systems(Update, update_animation_speed)
         .run();
 }
 

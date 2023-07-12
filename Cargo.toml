@@ -28,7 +28,7 @@ interpolation = "0.2"
 bevy = { version = "0.11", default-features = false }
 
 [dev-dependencies]
-bevy-inspector-egui = "0.18"
+bevy-inspector-egui = "0.19"
 
 [[example]]
 name = "menu"
