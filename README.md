@@ -124,7 +124,7 @@ The naming scheme for predefined lenses is `"<TargetName><FieldName>Lens"`, wher
 | | [`scale`](https://docs.rs/bevy/0.11.0/bevy/transform/components/struct.Transform.html#structfield.scale) | [`TransformScaleLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.TransformScaleLens.html) | |
 | [`Sprite`](https://docs.rs/bevy/0.11.0/bevy/sprite/struct.Sprite.html) | [`color`](https://docs.rs/bevy/0.11.0/bevy/sprite/struct.Sprite.html#structfield.color) | [`SpriteColorLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.SpriteColorLens.html) | `bevy_sprite` |
 | [`Style`](https://docs.rs/bevy/0.11.0/bevy/ui/struct.Style.html) | [`position`](https://docs.rs/bevy/0.11.0/bevy/ui/struct.Style.html#structfield.position) | [`UiPositionLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.UiPositionLens.html) | `bevy_ui` |
-| ['BackgroundColor'](https://docs.rs/bevy/0.11.0/bevy/ui/struct.BackgroundColor.html)| | [`UiBackgroundColorLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.UiBackgroundColorLens.html) | `bevy_ui` |
+| [`BackgroundColor`](https://docs.rs/bevy/0.11.0/bevy/ui/struct.BackgroundColor.html)| | [`UiBackgroundColorLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.UiBackgroundColorLens.html) | `bevy_ui` |
 | [`Text`](https://docs.rs/bevy/0.11.0/bevy/text/struct.Text.html) | [`TextStyle::color`](https://docs.rs/bevy/0.11.0/bevy/text/struct.TextStyle.html#structfield.color) | [`TextColorLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.TextColorLens.html) | `bevy_text` |
 
 ¹ Shortest-path interpolation between two rotations, using `Quat::slerp()`.
