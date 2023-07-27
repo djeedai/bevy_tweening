@@ -31,12 +31,12 @@ fn main() {
             }),
             ..default()
         }))
-        .add_system(bevy::window::close_on_esc)
-        .add_system(interaction)
-        .add_system(enable_interaction_after_initial_animation)
-        .add_plugin(TweeningPlugin)
-        .add_plugin(WorldInspectorPlugin::new())
-        .add_startup_system(setup)
+        .add_systems(Update, bevy::window::close_on_esc)
+        .add_systems(Update, interaction)
+        .add_systems(Update, enable_interaction_after_initial_animation)
+        .add_plugins(TweeningPlugin)
+        .add_plugins(WorldInspectorPlugin::new())
+        .add_systems(Startup, setup)
         .run();
 }
 
@@ -50,7 +50,10 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
-                    position: UiRect::all(Val::Px(0.)),
+                    left: Val::Px(0.),
+                    right: Val::Px(0.),
+                    top: Val::Px(0.),
+                    bottom: Val::Px(0.),
                     margin: UiRect::all(Val::Px(16.)),
                     padding: UiRect::all(Val::Px(16.)),
                     flex_direction: FlexDirection::Column,
@@ -95,7 +98,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     .spawn((
                         ButtonBundle {
                             style: Style {
-                                min_size: Size::new(Val::Px(300.), Val::Px(80.)),
+                                min_width: Val::Px(300.),
+                                min_height: Val::Px(80.),
                                 margin: UiRect::all(Val::Px(8.)),
                                 padding: UiRect::all(Val::Px(8.)),
                                 align_content: AlignContent::Center,
@@ -166,7 +170,7 @@ fn interaction(
 ) {
     for (mut animator, transform, interaction, mut color, button_label) in &mut interaction_query {
         match *interaction {
-            Interaction::Clicked => {
+            Interaction::Pressed => {
                 *color = CLICK_COLOR.into();
 
                 match button_label {

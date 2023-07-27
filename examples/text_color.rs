@@ -15,9 +15,9 @@ fn main() {
             }),
             ..default()
         }))
-        .add_system(bevy::window::close_on_esc)
-        .add_plugin(TweeningPlugin)
-        .add_startup_system(setup)
+        .add_systems(Update, bevy::window::close_on_esc)
+        .add_plugins(TweeningPlugin)
+        .add_systems(Startup, setup)
         .run();
 }
 
@@ -83,13 +83,12 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         commands.spawn((
             TextBundle {
                 style: Style {
-                    size: Size::new(Val::Px(size_x), Val::Px(size_y)),
-                    position: UiRect {
-                        left: Val::Px(x),
-                        top: Val::Px(y),
-                        right: Val::Auto,
-                        bottom: Val::Auto,
-                    },
+                    width: Val::Px(size_x),
+                    height: Val::Px(size_y),
+                    left: Val::Px(x),
+                    top: Val::Px(y),
+                    right: Val::Auto,
+                    bottom: Val::Auto,
                     position_type: PositionType::Absolute,
                     align_content: AlignContent::Center,
                     align_items: AlignItems::Center,
