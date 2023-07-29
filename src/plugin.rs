@@ -4,7 +4,9 @@ use bevy::{ecs::component::Component, prelude::*};
 
 #[cfg(feature = "bevy_asset")]
 use crate::{tweenable::AssetTarget, AssetAnimator};
-use crate::{tweenable::ComponentTarget, Animator, AnimatorState, TweenCompleted, TweenSettings};
+use crate::{
+    tweenable::ComponentTarget, Animator, AnimatorState, TweenCompleted, TweeningSettings,
+};
 
 /// Plugin to add systems related to tweening of common components and assets.
 ///
@@ -39,7 +41,7 @@ pub struct TweeningPlugin;
 
 impl Plugin for TweeningPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<TweenSettings>()
+        app.init_resource::<TweeningSettings>()
             .add_event::<TweenCompleted>()
             .add_systems(
                 Update,
@@ -87,7 +89,7 @@ pub fn component_animator_system<T: Component>(
     time: Res<Time>,
     mut query: Query<(Entity, &mut T, &mut Animator<T>)>,
     events: ResMut<Events<TweenCompleted>>,
-    settings: Res<TweenSettings>,
+    settings: Res<TweeningSettings>,
 ) {
     let mut events: Mut<Events<TweenCompleted>> = events.into();
     for (entity, target, mut animator) in query.iter_mut() {
@@ -117,7 +119,7 @@ pub fn asset_animator_system<T: Asset>(
     assets: ResMut<Assets<T>>,
     mut query: Query<(Entity, &mut AssetAnimator<T>)>,
     events: ResMut<Events<TweenCompleted>>,
-    settings: Res<TweenSettings>,
+    settings: Res<TweeningSettings>,
 ) {
     let mut events: Mut<Events<TweenCompleted>> = events.into();
     let mut target = AssetTarget::new(assets);
@@ -228,7 +230,7 @@ mod tests {
         .with_completed_event(0);
 
         let mut env = TestEnv::new(Animator::new(tween));
-        env.world_mut().init_resource::<TweenSettings>();
+        env.world_mut().init_resource::<TweeningSettings>();
 
         // After being inserted, components are always considered changed
         let transform = env.transform();

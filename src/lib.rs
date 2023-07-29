@@ -488,9 +488,9 @@ impl<T: Asset> AssetAnimator<T> {
     }
 }
 
-/// Default tweening settings
+/// Tweening settings
 #[derive(Resource, Default, Clone, Copy)]
-pub struct TweenSettings {
+pub struct TweeningSettings {
     /// Default completed event user data
     /// setting this value will always fire the completed event without having to set it explicitly
     pub default_completed_event_data: Option<u64>,

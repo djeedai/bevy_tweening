@@ -5,7 +5,7 @@ use bevy::prelude::*;
 #[cfg(feature = "bevy_asset")]
 use bevy::asset::{Asset, HandleId};
 
-use crate::{EaseMethod, Lens, RepeatCount, RepeatStrategy, TweenSettings, TweeningDirection};
+use crate::{EaseMethod, Lens, RepeatCount, RepeatStrategy, TweeningDirection, TweeningSettings};
 
 /// The dynamic tweenable type.
 ///
@@ -26,7 +26,7 @@ use crate::{EaseMethod, Lens, RepeatCount, RepeatStrategy, TweenSettings, Tweeni
 /// ```no_run
 /// # use std::time::Duration;
 /// # use bevy::prelude::{Entity, Events, Mut, Transform};
-/// # use bevy_tweening::{TweenSettings, BoxedTweenable, Sequence, Tweenable, TweenCompleted, TweenState, Targetable, TotalDuration};
+/// # use bevy_tweening::{TweeningSettings, BoxedTweenable, Sequence, Tweenable, TweenCompleted, TweenState, Targetable, TotalDuration};
 /// #
 /// # struct MyTweenable;
 /// # impl Tweenable<Transform> for MyTweenable {
@@ -34,7 +34,7 @@ use crate::{EaseMethod, Lens, RepeatCount, RepeatStrategy, TweenSettings, Tweeni
 /// #     fn total_duration(&self) -> TotalDuration  { unimplemented!() }
 /// #     fn set_elapsed(&mut self, elapsed: Duration)  { unimplemented!() }
 /// #     fn elapsed(&self) -> Duration  { unimplemented!() }
-/// #     fn tick<'a>(&mut self, delta: Duration, target: &'a mut dyn Targetable<Transform>, entity: Entity, events: &mut Mut<Events<TweenCompleted>>, settings: &TweenSettings) -> TweenState  { unimplemented!() }
+/// #     fn tick<'a>(&mut self, delta: Duration, target: &'a mut dyn Targetable<Transform>, entity: Entity, events: &mut Mut<Events<TweenCompleted>>, settings: &TweeningSettings) -> TweenState  { unimplemented!() }
 /// #     fn rewind(&mut self) { unimplemented!() }
 /// # }
 ///
@@ -315,7 +315,7 @@ pub trait Tweenable<T>: Send + Sync {
         target: &mut dyn Targetable<T>,
         entity: Entity,
         events: &mut Mut<Events<TweenCompleted>>,
-        settings: &TweenSettings,
+        settings: &TweeningSettings,
     ) -> TweenState;
 
     /// Rewind the animation to its starting state.
@@ -657,7 +657,7 @@ impl<T> Tweenable<T> for Tween<T> {
         target: &mut dyn Targetable<T>,
         entity: Entity,
         events: &mut Mut<Events<TweenCompleted>>,
-        settings: &TweenSettings,
+        settings: &TweeningSettings,
     ) -> TweenState {
         if self.clock.state() == TweenState::Completed {
             return TweenState::Completed;
@@ -837,7 +837,7 @@ impl<T> Tweenable<T> for Sequence<T> {
         target: &mut dyn Targetable<T>,
         entity: Entity,
         events: &mut Mut<Events<TweenCompleted>>,
-        settings: &TweenSettings,
+        settings: &TweeningSettings,
     ) -> TweenState {
         self.elapsed = self.elapsed.saturating_add(delta).min(self.duration);
         while self.index < self.tweens.len() {
@@ -919,7 +919,7 @@ impl<T> Tweenable<T> for Tracks<T> {
         target: &mut dyn Targetable<T>,
         entity: Entity,
         events: &mut Mut<Events<TweenCompleted>>,
-        settings: &TweenSettings,
+        settings: &TweeningSettings,
     ) -> TweenState {
         self.elapsed = self.elapsed.saturating_add(delta).min(self.duration);
         let mut any_active = false;
@@ -1136,7 +1136,7 @@ impl<T> Tweenable<T> for Delay<T> {
         _target: &mut dyn Targetable<T>,
         entity: Entity,
         events: &mut Mut<Events<TweenCompleted>>,
-        settings: &TweenSettings,
+        settings: &TweeningSettings,
     ) -> TweenState {
         let was_completed = self.is_completed();
 
@@ -1209,7 +1209,7 @@ mod tests {
         tween: &mut dyn Tweenable<T>,
         world: &mut World,
         entity: Entity,
-        settings: &TweenSettings,
+        settings: &TweeningSettings,
     ) -> TweenState {
         world.resource_scope(
             |world: &mut World, mut events: Mut<Events<TweenCompleted>>| {
@@ -1307,7 +1307,7 @@ mod tests {
                 assert!(tween.event_data.is_none());
 
                 let (mut world, entity) = make_test_env();
-                let settings = TweenSettings::default();
+                let settings = TweeningSettings::default();
                 let mut event_reader_system_state: SystemState<EventReader<TweenCompleted>> =
                     SystemState::new(&mut world);
 
@@ -1530,7 +1530,7 @@ mod tests {
     #[test]
     fn tween_dir() {
         let mut tween = make_test_tween();
-        let settings = TweenSettings::default();
+        let settings = TweeningSettings::default();
 
         // Default
         assert_eq!(tween.direction(), TweeningDirection::Forward);
@@ -1617,7 +1617,7 @@ mod tests {
         let mut seq = tween1.then(tween2);
 
         let (mut world, entity) = make_test_env();
-        let settings = TweenSettings::default();
+        let settings = TweeningSettings::default();
 
         for i in 1..=16 {
             let state = manual_tick_component(
@@ -1665,7 +1665,7 @@ mod tests {
         }));
 
         let (mut world, entity) = make_test_env();
-        let settings = TweenSettings::default();
+        let settings = TweeningSettings::default();
 
         // Tick halfway through the first tween, then in one tick:
         // - Finish the first tween
@@ -1779,7 +1779,7 @@ mod tests {
         assert_eq!(tracks.duration(), Duration::from_secs(1)); // max(1., 0.8)
 
         let (mut world, entity) = make_test_env();
-        let settings = TweenSettings::default();
+        let settings = TweeningSettings::default();
 
         for i in 1..=6 {
             let state = manual_tick_component(
@@ -1879,7 +1879,7 @@ mod tests {
 
         // Dummy world and event writer
         let (mut world, entity) = make_test_env();
-        let settings = TweenSettings::default();
+        let settings = TweeningSettings::default();
         let mut event_reader_system_state: SystemState<EventReader<TweenCompleted>> =
             SystemState::new(&mut world);
 
@@ -2017,7 +2017,7 @@ mod tests {
         assert_approx_eq!(tween.progress(), 0.);
 
         let (mut world, entity) = make_test_env();
-        let settings = TweenSettings::default();
+        let settings = TweeningSettings::default();
 
         // 10%
         let state = manual_tick_component(
@@ -2085,7 +2085,7 @@ mod tests {
         assert_approx_eq!(tween.progress(), 0.);
 
         let (mut world, entity) = make_test_env();
-        let settings = TweenSettings::default();
+        let settings = TweeningSettings::default();
 
         // 10%
         let state = manual_tick_component(
@@ -2166,7 +2166,7 @@ mod tests {
 
         // Dummy world and event writer
         let (mut world, entity) = make_test_env();
-        let settings = TweenSettings {
+        let settings = TweeningSettings {
             default_completed_event_data: Some(42),
         };
         let mut event_reader_system_state: SystemState<EventReader<TweenCompleted>> =
