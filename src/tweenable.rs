@@ -3,7 +3,7 @@ use std::{ops::DerefMut, time::Duration};
 use bevy::prelude::*;
 
 #[cfg(feature = "bevy_asset")]
-use bevy::asset::{Asset, HandleId};
+use bevy::asset::{Asset, AssetId};
 
 use crate::{EaseMethod, Lens, RepeatCount, RepeatStrategy, TweeningDirection};
 
@@ -234,7 +234,7 @@ impl<'a, T: Asset> AssetTarget<'a, T> {
     pub fn new(assets: ResMut<'a, Assets<T>>) -> Self {
         Self {
             assets,
-            handle: Handle::weak(HandleId::default::<T>()),
+            handle: Handle::Weak(AssetId::default()),
         }
     }
 
@@ -1465,7 +1465,7 @@ mod tests {
                     assert_eq!(cb_mon.last_reported_count, times_completed);
                     {
                         let mut event_reader = event_reader_system_state.get_mut(&mut world);
-                        let event = event_reader.iter().next();
+                        let event = event_reader.read().next();
                         if just_completed {
                             assert!(event.is_some());
                             if let Some(event) = event {
@@ -1877,7 +1877,7 @@ mod tests {
 
                 {
                     let mut event_reader = event_reader_system_state.get_mut(&mut world);
-                    let event = event_reader.iter().next();
+                    let event = event_reader.read().next();
                     if i == 5 {
                         assert!(event.is_some());
                         let event = event.unwrap();

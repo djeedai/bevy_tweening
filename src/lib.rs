@@ -507,7 +507,7 @@ mod tests {
     }
 
     #[cfg(feature = "bevy_asset")]
-    #[derive(Debug, Default, Reflect, TypeUuid)]
+    #[derive(Asset, Debug, Default, Reflect, TypeUuid)]
     #[uuid = "a33abc11-264e-4bbb-82e8-b87226bb4383"]
     struct DummyAsset {
         value: f32,
