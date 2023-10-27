@@ -79,7 +79,7 @@ pub enum AnimationSystem {
 
 /// Animator system for components.
 ///
-/// This system extracts all components of type `T` with an `Animator<T>`
+/// This system extracts all components of type `T` with an [`Animator<T>`]
 /// attached to the same entity, and tick the animator to animate the component.
 pub fn component_animator_system<T: Component>(
     time: Res<Time>,
@@ -103,7 +103,7 @@ pub fn component_animator_system<T: Component>(
 
 /// Animator system for assets.
 ///
-/// This system ticks all `AssetAnimator<T>` components to animate their
+/// This system ticks all [`AssetAnimator<T>`] components to animate their
 /// associated asset.
 ///
 /// This requires the `bevy_asset` feature (enabled by default).
