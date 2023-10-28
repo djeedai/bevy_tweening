@@ -322,6 +322,27 @@ impl Lens<Style> for UiPositionLens {
     }
 }
 
+/// Gamer
+#[cfg(feature = "bevy_ui")]
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct UiBackgroundColorLens {
+    /// Start position.
+    pub start: Color,
+    /// End position.
+    pub end: Color,
+}
+
+
+#[cfg(feature = "bevy_ui")]
+impl Lens<BackgroundColor> for UiBackgroundColorLens {
+    fn lerp(&mut self, target: &mut BackgroundColor, ratio: f32) {
+        let start: Vec4 = self.start.into();
+        let end: Vec4 = self.end.into();
+        let value = start.lerp(end, ratio);
+        target.0 = value.into();
+    }
+}
+
 /// A lens to manipulate the [`color`] field of a [`ColorMaterial`] asset.
 ///
 /// [`color`]: https://docs.rs/bevy/0.11.0/bevy/sprite/struct.ColorMaterial.html#structfield.color
