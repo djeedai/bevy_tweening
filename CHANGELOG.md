@@ -7,7 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Fixed a panic when a TextLens tried to change a section that wasn't present.
+- Fixed a panic when a `TextLens` tried to change a text section that wasn't present.
+
+## [0.8.0] - 2023-07-12
+
+### Changed
+
+- Compatible with Bevy 0.11
 
 ## [0.7.0] - 2023-03-09
 
