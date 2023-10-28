@@ -49,6 +49,11 @@ impl Plugin for TweeningPlugin {
             Update,
             component_animator_system::<Style>.in_set(AnimationSystem::AnimationUpdate),
         );
+        #[cfg(feature = "bevy_ui")]
+        app.add_systems(
+            Update,
+            component_animator_system::<BackgroundColor>.in_set(AnimationSystem::AnimationUpdate),
+        );
 
         #[cfg(feature = "bevy_sprite")]
         app.add_systems(
