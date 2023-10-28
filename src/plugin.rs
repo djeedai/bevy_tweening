@@ -227,8 +227,8 @@ mod tests {
         let transform = env.transform();
         assert!(transform.is_changed());
 
-        //fn nit() {}
-        //let mut system = IntoSystem::into_system(nit);
+        // fn nit() {}
+        // let mut system = IntoSystem::into_system(nit);
         let mut system = IntoSystem::into_system(component_animator_system::<Transform>);
         system.initialize(env.world_mut());
 

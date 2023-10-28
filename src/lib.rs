@@ -64,26 +64,31 @@
 //! # }
 //! ```
 //!
-//! Note that this example leverages the fact [`TweeningPlugin`] automatically adds the necessary
-//! system to animate [`Transform`] components. However, for most other components and assets, you
-//! need to manually add those systems to your `App`.
+//! Note that this example leverages the fact [`TweeningPlugin`] automatically
+//! adds the necessary system to animate [`Transform`] components. However, for
+//! most other components and assets, you need to manually add those systems to
+//! your `App`.
 //!
 //! # System setup
 //!
-//! Adding the [`TweeningPlugin`] to your app provides the basic setup for using 🍃 Bevy Tweening.
-//! However, additional setup is required depending on the components and assets you want to animate:
+//! Adding the [`TweeningPlugin`] to your app provides the basic setup for using
+//! 🍃 Bevy Tweening. However, additional setup is required depending on the
+//! components and assets you want to animate:
 //!
-//! - To ensure a component `C` is animated, the [`component_animator_system::<C>`] system must run
-//!   each frame, in addition of adding an [`Animator::<C>`] component to the same Entity as `C`.
+//! - To ensure a component `C` is animated, the
+//!   [`component_animator_system::<C>`] system must run each frame, in addition
+//!   of adding an [`Animator::<C>`] component to the same Entity as `C`.
 //!
-//! - To ensure an asset `A` is animated, the [`asset_animator_system::<A>`] system must run each frame,
-//!   in addition of adding an [`AssetAnimator<A>`] component to any Entity. Animating assets also
-//!   requires the `bevy_asset` feature (enabled by default).
+//! - To ensure an asset `A` is animated, the [`asset_animator_system::<A>`]
+//!   system must run each frame, in addition of adding an [`AssetAnimator<A>`]
+//!   component to any Entity. Animating assets also requires the `bevy_asset`
+//!   feature (enabled by default).
 //!
-//! By default, 🍃 Bevy Tweening adopts a minimalist approach, and the [`TweeningPlugin`] will only add
-//! systems to animate components and assets for which a [`Lens`] is provided by 🍃 Bevy Tweening itself.
-//! This means that any other Bevy component or asset (either built-in from Bevy itself, or custom)
-//! requires manually scheduling the appropriate system.
+//! By default, 🍃 Bevy Tweening adopts a minimalist approach, and the
+//! [`TweeningPlugin`] will only add systems to animate components and assets
+//! for which a [`Lens`] is provided by 🍃 Bevy Tweening itself. This means that
+//! any other Bevy component or asset (either built-in from Bevy itself, or
+//! custom) requires manually scheduling the appropriate system.
 //!
 //! | Component or Asset | Animation system added by `TweeningPlugin`? |
 //! |---|---|
@@ -97,22 +102,17 @@
 //! To add a system for a component `C`, use:
 //!
 //! ```
-//! # use bevy_tweening::{lens::*, *};
+//! # use bevy::prelude::*;
+//! # use bevy_tweening::*;
 //! # let mut app = App::default();
+//! # #[derive(Component)] struct C;
 //! app.add_systems(Update,
 //!     component_animator_system::<C>
 //!         .in_set(AnimationSystem::AnimationUpdate));
 //! ```
 //!
-//! Similarly for an asset `A`, use:
-//!
-//! ```
-//! # use bevy_tweening::{lens::*, *};
-//! # let mut app = App::default();
-//! app.add_systems(Update,
-//!     asset_animator_system::<A>
-//!         .in_set(AnimationSystem::AnimationUpdate));
-//! ```
+//! Similarly for an asset `A`, use the `asset_animator_system`. This is only
+//! available with the `bevy_asset` feature.
 //!
 //! # Tweenables
 //!
