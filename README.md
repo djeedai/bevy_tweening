@@ -199,7 +199,7 @@ The two formulations are mathematically equivalent, but one may be more suited t
 
 ## Custom component support
 
-Custom components are animated like built-in Bevy ones, via a lens.
+Custom components are animated via a lens like the ones described in (Bevy Components)[#bevy-components].
 
 ```rust
 #[derive(Component)]
@@ -217,11 +217,11 @@ impl Lens<MyCustomComponent> for MyCustomLens {
 }
 ```
 
-Then, in addition, the system `component_animator_system::<CustomComponent>` needs to be added to the application,as described in [System Setup](#system-setup). This system will extract each frame all `CustomComponent` instances with an `Animator<CustomComponent>` on the same entity, and animate the component via its animator.
+Then, in addition, the system `component_animator_system::<CustomComponent>` needs to be added to the application, as described in [System Setup](#system-setup). This system will extract each frame all `CustomComponent` instances with an `Animator<CustomComponent>` on the same entity, and animate the component via its animator.
 
 ## Custom asset support
 
-The process is similar to custom components, creating a custom lens for the custom asset. The system to add is `asset_animator_system::<CustomAsset>`,as described in [System Setup](#system-setup). This requires the `bevy_asset` feature (enabled by default).
+The process is similar to custom components, creating a custom lens for the custom asset. The system to add is `asset_animator_system::<CustomAsset>`, as described in [System Setup](#system-setup). This requires the `bevy_asset` feature (enabled by default).
 
 ## Examples
 
