@@ -116,14 +116,14 @@ pub fn component_animator_system<T: Component>(
 pub fn asset_animator_system<T: Asset>(
     time: Res<Time>,
     assets: ResMut<Assets<T>>,
-    mut query: Query<(Entity, &mut AssetAnimator<T>)>,
+    mut query: Query<(Entity, &Handle<T>, &mut AssetAnimator<T>)>,
     events: ResMut<Events<TweenCompleted>>,
 ) {
     let mut events: Mut<Events<TweenCompleted>> = events.into();
     let mut target = AssetTarget::new(assets);
-    for (entity, mut animator) in query.iter_mut() {
+    for (entity, handle, mut animator) in query.iter_mut() {
         if animator.state != AnimatorState::Paused {
-            target.handle = animator.handle().clone();
+            target.handle = handle.clone();
             if !target.is_valid() {
                 continue;
             }
