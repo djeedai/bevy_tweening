@@ -93,10 +93,10 @@ fn setup(
                 mesh: quad_mesh.clone(),
                 transform: Transform::from_translation(Vec3::new(x, y, 0.))
                     .with_scale(Vec3::splat(size)),
-                material: unique_material.clone(),
+                material: unique_material,
                 ..default()
             },
-            AssetAnimator::new(unique_material.clone(), tween),
+            AssetAnimator::new(tween),
         ));
         y -= size * spacing;
         if y < -screen_y {
