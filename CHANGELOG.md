@@ -5,6 +5,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Fixed a panic when a `TextLens` tried to change a text section that wasn't present.
+
 ### Added
 
 - Added built-in support for the `BackgroundColor` bevy component, under the `bevy_ui` feature.
