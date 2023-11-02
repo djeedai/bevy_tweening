@@ -157,10 +157,7 @@ mod tests {
         pub fn new<T: Component>(animator: T) -> Self {
             let mut world = World::new();
             world.init_resource::<Events<TweenCompleted>>();
-
-            let mut time = Time::default();
-            time.update();
-            world.insert_resource(time);
+            world.init_resource::<Time>();
 
             let entity = world.spawn((Transform::default(), animator)).id();
 
@@ -178,8 +175,7 @@ mod tests {
             // Simulate time passing by updating the simulation time resource
             {
                 let mut time = self.world.resource_mut::<Time>();
-                let last_update = time.last_update().unwrap();
-                time.update_with_instant(last_update + duration);
+                time.advance_by(duration);
             }
 
             // Reset world-related change detection
