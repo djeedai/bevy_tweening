@@ -64,6 +64,56 @@
 //! # }
 //! ```
 //!
+//! Note that this example leverages the fact [`TweeningPlugin`] automatically
+//! adds the necessary system to animate [`Transform`] components. However, for
+//! most other components and assets, you need to manually add those systems to
+//! your `App`.
+//!
+//! # System setup
+//!
+//! Adding the [`TweeningPlugin`] to your app provides the basic setup for using
+//! 🍃 Bevy Tweening. However, additional setup is required depending on the
+//! components and assets you want to animate:
+//!
+//! - To ensure a component `C` is animated, the
+//!   [`component_animator_system::<C>`] system must run each frame, in addition
+//!   of adding an [`Animator::<C>`] component to the same Entity as `C`.
+//!
+//! - To ensure an asset `A` is animated, the [`asset_animator_system::<A>`]
+//!   system must run each frame, in addition of adding an [`AssetAnimator<A>`]
+//!   component to any Entity. Animating assets also requires the `bevy_asset`
+//!   feature (enabled by default).
+//!
+//! By default, 🍃 Bevy Tweening adopts a minimalist approach, and the
+//! [`TweeningPlugin`] will only add systems to animate components and assets
+//! for which a [`Lens`] is provided by 🍃 Bevy Tweening itself. This means that
+//! any other Bevy component or asset (either built-in from Bevy itself, or
+//! custom) requires manually scheduling the appropriate system.
+//!
+//! | Component or Asset | Animation system added by `TweeningPlugin`? |
+//! |---|---|
+//! | [`Transform`]          | Yes                           |
+//! | [`Sprite`]             | Only if `bevy_sprite` feature |
+//! | [`ColorMaterial`]      | Only if `bevy_sprite` feature |
+//! | [`Style`]              | Only if `bevy_ui` feature     |
+//! | [`Text`]               | Only if `bevy_text` feature   |
+//! | All other components   | No                            |
+//!
+//! To add a system for a component `C`, use:
+//!
+//! ```
+//! # use bevy::prelude::*;
+//! # use bevy_tweening::*;
+//! # let mut app = App::default();
+//! # #[derive(Component)] struct C;
+//! app.add_systems(Update,
+//!     component_animator_system::<C>
+//!         .in_set(AnimationSystem::AnimationUpdate));
+//! ```
+//!
+//! Similarly for an asset `A`, use the `asset_animator_system`. This is only
+//! available with the `bevy_asset` feature.
+//!
 //! # Tweenables
 //!
 //! 🍃 Bevy Tweening supports several types of _tweenables_, building blocks
@@ -150,6 +200,8 @@
 //! [`Query`]: https://docs.rs/bevy/0.11.0/bevy/ecs/system/struct.Query.html
 //! [`ColorMaterial`]: https://docs.rs/bevy/0.11.0/bevy/sprite/struct.ColorMaterial.html
 //! [`Sprite`]: https://docs.rs/bevy/0.11.0/bevy/sprite/struct.Sprite.html
+//! [`Style`]: https://docs.rs/bevy/0.11.0/bevy/ui/struct.Style.html
+//! [`Text`]: https://docs.rs/bevy/0.11.0/bevy/text/struct.Text.html
 //! [`Transform`]: https://docs.rs/bevy/0.11.0/bevy/transform/components/struct.Transform.html
 
 use std::time::Duration;
@@ -417,6 +469,9 @@ macro_rules! animator_impl {
 }
 
 /// Component to control the animation of another component.
+///
+/// The animated component is the component located on the same entity as the
+/// [`Animator<T>`] itself.
 #[derive(Component)]
 pub struct Animator<T: Component> {
     /// Control if this animation is played or not.
@@ -448,13 +503,15 @@ impl<T: Component> Animator<T> {
 }
 
 /// Component to control the animation of an asset.
+///
+/// The animated asset is the asset referenced by a [`Handle<T>`] component
+/// located on the same entity as the [`AssetAnimator<T>`] itself.
 #[cfg(feature = "bevy_asset")]
 #[derive(Component)]
 pub struct AssetAnimator<T: Asset> {
     /// Control if this animation is played or not.
     pub state: AnimatorState,
     tweenable: BoxedTweenable<T>,
-    handle: Handle<T>,
     speed: f32,
 }
 
@@ -471,21 +528,15 @@ impl<T: Asset + std::fmt::Debug> std::fmt::Debug for AssetAnimator<T> {
 impl<T: Asset> AssetAnimator<T> {
     /// Create a new asset animator component from a single tweenable.
     #[must_use]
-    pub fn new(handle: Handle<T>, tween: impl Tweenable<T> + 'static) -> Self {
+    pub fn new(tween: impl Tweenable<T> + 'static) -> Self {
         Self {
             state: default(),
             tweenable: Box::new(tween),
-            handle,
             speed: 1.,
         }
     }
 
     animator_impl!();
-
-    #[must_use]
-    fn handle(&self) -> Handle<T> {
-        self.handle.clone()
-    }
 }
 
 #[cfg(test)]
@@ -721,9 +772,8 @@ mod tests {
             Duration::from_secs(1),
             DummyLens { start: 0., end: 1. },
         );
-        let animator = AssetAnimator::new(Handle::<DummyAsset>::default(), tween);
+        let animator = AssetAnimator::new(tween);
         assert_eq!(animator.state, AnimatorState::default());
-        assert_eq!(animator.handle(), Handle::<DummyAsset>::default());
         let tween = animator;
         assert_eq!(tween.tweenable().progress(), 0.);
     }
@@ -737,8 +787,7 @@ mod tests {
                 Duration::from_secs(1),
                 DummyLens { start: 0., end: 1. },
             );
-            let animator =
-                AssetAnimator::new(Handle::<DummyAsset>::default(), tween).with_state(state);
+            let animator = AssetAnimator::new(tween).with_state(state);
             assert_eq!(animator.state, state);
 
             // impl Debug
@@ -753,12 +802,12 @@ mod tests {
     #[cfg(feature = "bevy_asset")]
     #[test]
     fn asset_animator_controls() {
-        let tween = Tween::new(
+        let tween: Tween<DummyAsset> = Tween::new(
             EaseFunction::QuadraticInOut,
             Duration::from_secs(1),
             DummyLens { start: 0., end: 1. },
         );
-        let mut animator = AssetAnimator::new(Handle::<DummyAsset>::default(), tween);
+        let mut animator = AssetAnimator::new(tween);
         assert_eq!(animator.state, AnimatorState::Playing);
         assert_approx_eq!(animator.tweenable().progress(), 0.);
 
@@ -791,37 +840,37 @@ mod tests {
     #[cfg(feature = "bevy_asset")]
     #[test]
     fn asset_animator_speed() {
-        let tween = Tween::new(
+        let tween: Tween<DummyAsset> = Tween::new(
             EaseFunction::QuadraticInOut,
             Duration::from_secs(1),
             DummyLens { start: 0., end: 1. },
         );
 
-        let mut animator = AssetAnimator::new(Handle::<DummyAsset>::default(), tween);
+        let mut animator = AssetAnimator::new(tween);
         assert_approx_eq!(animator.speed(), 1.); // default speed
 
         animator.set_speed(2.4);
         assert_approx_eq!(animator.speed(), 2.4);
 
-        let tween = Tween::new(
+        let tween: Tween<DummyAsset> = Tween::new(
             EaseFunction::QuadraticInOut,
             Duration::from_secs(1),
             DummyLens { start: 0., end: 1. },
         );
 
-        let animator = AssetAnimator::new(Handle::<DummyAsset>::default(), tween).with_speed(3.5);
+        let animator = AssetAnimator::new(tween).with_speed(3.5);
         assert_approx_eq!(animator.speed(), 3.5);
     }
 
     #[cfg(feature = "bevy_asset")]
     #[test]
     fn asset_animator_set_tweenable() {
-        let tween = Tween::new(
+        let tween: Tween<DummyAsset> = Tween::new(
             EaseFunction::QuadraticInOut,
             Duration::from_secs(1),
             DummyLens { start: 0., end: 1. },
         );
-        let mut animator = AssetAnimator::new(Handle::<DummyAsset>::default(), tween);
+        let mut animator = AssetAnimator::new(tween);
 
         let tween2 = Tween::new(
             EaseFunction::QuadraticInOut,

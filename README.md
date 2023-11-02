@@ -47,6 +47,35 @@ App::default()
     .run();
 ```
 
+This provides the basic setup for using 🍃 Bevy Tweening. However, additional setup is required depending on the components and assets you want to animate:
+
+- To ensure a component `C` is animated, the `component_animator_system::<C>` system must run each frame, in addition of adding an `Animator::<C>` component to the same Entity as `C`.
+
+- To ensure an asset `A` is animated, the `asset_animator_system::<A>` system must run each frame, in addition of adding an `AssetAnimator<A>` component to any Entity. Animating assets also requires the `bevy_asset` feature (enabled by default).
+
+By default, 🍃 Bevy Tweening adopts a minimalist approach, and the `TweeningPlugin` will only add systems to animate components and assets for which a `Lens` is provided by 🍃 Bevy Tweening itself. This means that any other Bevy component or asset (either built-in from Bevy itself, or custom) requires manually scheduling the appropriate system.
+
+| Component or Asset | Animation system added by `TweeningPlugin`? |
+|---|---|
+| `Transform`          | Yes                           |
+| `Sprite`             | Only if `bevy_sprite` feature |
+| `ColorMaterial`      | Only if `bevy_sprite` feature |
+| `Style`              | Only if `bevy_ui` feature     |
+| `Text`               | Only if `bevy_text` feature   |
+| All other components | No                            |
+
+To add a system for a component `C`, use:
+
+```rust
+app.add_systems(Update, component_animator_system::<C>.in_set(AnimationSystem::AnimationUpdate));
+```
+
+Similarly for an asset `A`, use:
+
+```rust
+app.add_systems(Update, asset_animator_system::<A>.in_set(AnimationSystem::AnimationUpdate));
+```
+
 ### Animate a component
 
 Animate the transform position of an entity by creating a `Tween` animation for the transform, and adding an `Animator` component with that tween:
@@ -124,6 +153,7 @@ The naming scheme for predefined lenses is `"<TargetName><FieldName>Lens"`, wher
 | | [`scale`](https://docs.rs/bevy/0.11.0/bevy/transform/components/struct.Transform.html#structfield.scale) | [`TransformScaleLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.TransformScaleLens.html) | |
 | [`Sprite`](https://docs.rs/bevy/0.11.0/bevy/sprite/struct.Sprite.html) | [`color`](https://docs.rs/bevy/0.11.0/bevy/sprite/struct.Sprite.html#structfield.color) | [`SpriteColorLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.SpriteColorLens.html) | `bevy_sprite` |
 | [`Style`](https://docs.rs/bevy/0.11.0/bevy/ui/struct.Style.html) | [`position`](https://docs.rs/bevy/0.11.0/bevy/ui/struct.Style.html#structfield.position) | [`UiPositionLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.UiPositionLens.html) | `bevy_ui` |
+| [`BackgroundColor`](https://docs.rs/bevy/0.11.0/bevy/ui/struct.BackgroundColor.html)| | [`UiBackgroundColorLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.UiBackgroundColorLens.html) | `bevy_ui` |
 | [`Text`](https://docs.rs/bevy/0.11.0/bevy/text/struct.Text.html) | [`TextStyle::color`](https://docs.rs/bevy/0.11.0/bevy/text/struct.TextStyle.html#structfield.color) | [`TextColorLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.TextColorLens.html) | `bevy_text` |
 
 ¹ Shortest-path interpolation between two rotations, using `Quat::slerp()`.
@@ -170,7 +200,7 @@ The two formulations are mathematically equivalent, but one may be more suited t
 
 ## Custom component support
 
-Custom components are animated like built-in Bevy ones, via a lens.
+Custom components are animated via a lens like the ones described in (Bevy Components)[#bevy-components].
 
 ```rust
 #[derive(Component)]
@@ -188,11 +218,11 @@ impl Lens<MyCustomComponent> for MyCustomLens {
 }
 ```
 
-Then, in addition, the system `component_animator_system::<CustomComponent>` needs to be added to the application. This system will extract each frame all `CustomComponent` instances with an `Animator<CustomComponent>` on the same entity, and animate the component via its animator.
+Then, in addition, the system `component_animator_system::<CustomComponent>` needs to be added to the application, as described in [System Setup](#system-setup). This system will extract each frame all `CustomComponent` instances with an `Animator<CustomComponent>` on the same entity, and animate the component via its animator.
 
 ## Custom asset support
 
-The process is similar to custom components, creating a custom lens for the custom asset. The system to add is `asset_animator_system::<CustomAsset>`. This requires the `bevy_asset` feature (enabled by default).
+The process is similar to custom components, creating a custom lens for the custom asset. The system to add is `asset_animator_system::<CustomAsset>`, as described in [System Setup](#system-setup). This requires the `bevy_asset` feature (enabled by default).
 
 ## Examples
 

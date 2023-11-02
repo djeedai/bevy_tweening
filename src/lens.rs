@@ -98,7 +98,10 @@ impl Lens<Text> for TextColorLens {
         let start: Vec4 = self.start.into();
         let end: Vec4 = self.end.into();
         let value = start.lerp(end, ratio);
-        target.sections[self.section].style.color = value.into();
+
+        if let Some(section) = target.sections.get_mut(self.section) {
+            section.style.color = value.into();
+        }
     }
 }
 
@@ -319,6 +322,26 @@ impl Lens<Style> for UiPositionLens {
     }
 }
 
+/// Gamer
+#[cfg(feature = "bevy_ui")]
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct UiBackgroundColorLens {
+    /// Start position.
+    pub start: Color,
+    /// End position.
+    pub end: Color,
+}
+
+#[cfg(feature = "bevy_ui")]
+impl Lens<BackgroundColor> for UiBackgroundColorLens {
+    fn lerp(&mut self, target: &mut BackgroundColor, ratio: f32) {
+        let start: Vec4 = self.start.into();
+        let end: Vec4 = self.end.into();
+        let value = start.lerp(end, ratio);
+        target.0 = value.into();
+    }
+}
+
 /// A lens to manipulate the [`color`] field of a [`ColorMaterial`] asset.
 ///
 /// [`color`]: https://docs.rs/bevy/0.11.0/bevy/sprite/struct.ColorMaterial.html#structfield.color
@@ -393,6 +416,24 @@ mod tests {
 
         lens.lerp(&mut text, 0.3);
         assert_eq!(text.sections[0].style.color, Color::rgba(0.7, 0., 0.3, 1.0));
+
+        let mut lens_section1 = TextColorLens {
+            start: Color::RED,
+            end: Color::BLUE,
+            section: 1,
+        };
+
+        lens_section1.lerp(&mut text, 1.);
+        // Should not have changed because the lens targets section 1
+        assert_eq!(text.sections[0].style.color, Color::rgba(0.7, 0., 0.3, 1.0));
+
+        text.sections.push(TextSection {
+            value: "".to_string(),
+            style: Default::default(),
+        });
+
+        lens_section1.lerp(&mut text, 0.3);
+        assert_eq!(text.sections[1].style.color, Color::rgba(0.7, 0., 0.3, 1.0));
     }
 
     #[test]
