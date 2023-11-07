@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Compatible with Bevy 0.12
 - The `AssetAnimator<T>` doesn't take any `Handle<T>` anymore; instead the `asset_animator_system::<T>()` retrieves the handle of the asset to animate from the same `Entity` the `AssetAnimator<T>` is attached to. This aligns the behavior with component animation. (#101)
 
 ### Fixed
