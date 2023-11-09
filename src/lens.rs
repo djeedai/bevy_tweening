@@ -65,6 +65,22 @@ use bevy::prelude::*;
 ///   }
 /// }
 /// ```
+///
+/// /// Any cusotom implementation of `Lens` for animating any component or asset other than those
+/// provided by Bevy Tweening itself: `Transform`, `Sprite`, `ColorMaterial`, `Style`, `Text`,
+/// (either built-in from Bevy itself, or custom) requires manual  scheduling the appropriate
+/// system.
+///
+/// To add a system for a component `C`, use:
+///
+/// ```rust
+/// app.add_systems(Update, component_animator_system::<C>.in_set(AnimationSystem::AnimationUpdate));
+/// ```
+/// Similarly for an asset `A`, use:
+///
+///```rust
+/// app.add_systems(Update, asset_animator_system::<A>.in_set(AnimationSystem::AnimationUpdate));
+///```
 pub trait Lens<T> {
     /// Perform a linear interpolation (lerp) over the subset of fields of a
     /// component or asset the lens focuses on, based on the linear ratio
