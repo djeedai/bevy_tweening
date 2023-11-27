@@ -392,6 +392,25 @@ impl Lens<Sprite> for SpriteColorLens {
     }
 }
 
+/// A lens to manipulate the [`color.a`] field of a [`Sprite`] component.
+///
+/// [`color`]: https://docs.rs/bevy/0.12.0/bevy/sprite/struct.Sprite.html#structfield.color
+/// [`Sprite`]: https://docs.rs/bevy/0.12.0/bevy/sprite/struct.Sprite.html
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct SpriteAlphaLens {
+    /// Start alpha.
+    pub start: f32,
+    /// End alpha.
+    pub end: f32,
+}
+
+impl Lens<Sprite> for SpriteAlphaLens {
+    fn lerp(&mut self, target: &mut Sprite, ratio: f32) {
+        let value = self.start + (self.end - self.start) * ratio;
+        target.color.set_a(value);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::f32::consts::TAU;
