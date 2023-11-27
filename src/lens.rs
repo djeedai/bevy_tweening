@@ -367,7 +367,7 @@ impl Lens<ColorMaterial> for ColorMaterialColorLens {
     }
 }
 
-/// A lens to manipulate the [`color`] field of a [`Sprite`] asset.
+/// A lens to manipulate the [`color`] field of a [`Sprite`] component.
 ///
 /// [`color`]: https://docs.rs/bevy/0.12.0/bevy/sprite/struct.Sprite.html#structfield.color
 /// [`Sprite`]: https://docs.rs/bevy/0.12.0/bevy/sprite/struct.Sprite.html
