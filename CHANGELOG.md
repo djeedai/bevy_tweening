@@ -3,6 +3,21 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0] - 2023-11-07
+
+### Changed
+
+- Compatible with Bevy 0.12
+- The `AssetAnimator<T>` doesn't take any `Handle<T>` anymore; instead the `asset_animator_system::<T>()` retrieves the handle of the asset to animate from the same `Entity` the `AssetAnimator<T>` is attached to. This aligns the behavior with component animation. (#101)
+
+### Fixed
+
+- Fixed a panic when a `TextLens` tried to change a text section that wasn't present.
+
+### Added
+
+- Added built-in support for the `BackgroundColor` bevy component, under the `bevy_ui` feature.
+
 ## [0.8.0] - 2023-07-12
 
 ### Changed

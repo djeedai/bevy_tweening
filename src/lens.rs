@@ -31,9 +31,9 @@
 //! - [`TransformRotateZLens`]
 //! - [`TransformRotateAxisLens`]
 //!
-//! [`rotation`]: https://docs.rs/bevy/0.11.0/bevy/transform/components/struct.Transform.html#structfield.rotation
-//! [`Transform`]: https://docs.rs/bevy/0.11.0/bevy/transform/components/struct.Transform.html
-//! [`Quat::slerp()`]: https://docs.rs/bevy/0.11.0/bevy/math/struct.Quat.html#method.slerp
+//! [`rotation`]: https://docs.rs/bevy/0.12.0/bevy/transform/components/struct.Transform.html#structfield.rotation
+//! [`Transform`]: https://docs.rs/bevy/0.12.0/bevy/transform/components/struct.Transform.html
+//! [`Quat::slerp()`]: https://docs.rs/bevy/0.12.0/bevy/math/struct.Quat.html#method.slerp
 
 use bevy::prelude::*;
 
@@ -90,8 +90,8 @@ pub trait Lens<T> {
 /// A lens to manipulate the [`color`] field of a section of a [`Text`]
 /// component.
 ///
-/// [`color`]: https://docs.rs/bevy/0.11.0/bevy/text/struct.TextStyle.html#structfield.color
-/// [`Text`]: https://docs.rs/bevy/0.11.0/bevy/text/struct.Text.html
+/// [`color`]: https://docs.rs/bevy/0.12.0/bevy/text/struct.TextStyle.html#structfield.color
+/// [`Text`]: https://docs.rs/bevy/0.12.0/bevy/text/struct.Text.html
 #[cfg(feature = "bevy_text")]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct TextColorLens {
@@ -111,14 +111,17 @@ impl Lens<Text> for TextColorLens {
         let start: Vec4 = self.start.into();
         let end: Vec4 = self.end.into();
         let value = start.lerp(end, ratio);
-        target.sections[self.section].style.color = value.into();
+
+        if let Some(section) = target.sections.get_mut(self.section) {
+            section.style.color = value.into();
+        }
     }
 }
 
 /// A lens to manipulate the [`translation`] field of a [`Transform`] component.
 ///
-/// [`translation`]: https://docs.rs/bevy/0.11.0/bevy/transform/components/struct.Transform.html#structfield.translation
-/// [`Transform`]: https://docs.rs/bevy/0.11.0/bevy/transform/components/struct.Transform.html
+/// [`translation`]: https://docs.rs/bevy/0.12.0/bevy/transform/components/struct.Transform.html#structfield.translation
+/// [`Transform`]: https://docs.rs/bevy/0.12.0/bevy/transform/components/struct.Transform.html
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct TransformPositionLens {
     /// Start value of the translation.
@@ -147,9 +150,9 @@ impl Lens<Transform> for TransformPositionLens {
 /// See the [top-level `lens` module documentation] for a comparison of rotation
 /// lenses.
 ///
-/// [`rotation`]: https://docs.rs/bevy/0.11.0/bevy/transform/components/struct.Transform.html#structfield.rotation
-/// [`Transform`]: https://docs.rs/bevy/0.11.0/bevy/transform/components/struct.Transform.html
-/// [`Quat::slerp()`]: https://docs.rs/bevy/0.11.0/bevy/math/struct.Quat.html#method.slerp
+/// [`rotation`]: https://docs.rs/bevy/0.12.0/bevy/transform/components/struct.Transform.html#structfield.rotation
+/// [`Transform`]: https://docs.rs/bevy/0.12.0/bevy/transform/components/struct.Transform.html
+/// [`Quat::slerp()`]: https://docs.rs/bevy/0.12.0/bevy/math/struct.Quat.html#method.slerp
 /// [top-level `lens` module documentation]: crate::lens
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct TransformRotationLens {
@@ -175,7 +178,7 @@ impl Lens<Transform> for TransformRotationLens {
 /// See the [top-level `lens` module documentation] for a comparison of rotation
 /// lenses.
 ///
-/// [`Transform`]: https://docs.rs/bevy/0.11.0/bevy/transform/components/struct.Transform.html
+/// [`Transform`]: https://docs.rs/bevy/0.12.0/bevy/transform/components/struct.Transform.html
 /// [top-level `lens` module documentation]: crate::lens
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct TransformRotateXLens {
@@ -202,7 +205,7 @@ impl Lens<Transform> for TransformRotateXLens {
 /// See the [top-level `lens` module documentation] for a comparison of rotation
 /// lenses.
 ///
-/// [`Transform`]: https://docs.rs/bevy/0.11.0/bevy/transform/components/struct.Transform.html
+/// [`Transform`]: https://docs.rs/bevy/0.12.0/bevy/transform/components/struct.Transform.html
 /// [top-level `lens` module documentation]: crate::lens
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct TransformRotateYLens {
@@ -229,7 +232,7 @@ impl Lens<Transform> for TransformRotateYLens {
 /// See the [top-level `lens` module documentation] for a comparison of rotation
 /// lenses.
 ///
-/// [`Transform`]: https://docs.rs/bevy/0.11.0/bevy/transform/components/struct.Transform.html
+/// [`Transform`]: https://docs.rs/bevy/0.12.0/bevy/transform/components/struct.Transform.html
 /// [top-level `lens` module documentation]: crate::lens
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct TransformRotateZLens {
@@ -260,7 +263,7 @@ impl Lens<Transform> for TransformRotateZLens {
 ///
 /// This method panics if the `axis` vector is not normalized.
 ///
-/// [`Transform`]: https://docs.rs/bevy/0.11.0/bevy/transform/components/struct.Transform.html
+/// [`Transform`]: https://docs.rs/bevy/0.12.0/bevy/transform/components/struct.Transform.html
 /// [top-level `lens` module documentation]: crate::lens
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct TransformRotateAxisLens {
@@ -281,8 +284,8 @@ impl Lens<Transform> for TransformRotateAxisLens {
 
 /// A lens to manipulate the [`scale`] field of a [`Transform`] component.
 ///
-/// [`scale`]: https://docs.rs/bevy/0.11.0/bevy/transform/components/struct.Transform.html#structfield.scale
-/// [`Transform`]: https://docs.rs/bevy/0.11.0/bevy/transform/components/struct.Transform.html
+/// [`scale`]: https://docs.rs/bevy/0.12.0/bevy/transform/components/struct.Transform.html#structfield.scale
+/// [`Transform`]: https://docs.rs/bevy/0.12.0/bevy/transform/components/struct.Transform.html
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct TransformScaleLens {
     /// Start value of the scale.
@@ -300,8 +303,8 @@ impl Lens<Transform> for TransformScaleLens {
 
 /// A lens to manipulate the [`position`] field of a UI [`Style`] component.
 ///
-/// [`position`]: https://docs.rs/bevy/0.11.0/bevy/ui/struct.Style.html#structfield.position
-/// [`Style`]: https://docs.rs/bevy/0.11.0/bevy/ui/struct.Style.html
+/// [`position`]: https://docs.rs/bevy/0.12.0/bevy/ui/struct.Style.html#structfield.position
+/// [`Style`]: https://docs.rs/bevy/0.12.0/bevy/ui/struct.Style.html
 #[cfg(feature = "bevy_ui")]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct UiPositionLens {
@@ -332,10 +335,30 @@ impl Lens<Style> for UiPositionLens {
     }
 }
 
+/// Gamer
+#[cfg(feature = "bevy_ui")]
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct UiBackgroundColorLens {
+    /// Start position.
+    pub start: Color,
+    /// End position.
+    pub end: Color,
+}
+
+#[cfg(feature = "bevy_ui")]
+impl Lens<BackgroundColor> for UiBackgroundColorLens {
+    fn lerp(&mut self, target: &mut BackgroundColor, ratio: f32) {
+        let start: Vec4 = self.start.into();
+        let end: Vec4 = self.end.into();
+        let value = start.lerp(end, ratio);
+        target.0 = value.into();
+    }
+}
+
 /// A lens to manipulate the [`color`] field of a [`ColorMaterial`] asset.
 ///
-/// [`color`]: https://docs.rs/bevy/0.11.0/bevy/sprite/struct.ColorMaterial.html#structfield.color
-/// [`ColorMaterial`]: https://docs.rs/bevy/0.11.0/bevy/sprite/struct.ColorMaterial.html
+/// [`color`]: https://docs.rs/bevy/0.12.0/bevy/sprite/struct.ColorMaterial.html#structfield.color
+/// [`ColorMaterial`]: https://docs.rs/bevy/0.12.0/bevy/sprite/struct.ColorMaterial.html
 #[cfg(feature = "bevy_sprite")]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct ColorMaterialColorLens {
@@ -359,8 +382,8 @@ impl Lens<ColorMaterial> for ColorMaterialColorLens {
 
 /// A lens to manipulate the [`color`] field of a [`Sprite`] asset.
 ///
-/// [`color`]: https://docs.rs/bevy/0.11.0/bevy/sprite/struct.Sprite.html#structfield.color
-/// [`Sprite`]: https://docs.rs/bevy/0.11.0/bevy/sprite/struct.Sprite.html
+/// [`color`]: https://docs.rs/bevy/0.12.0/bevy/sprite/struct.Sprite.html#structfield.color
+/// [`Sprite`]: https://docs.rs/bevy/0.12.0/bevy/sprite/struct.Sprite.html
 #[cfg(feature = "bevy_sprite")]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct SpriteColorLens {
@@ -406,6 +429,24 @@ mod tests {
 
         lens.lerp(&mut text, 0.3);
         assert_eq!(text.sections[0].style.color, Color::rgba(0.7, 0., 0.3, 1.0));
+
+        let mut lens_section1 = TextColorLens {
+            start: Color::RED,
+            end: Color::BLUE,
+            section: 1,
+        };
+
+        lens_section1.lerp(&mut text, 1.);
+        // Should not have changed because the lens targets section 1
+        assert_eq!(text.sections[0].style.color, Color::rgba(0.7, 0., 0.3, 1.0));
+
+        text.sections.push(TextSection {
+            value: "".to_string(),
+            style: Default::default(),
+        });
+
+        lens_section1.lerp(&mut text, 0.3);
+        assert_eq!(text.sections[1].style.color, Color::rgba(0.7, 0., 0.3, 1.0));
     }
 
     #[test]

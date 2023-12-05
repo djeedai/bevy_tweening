@@ -29,11 +29,11 @@ use crate::{tweenable::ComponentTarget, Animator, AnimatorState, TweenCompleted,
 /// add manually the relevant systems for the exact set of components and assets
 /// actually animated.
 ///
-/// [`Transform`]: https://docs.rs/bevy/0.11.0/bevy/transform/components/struct.Transform.html
-/// [`Text`]: https://docs.rs/bevy/0.11.0/bevy/text/struct.Text.html
-/// [`Style`]: https://docs.rs/bevy/0.11.0/bevy/ui/struct.Style.html
-/// [`Sprite`]: https://docs.rs/bevy/0.11.0/bevy/sprite/struct.Sprite.html
-/// [`ColorMaterial`]: https://docs.rs/bevy/0.11.0/bevy/sprite/struct.ColorMaterial.html
+/// [`Transform`]: https://docs.rs/bevy/0.12.0/bevy/transform/components/struct.Transform.html
+/// [`Text`]: https://docs.rs/bevy/0.12.0/bevy/text/struct.Text.html
+/// [`Style`]: https://docs.rs/bevy/0.12.0/bevy/ui/struct.Style.html
+/// [`Sprite`]: https://docs.rs/bevy/0.12.0/bevy/sprite/struct.Sprite.html
+/// [`ColorMaterial`]: https://docs.rs/bevy/0.12.0/bevy/sprite/struct.ColorMaterial.html
 #[derive(Debug, Clone, Copy)]
 pub struct TweeningPlugin;
 
@@ -49,6 +49,11 @@ impl Plugin for TweeningPlugin {
         app.add_systems(
             Update,
             component_animator_system::<Style>.in_set(AnimationSystem::AnimationUpdate),
+        );
+        #[cfg(feature = "bevy_ui")]
+        app.add_systems(
+            Update,
+            component_animator_system::<BackgroundColor>.in_set(AnimationSystem::AnimationUpdate),
         );
 
         #[cfg(feature = "bevy_sprite")]
@@ -80,7 +85,7 @@ pub enum AnimationSystem {
 
 /// Animator system for components.
 ///
-/// This system extracts all components of type `T` with an `Animator<T>`
+/// This system extracts all components of type `T` with an [`Animator<T>`]
 /// attached to the same entity, and tick the animator to animate the component.
 pub fn component_animator_system<T: Component>(
     time: Res<Time>,
@@ -106,7 +111,7 @@ pub fn component_animator_system<T: Component>(
 
 /// Animator system for assets.
 ///
-/// This system ticks all `AssetAnimator<T>` components to animate their
+/// This system ticks all [`AssetAnimator<T>`] components to animate their
 /// associated asset.
 ///
 /// This requires the `bevy_asset` feature (enabled by default).
@@ -114,15 +119,15 @@ pub fn component_animator_system<T: Component>(
 pub fn asset_animator_system<T: Asset>(
     time: Res<Time>,
     assets: ResMut<Assets<T>>,
-    mut query: Query<(Entity, &mut AssetAnimator<T>)>,
+    mut query: Query<(Entity, &Handle<T>, &mut AssetAnimator<T>)>,
     events: ResMut<Events<TweenCompleted>>,
     settings: Res<TweenSettings>,
 ) {
     let mut events: Mut<Events<TweenCompleted>> = events.into();
     let mut target = AssetTarget::new(assets);
-    for (entity, mut animator) in query.iter_mut() {
+    for (entity, handle, mut animator) in query.iter_mut() {
         if animator.state != AnimatorState::Paused {
-            target.handle = animator.handle().clone();
+            target.handle = handle.clone();
             if !target.is_valid() {
                 continue;
             }
@@ -157,10 +162,7 @@ mod tests {
         pub fn new<T: Component>(animator: T) -> Self {
             let mut world = World::new();
             world.init_resource::<Events<TweenCompleted>>();
-
-            let mut time = Time::default();
-            time.update();
-            world.insert_resource(time);
+            world.init_resource::<Time>();
 
             let entity = world.spawn((Transform::default(), animator)).id();
 
@@ -178,8 +180,7 @@ mod tests {
             // Simulate time passing by updating the simulation time resource
             {
                 let mut time = self.world.resource_mut::<Time>();
-                let last_update = time.last_update().unwrap();
-                time.update_with_instant(last_update + duration);
+                time.advance_by(duration);
             }
 
             // Reset world-related change detection
@@ -233,8 +234,8 @@ mod tests {
         let transform = env.transform();
         assert!(transform.is_changed());
 
-        //fn nit() {}
-        //let mut system = IntoSystem::into_system(nit);
+        // fn nit() {}
+        // let mut system = IntoSystem::into_system(nit);
         let mut system = IntoSystem::into_system(component_animator_system::<Transform>);
         system.initialize(env.world_mut());
 

@@ -138,7 +138,7 @@ fn enable_interaction_after_initial_animation(
     mut commands: Commands,
     mut reader: EventReader<TweenCompleted>,
 ) {
-    for event in reader.iter() {
+    for event in reader.read() {
         if event.user_data == INIT_TRANSITION_DONE {
             commands.entity(event.entity).insert(InitTransitionDone);
         }
