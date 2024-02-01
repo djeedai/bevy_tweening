@@ -49,7 +49,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         color: Color::BLUE,
     };
 
-    let text_alignment = TextAlignment::Center;
+    let justify = JustifyText::Center;
 
     // Text with the index of the active tween in the sequence
     commands.spawn((
@@ -65,7 +65,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                         style: text_style_red,
                     },
                 ],
-                alignment: text_alignment,
+                justify,
                 ..default()
             },
             transform: Transform::from_translation(Vec3::new(0., 40., 0.)),
@@ -88,7 +88,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                         style: text_style_blue,
                     },
                 ],
-                alignment: text_alignment,
+                justify,
                 ..default()
             },
             transform: Transform::from_translation(Vec3::new(0., -40., 0.)),

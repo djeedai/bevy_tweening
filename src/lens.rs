@@ -35,6 +35,7 @@
 //! [`Transform`]: https://docs.rs/bevy/0.12.0/bevy/transform/components/struct.Transform.html
 //! [`Quat::slerp()`]: https://docs.rs/bevy/0.12.0/bevy/math/struct.Quat.html#method.slerp
 
+use crate::color_vec4_ext::*;
 use bevy::prelude::*;
 
 /// A lens over a subset of a component.
@@ -95,12 +96,12 @@ impl Lens<Text> for TextColorLens {
     fn lerp(&mut self, target: &mut Text, ratio: f32) {
         // Note: Add<f32> for Color affects alpha, but not Mul<f32>. So use Vec4 for
         // consistency.
-        let start: Vec4 = self.start.into();
-        let end: Vec4 = self.end.into();
+        let start: Vec4 = self.start.to_vec();
+        let end: Vec4 = self.end.to_vec();
         let value = start.lerp(end, ratio);
 
         if let Some(section) = target.sections.get_mut(self.section) {
-            section.style.color = value.into();
+            section.style.color = value.to_color();
         }
     }
 }
@@ -335,10 +336,10 @@ pub struct UiBackgroundColorLens {
 #[cfg(feature = "bevy_ui")]
 impl Lens<BackgroundColor> for UiBackgroundColorLens {
     fn lerp(&mut self, target: &mut BackgroundColor, ratio: f32) {
-        let start: Vec4 = self.start.into();
-        let end: Vec4 = self.end.into();
+        let start: Vec4 = self.start.to_vec();
+        let end: Vec4 = self.end.to_vec();
         let value = start.lerp(end, ratio);
-        target.0 = value.into();
+        target.0 = value.to_color();
     }
 }
 
@@ -360,10 +361,10 @@ impl Lens<ColorMaterial> for ColorMaterialColorLens {
     fn lerp(&mut self, target: &mut ColorMaterial, ratio: f32) {
         // Note: Add<f32> for Color affects alpha, but not Mul<f32>. So use Vec4 for
         // consistency.
-        let start: Vec4 = self.start.into();
-        let end: Vec4 = self.end.into();
+        let start: Vec4 = self.start.to_vec();
+        let end: Vec4 = self.end.to_vec();
         let value = start.lerp(end, ratio);
-        target.color = value.into();
+        target.color = value.to_color();
     }
 }
 
@@ -385,10 +386,10 @@ impl Lens<Sprite> for SpriteColorLens {
     fn lerp(&mut self, target: &mut Sprite, ratio: f32) {
         // Note: Add<f32> for Color affects alpha, but not Mul<f32>. So use Vec4 for
         // consistency.
-        let start: Vec4 = self.start.into();
-        let end: Vec4 = self.end.into();
+        let start: Vec4 = self.start.to_vec();
+        let end: Vec4 = self.end.to_vec();
         let value = start.lerp(end, ratio);
-        target.color = value.into();
+        target.color = value.to_color();
     }
 }
 

@@ -221,6 +221,7 @@ pub use tweenable::{
     TweenState, Tweenable,
 };
 
+mod color_vec4_ext;
 pub mod lens;
 mod plugin;
 mod tweenable;
