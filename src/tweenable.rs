@@ -486,7 +486,7 @@ impl<T> Tween<T> {
     /// .with_completed_event(42);
     ///
     /// fn my_system(mut reader: EventReader<TweenCompleted>) {
-    ///   for ev in reader.iter() {
+    ///   for ev in reader.read() {
     ///     assert_eq!(ev.user_data, 42);
     ///     println!("Entity {:?} raised TweenCompleted!", ev.entity);
     ///   }
@@ -991,7 +991,7 @@ impl<T> Delay<T> {
     ///   .with_completed_event(42);
     ///
     /// fn my_system(mut reader: EventReader<TweenCompleted>) {
-    ///   for ev in reader.iter() {
+    ///   for ev in reader.read() {
     ///     assert_eq!(ev.user_data, 42);
     ///     println!("Entity {:?} raised TweenCompleted!", ev.entity);
     ///   }
