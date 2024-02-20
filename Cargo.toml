@@ -25,7 +25,7 @@ bevy_text = ["bevy/bevy_text", "bevy/bevy_render", "bevy/bevy_sprite"]
 
 [dependencies]
 interpolation = "0.2"
-bevy = { version = "0.12", default-features = false }
+bevy = { version = "0.13", default-features = false }
 
 [dev-dependencies]
 bevy-inspector-egui = "0.21"
