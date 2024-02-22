@@ -37,6 +37,8 @@
 
 use bevy::prelude::*;
 
+use crate::Lerper;
+
 /// A lens over a subset of a component.
 ///
 /// The lens takes a `target` component or asset from a query, as a mutable
@@ -95,12 +97,10 @@ impl Lens<Text> for TextColorLens {
     fn lerp(&mut self, target: &mut Text, ratio: f32) {
         // Note: Add<f32> for Color affects alpha, but not Mul<f32>. So use Vec4 for
         // consistency.
-        let start: Vec4 = self.start.into();
-        let end: Vec4 = self.end.into();
-        let value = start.lerp(end, ratio);
+        let value = self.start.lerp(&self.end, ratio);
 
         if let Some(section) = target.sections.get_mut(self.section) {
-            section.style.color = value.into();
+            section.style.color = value;
         }
     }
 }
@@ -335,10 +335,8 @@ pub struct UiBackgroundColorLens {
 #[cfg(feature = "bevy_ui")]
 impl Lens<BackgroundColor> for UiBackgroundColorLens {
     fn lerp(&mut self, target: &mut BackgroundColor, ratio: f32) {
-        let start: Vec4 = self.start.into();
-        let end: Vec4 = self.end.into();
-        let value = start.lerp(end, ratio);
-        target.0 = value.into();
+        let value = self.start.lerp(&self.end, ratio);
+        target.0 = value;
     }
 }
 
@@ -360,10 +358,8 @@ impl Lens<ColorMaterial> for ColorMaterialColorLens {
     fn lerp(&mut self, target: &mut ColorMaterial, ratio: f32) {
         // Note: Add<f32> for Color affects alpha, but not Mul<f32>. So use Vec4 for
         // consistency.
-        let start: Vec4 = self.start.into();
-        let end: Vec4 = self.end.into();
-        let value = start.lerp(end, ratio);
-        target.color = value.into();
+        let value = self.start.lerp(&self.end, ratio);
+        target.color = value;
     }
 }
 
@@ -385,10 +381,8 @@ impl Lens<Sprite> for SpriteColorLens {
     fn lerp(&mut self, target: &mut Sprite, ratio: f32) {
         // Note: Add<f32> for Color affects alpha, but not Mul<f32>. So use Vec4 for
         // consistency.
-        let start: Vec4 = self.start.into();
-        let end: Vec4 = self.end.into();
-        let value = start.lerp(end, ratio);
-        target.color = value.into();
+        let value = self.start.lerp(&self.end, ratio);
+        target.color = value;
     }
 }
 
