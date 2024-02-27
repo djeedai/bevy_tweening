@@ -206,8 +206,6 @@
 
 use std::time::Duration;
 
-#[cfg(feature = "bevy_asset")]
-use bevy::asset::Asset;
 use bevy::prelude::*;
 use interpolation::Ease as IEase;
 pub use interpolation::{EaseFunction, Lerp};
@@ -542,12 +540,12 @@ impl<T: Asset> AssetAnimator<T> {
 /// Trait to interpolate between two values.
 /// Needed for color.
 #[allow(dead_code)]
-trait Lerper {
+trait ColorLerper {
     fn lerp(&self, target: &Self, ratio: f32) -> Self;
 }
 
 #[allow(dead_code)]
-impl Lerper for Color {
+impl ColorLerper for Color {
     fn lerp(&self, target: &Color, ratio: f32) -> Color {
         let r = self.r().lerp(target.r(), ratio);
         let g = self.g().lerp(target.g(), ratio);

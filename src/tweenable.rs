@@ -2,9 +2,6 @@ use std::{ops::DerefMut, time::Duration};
 
 use bevy::prelude::*;
 
-#[cfg(feature = "bevy_asset")]
-use bevy::asset::{Asset, AssetId};
-
 use crate::{EaseMethod, Lens, RepeatCount, RepeatStrategy, TweeningDirection};
 
 /// The dynamic tweenable type.
@@ -1162,12 +1159,9 @@ impl<T> Tweenable<T> for Delay<T> {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        sync::{Arc, Mutex},
-        time::Duration,
-    };
+    use std::sync::{Arc, Mutex};
 
-    use bevy::ecs::{event::Events, system::SystemState};
+    use bevy::ecs::system::SystemState;
 
     use super::*;
     use crate::{lens::*, test_utils::*};

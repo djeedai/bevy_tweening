@@ -1,5 +1,3 @@
-#[cfg(feature = "bevy_asset")]
-use bevy::asset::Asset;
 use bevy::prelude::*;
 
 #[cfg(feature = "bevy_asset")]
@@ -140,8 +138,6 @@ pub fn asset_animator_system<T: Asset>(
 
 #[cfg(test)]
 mod tests {
-    use bevy::prelude::{Events, IntoSystem, System, Transform, World};
-
     use crate::{lens::TransformPositionLens, *};
 
     /// A simple isolated test environment with a [`World`] and a single
