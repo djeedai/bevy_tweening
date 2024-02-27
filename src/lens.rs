@@ -37,8 +37,6 @@
 
 use bevy::prelude::*;
 
-use crate::Lerper;
-
 /// A lens over a subset of a component.
 ///
 /// The lens takes a `target` component or asset from a query, as a mutable
