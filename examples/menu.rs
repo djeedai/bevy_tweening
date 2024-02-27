@@ -126,7 +126,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                                     color: TEXT_COLOR,
                                 },
                             )
-                            .with_alignment(TextAlignment::Center),
+                            .with_justify(JustifyText::Center),
                             ..default()
                         });
                     });
