@@ -37,6 +37,10 @@
 
 use bevy::prelude::*;
 
+/// Required for color lerp.
+#[allow(unused_imports)]
+use crate::Lerper as _;
+
 /// A lens over a subset of a component.
 ///
 /// The lens takes a `target` component or asset from a query, as a mutable

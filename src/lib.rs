@@ -539,6 +539,8 @@ impl<T: Asset> AssetAnimator<T> {
     animator_impl!();
 }
 
+/// Trait to interpolate between two values.
+/// Need for color.
 trait Lerper {
     fn lerp(&self, target: &Self, ratio: f32) -> Self;
 }
