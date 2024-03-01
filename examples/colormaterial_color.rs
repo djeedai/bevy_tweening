@@ -37,7 +37,7 @@ fn setup(
     let mut x = -screen_x;
     let mut y = screen_y;
 
-    let quad_mesh: Mesh2dHandle = meshes.add(Mesh::from(shape::Quad::default())).into();
+    let quad_mesh: Mesh2dHandle = meshes.add(Rectangle::new(1., 1.)).into();
 
     for ease_function in &[
         EaseFunction::QuadraticIn,
@@ -75,7 +75,7 @@ fn setup(
         // without affecting the other entities. Note that we could share
         // that material among multiple entities, and animating the material
         // asset would change the color of all entities using that material.
-        let unique_material = materials.add(Color::BLACK.into());
+        let unique_material = materials.add(Color::BLACK);
 
         let tween = Tween::new(
             *ease_function,

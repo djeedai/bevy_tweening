@@ -206,8 +206,6 @@
 
 use std::time::Duration;
 
-#[cfg(feature = "bevy_asset")]
-use bevy::asset::Asset;
 use bevy::prelude::*;
 use interpolation::Ease as IEase;
 pub use interpolation::{EaseFunction, Lerp};
@@ -539,11 +537,26 @@ impl<T: Asset> AssetAnimator<T> {
     animator_impl!();
 }
 
+/// Trait to interpolate between two values.
+/// Needed for color.
+#[allow(dead_code)]
+trait ColorLerper {
+    fn lerp(&self, target: &Self, ratio: f32) -> Self;
+}
+
+#[allow(dead_code)]
+impl ColorLerper for Color {
+    fn lerp(&self, target: &Color, ratio: f32) -> Color {
+        let r = self.r().lerp(target.r(), ratio);
+        let g = self.g().lerp(target.g(), ratio);
+        let b = self.b().lerp(target.b(), ratio);
+        let a = self.a().lerp(target.a(), ratio);
+        Color::rgba(r, g, b, a)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    #[cfg(feature = "bevy_asset")]
-    use bevy::reflect::TypeUuid;
-
     use super::*;
     use crate::test_utils::*;
 
@@ -558,15 +571,14 @@ mod tests {
     }
 
     #[cfg(feature = "bevy_asset")]
-    #[derive(Asset, Debug, Default, Reflect, TypeUuid)]
-    #[uuid = "a33abc11-264e-4bbb-82e8-b87226bb4383"]
+    #[derive(Asset, Debug, Default, Reflect)]
     struct DummyAsset {
         value: f32,
     }
 
     impl Lens<DummyComponent> for DummyLens {
         fn lerp(&mut self, target: &mut DummyComponent, ratio: f32) {
-            target.value = self.start.lerp(&self.end, &ratio);
+            target.value = self.start.lerp(self.end, ratio);
         }
     }
 
@@ -583,7 +595,7 @@ mod tests {
     #[cfg(feature = "bevy_asset")]
     impl Lens<DummyAsset> for DummyLens {
         fn lerp(&mut self, target: &mut DummyAsset, ratio: f32) {
-            target.value = self.start.lerp(&self.end, &ratio);
+            target.value = self.start.lerp(self.end, ratio);
         }
     }
 

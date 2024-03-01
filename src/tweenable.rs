@@ -2,9 +2,6 @@ use std::{ops::DerefMut, time::Duration};
 
 use bevy::{ecs::system::SystemId, prelude::*};
 
-#[cfg(feature = "bevy_asset")]
-use bevy::asset::{Asset, AssetId};
-
 use crate::{EaseMethod, Lens, RepeatCount, RepeatStrategy, TweeningDirection};
 
 /// The dynamic tweenable type.
@@ -489,7 +486,7 @@ impl<T> Tween<T> {
     /// .with_completed_event(42);
     ///
     /// fn my_system(mut reader: EventReader<TweenCompleted>) {
-    ///   for ev in reader.iter() {
+    ///   for ev in reader.read() {
     ///     assert_eq!(ev.user_data, 42);
     ///     println!("Entity {:?} raised TweenCompleted!", ev.entity);
     ///   }
@@ -1062,7 +1059,7 @@ impl<T> Delay<T> {
     ///   .with_completed_event(42);
     ///
     /// fn my_system(mut reader: EventReader<TweenCompleted>) {
-    ///   for ev in reader.iter() {
+    ///   for ev in reader.read() {
     ///     assert_eq!(ev.user_data, 42);
     ///     println!("Entity {:?} raised TweenCompleted!", ev.entity);
     ///   }
@@ -1297,10 +1294,7 @@ impl<T> Tweenable<T> for Delay<T> {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        sync::{Arc, Mutex},
-        time::Duration,
-    };
+    use std::sync::{Arc, Mutex};
 
     use bevy::ecs::{
         event::Events,
