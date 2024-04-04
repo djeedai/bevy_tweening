@@ -421,6 +421,14 @@ macro_rules! animator_impl {
             self
         }
 
+        /// Indicate whether the Animator component should be removed from entity
+        /// after reaching [`TweenState::Completed`].
+        #[must_use]
+        pub fn with_remove_on_completed(mut self, remove: bool) -> Self {
+            self.remove_on_completed = remove;
+            self
+        }
+
         /// Set the animation speed. Defaults to 1.
         ///
         /// A speed of 2 means the animation will run twice as fast while a speed of 0.1
@@ -476,6 +484,7 @@ pub struct Animator<T: Component> {
     pub state: AnimatorState,
     tweenable: BoxedTweenable<T>,
     speed: f32,
+    remove_on_completed: bool,
 }
 
 impl<T: Component + std::fmt::Debug> std::fmt::Debug for Animator<T> {
@@ -494,7 +503,15 @@ impl<T: Component> Animator<T> {
             state: default(),
             tweenable: Box::new(tween),
             speed: 1.,
+            remove_on_completed: false,
         }
+    }
+
+    /// Create a new animator component from a single tweenable.
+    /// After [`TweenState::Completed`] reached the component is removed from entity
+    #[must_use]
+    pub fn new_self_removing(tween: impl Tweenable<T> + 'static) -> Self {
+        Self::new(tween).with_remove_on_completed(true)
     }
 
     animator_impl!();
@@ -511,6 +528,7 @@ pub struct AssetAnimator<T: Asset> {
     pub state: AnimatorState,
     tweenable: BoxedTweenable<T>,
     speed: f32,
+    remove_on_completed: bool,
 }
 
 #[cfg(feature = "bevy_asset")]
@@ -531,6 +549,19 @@ impl<T: Asset> AssetAnimator<T> {
             state: default(),
             tweenable: Box::new(tween),
             speed: 1.,
+            remove_on_completed: false,
+        }
+    }
+
+    /// Create a new animator component from a single tweenable.
+    /// After [`TweenState::Completed`] reached the component is removed from entity
+    #[must_use]
+    pub fn new_self_removing(tween: impl Tweenable<T> + 'static) -> Self {
+        Self {
+            state: default(),
+            tweenable: Box::new(tween),
+            speed: 1.,
+            remove_on_completed: true,
         }
     }
 

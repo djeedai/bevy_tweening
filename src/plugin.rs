@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 #[cfg(feature = "bevy_asset")]
 use crate::{tweenable::AssetTarget, AssetAnimator};
-use crate::{tweenable::ComponentTarget, Animator, AnimatorState, TweenCompleted};
+use crate::{tweenable::ComponentTarget, Animator, AnimatorState, TweenCompleted, TweenState};
 
 /// Plugin to add systems related to tweening of common components and assets.
 ///
@@ -88,18 +88,22 @@ pub fn component_animator_system<T: Component>(
     time: Res<Time>,
     mut query: Query<(Entity, &mut T, &mut Animator<T>)>,
     events: ResMut<Events<TweenCompleted>>,
+    mut commands: Commands,
 ) {
     let mut events: Mut<Events<TweenCompleted>> = events.into();
     for (entity, target, mut animator) in query.iter_mut() {
         if animator.state != AnimatorState::Paused {
             let speed = animator.speed();
             let mut target = ComponentTarget::new(target);
-            animator.tweenable_mut().tick(
+            let tween_state = animator.tweenable_mut().tick(
                 time.delta().mul_f32(speed),
                 &mut target,
                 entity,
                 &mut events,
             );
+            if tween_state == TweenState::Completed && animator.remove_on_completed {
+                commands.entity(entity).remove::<Animator<T>>();
+            }
         }
     }
 }
@@ -116,6 +120,7 @@ pub fn asset_animator_system<T: Asset>(
     assets: ResMut<Assets<T>>,
     mut query: Query<(Entity, &Handle<T>, &mut AssetAnimator<T>)>,
     events: ResMut<Events<TweenCompleted>>,
+    mut commands: Commands,
 ) {
     let mut events: Mut<Events<TweenCompleted>> = events.into();
     let mut target = AssetTarget::new(assets);
@@ -126,12 +131,15 @@ pub fn asset_animator_system<T: Asset>(
                 continue;
             }
             let speed = animator.speed();
-            animator.tweenable_mut().tick(
+            let tween_state = animator.tweenable_mut().tick(
                 time.delta().mul_f32(speed),
                 &mut target,
                 entity,
                 &mut events,
             );
+            if tween_state == TweenState::Completed && animator.remove_on_completed {
+                commands.entity(entity).remove::<AssetAnimator<T>>();
+            }
         }
     }
 }
