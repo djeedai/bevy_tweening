@@ -180,8 +180,8 @@ struct MyXAxisLens {
     end: f32,
 }
 
-impl Lens<Tranform> for MyXAxisLens {
-    fn lerp(&self, target: &mut Tranform, ratio: f32) -> f32 {
+impl Lens<Transform> for MyXAxisLens {
+    fn lerp(&mut self, target: &mut Transform, ratio: f32) {
         let start = Vec3::new(self.start, 0., 0.);
         let end = Vec3::new(self.end, 0., 0.);
         target.translation = start + (end - start) * ratio;
@@ -212,7 +212,7 @@ struct MyCustomLens {
 }
 
 impl Lens<MyCustomComponent> for MyCustomLens {
-    fn lerp(&self, target: &mut MyCustomComponent, ratio: f32) -> f32 {
+    fn lerp(&mut self, target: &mut MyCustomComponent, ratio: f32) {
         target.0 = self.start + (self.end - self.start) * ratio;
     }
 }
