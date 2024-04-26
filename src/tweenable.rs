@@ -1,4 +1,7 @@
-use std::{ops::DerefMut, time::Duration};
+use std::{
+    ops::{Deref, DerefMut},
+    time::Duration,
+};
 
 use bevy::prelude::*;
 
@@ -199,9 +202,26 @@ fn compute_total_duration(duration: Duration, count: RepeatCount) -> TotalDurati
 /// Trait to workaround the discrepancies of the change detection mechanisms of
 /// assets and components.
 pub trait Targetable<T> {
+    /// Dereference the target and return a reference.
+    fn target(&self) -> &T;
+
     /// Dereference the target, triggering any change detection, and return a
     /// mutable reference.
     fn target_mut(&mut self) -> &mut T;
+}
+
+impl<'a, T: 'a> Deref for dyn Targetable<T> + 'a {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        self.target()
+    }
+}
+
+impl<'a, T: 'a> DerefMut for dyn Targetable<T> + 'a {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.target_mut()
+    }
 }
 
 pub struct ComponentTarget<'a, T: Component> {
@@ -209,12 +229,23 @@ pub struct ComponentTarget<'a, T: Component> {
 }
 
 impl<'a, T: Component> ComponentTarget<'a, T> {
+    /// Create a new instance from a [`Component`].
     pub fn new(target: Mut<'a, T>) -> Self {
         Self { target }
+    }
+
+    /// Get a [`Mut`] for the current target.
+    #[allow(dead_code)] // used mainly in tests
+    pub fn to_mut(&mut self) -> Mut<'_, T> {
+        self.target.reborrow()
     }
 }
 
 impl<'a, T: Component> Targetable<T> for ComponentTarget<'a, T> {
+    fn target(&self) -> &T {
+        self.target.deref()
+    }
+
     fn target_mut(&mut self) -> &mut T {
         self.target.deref_mut()
     }
@@ -222,19 +253,23 @@ impl<'a, T: Component> Targetable<T> for ComponentTarget<'a, T> {
 
 #[cfg(feature = "bevy_asset")]
 pub struct AssetTarget<'a, T: Asset> {
-    assets: ResMut<'a, Assets<T>>,
+    assets: Mut<'a, Assets<T>>,
     pub handle: Handle<T>,
 }
 
 #[cfg(feature = "bevy_asset")]
 impl<'a, T: Asset> AssetTarget<'a, T> {
-    pub fn new(assets: ResMut<'a, Assets<T>>) -> Self {
+    /// Create a new instance from an [`Assets`].
+    pub fn new(assets: Mut<'a, Assets<T>>) -> Self {
         Self {
             assets,
             handle: Handle::Weak(AssetId::default()),
         }
     }
 
+    /// Check if the current target is valid given the value of [`handle`].
+    ///
+    /// [`handle`]: self::handle
     pub fn is_valid(&self) -> bool {
         self.assets.contains(&self.handle)
     }
@@ -242,6 +277,10 @@ impl<'a, T: Asset> AssetTarget<'a, T> {
 
 #[cfg(feature = "bevy_asset")]
 impl<'a, T: Asset> Targetable<T> for AssetTarget<'a, T> {
+    fn target(&self) -> &T {
+        self.assets.get(&self.handle).unwrap()
+    }
+
     fn target_mut(&mut self) -> &mut T {
         self.assets.get_mut(&self.handle).unwrap()
     }
@@ -677,7 +716,6 @@ impl<T> Tweenable<T> for Tween<T> {
             factor = 1. - factor;
         }
         let factor = self.ease_function.sample(factor);
-        let target = target.target_mut();
         self.lens.lerp(target, factor);
 
         // If completed at least once this frame, notify the user
@@ -1161,7 +1199,7 @@ impl<T> Tweenable<T> for Delay<T> {
 mod tests {
     use std::sync::{Arc, Mutex};
 
-    use bevy::ecs::system::SystemState;
+    use bevy::ecs::{component::Tick, system::SystemState};
 
     use super::*;
     use crate::{lens::*, test_utils::*};
@@ -1206,6 +1244,40 @@ mod tests {
                 tween.tick(duration, &mut target, entity, &mut events)
             },
         )
+    }
+
+    #[derive(Debug, Default, Clone, Copy, Component)]
+    struct DummyComponent {
+        _value: f32,
+    }
+
+    #[test]
+    fn targetable_change_detect() {
+        let mut c = DummyComponent::default();
+        let mut added = Tick::new(0);
+        let mut last_changed = Tick::new(0);
+        let mut target = ComponentTarget::new(Mut::new(
+            &mut c,
+            &mut added,
+            &mut last_changed,
+            Tick::new(0),
+            Tick::new(1),
+        ));
+        let mut target = target.to_mut();
+
+        // No-op at start
+        assert!(!target.is_added());
+        assert!(!target.is_changed());
+
+        // Immutable deref doesn't trigger change detection
+        let _ = target.deref();
+        assert!(!target.is_added());
+        assert!(!target.is_changed());
+
+        // Mutable deref triggers change detection
+        let _ = target.deref_mut();
+        assert!(!target.is_added());
+        assert!(target.is_changed());
     }
 
     #[test]

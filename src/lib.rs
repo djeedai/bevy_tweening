@@ -540,11 +540,13 @@ impl<T: Asset> AssetAnimator<T> {
 /// Trait to interpolate between two values.
 /// Needed for color.
 #[allow(dead_code)]
+#[cfg(any(feature = "bevy_sprite", feature = "bevy_ui", feature = "bevy_text"))]
 trait ColorLerper {
     fn lerp(&self, target: &Self, ratio: f32) -> Self;
 }
 
 #[allow(dead_code)]
+#[cfg(any(feature = "bevy_sprite", feature = "bevy_ui", feature = "bevy_text"))]
 impl ColorLerper for Color {
     fn lerp(&self, target: &Color, ratio: f32) -> Color {
         let r = self.r().lerp(target.r(), ratio);
@@ -557,6 +559,10 @@ impl ColorLerper for Color {
 
 #[cfg(test)]
 mod tests {
+    use bevy::ecs::component::Tick;
+
+    use self::tweenable::ComponentTarget;
+
     use super::*;
     use crate::test_utils::*;
 
@@ -565,7 +571,7 @@ mod tests {
         end: f32,
     }
 
-    #[derive(Debug, Default, Component)]
+    #[derive(Debug, Default, Clone, Copy, Component)]
     struct DummyComponent {
         value: f32,
     }
@@ -577,7 +583,7 @@ mod tests {
     }
 
     impl Lens<DummyComponent> for DummyLens {
-        fn lerp(&mut self, target: &mut DummyComponent, ratio: f32) {
+        fn lerp(&mut self, target: &mut dyn Targetable<DummyComponent>, ratio: f32) {
             target.value = self.start.lerp(self.end, ratio);
         }
     }
@@ -587,14 +593,29 @@ mod tests {
         let mut c = DummyComponent::default();
         let mut l = DummyLens { start: 0., end: 1. };
         for r in [0_f32, 0.01, 0.3, 0.5, 0.9, 0.999, 1.] {
-            l.lerp(&mut c, r);
+            {
+                let mut added = Tick::new(0);
+                let mut last_changed = Tick::new(0);
+                let mut target = ComponentTarget::new(Mut::new(
+                    &mut c,
+                    &mut added,
+                    &mut last_changed,
+                    Tick::new(0),
+                    Tick::new(1),
+                ));
+
+                l.lerp(&mut target, r);
+
+                assert!(target.to_mut().is_changed());
+            }
+
             assert_approx_eq!(c.value, r);
         }
     }
 
     #[cfg(feature = "bevy_asset")]
     impl Lens<DummyAsset> for DummyLens {
-        fn lerp(&mut self, target: &mut DummyAsset, ratio: f32) {
+        fn lerp(&mut self, target: &mut dyn Targetable<DummyAsset>, ratio: f32) {
             target.value = self.start.lerp(self.end, ratio);
         }
     }
@@ -602,11 +623,28 @@ mod tests {
     #[cfg(feature = "bevy_asset")]
     #[test]
     fn dummy_lens_asset() {
-        let mut a = DummyAsset::default();
+        use self::tweenable::AssetTarget;
+
+        let mut assets = Assets::<DummyAsset>::default();
+        let handle = assets.add(DummyAsset::default());
+
         let mut l = DummyLens { start: 0., end: 1. };
         for r in [0_f32, 0.01, 0.3, 0.5, 0.9, 0.999, 1.] {
-            l.lerp(&mut a, r);
-            assert_approx_eq!(a.value, r);
+            {
+                let mut added = Tick::new(0);
+                let mut last_changed = Tick::new(0);
+                let mut target = AssetTarget::new(Mut::new(
+                    &mut assets,
+                    &mut added,
+                    &mut last_changed,
+                    Tick::new(0),
+                    Tick::new(0),
+                ));
+                target.handle = handle.clone();
+
+                l.lerp(&mut target, r);
+            }
+            assert_approx_eq!(assets.get(handle.clone()).unwrap().value, r);
         }
     }
 
