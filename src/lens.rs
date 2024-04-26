@@ -348,7 +348,7 @@ impl Lens<BackgroundColor> for UiBackgroundColorLens {
 ///
 /// [`color`]: https://docs.rs/bevy/0.12.0/bevy/sprite/struct.ColorMaterial.html#structfield.color
 /// [`ColorMaterial`]: https://docs.rs/bevy/0.12.0/bevy/sprite/struct.ColorMaterial.html
-#[cfg(feature = "bevy_sprite")]
+#[cfg(all(feature = "bevy_sprite", feature = "bevy_asset"))]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct ColorMaterialColorLens {
     /// Start color.
@@ -357,7 +357,7 @@ pub struct ColorMaterialColorLens {
     pub end: Color,
 }
 
-#[cfg(feature = "bevy_sprite")]
+#[cfg(all(feature = "bevy_sprite", feature = "bevy_asset"))]
 impl Lens<ColorMaterial> for ColorMaterialColorLens {
     fn lerp(&mut self, target: &mut dyn Targetable<ColorMaterial>, ratio: f32) {
         use crate::ColorLerper as _;
@@ -401,7 +401,10 @@ mod tests {
 
     use super::*;
 
-    use crate::tweenable::{AssetTarget, ComponentTarget};
+    use crate::tweenable::ComponentTarget;
+
+    #[cfg(all(feature = "bevy_sprite", feature = "bevy_asset"))]
+    use crate::tweenable::AssetTarget;
 
     #[cfg(feature = "bevy_text")]
     #[test]
@@ -989,7 +992,7 @@ mod tests {
         assert_eq!(style.bottom, Val::Percent(31.));
     }
 
-    #[cfg(feature = "bevy_sprite")]
+    #[cfg(all(feature = "bevy_sprite", feature = "bevy_asset"))]
     #[test]
     fn colormaterial_color() {
         let mut lens = ColorMaterialColorLens {
