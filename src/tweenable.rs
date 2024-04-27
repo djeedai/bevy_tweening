@@ -1338,7 +1338,7 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     use bevy::ecs::{
-        component::Tick
+        component::Tick,
         event::Events,
         system::{CommandQueue, SystemState},
     };
