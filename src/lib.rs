@@ -214,9 +214,11 @@ pub use lens::Lens;
 #[cfg(feature = "bevy_asset")]
 pub use plugin::asset_animator_system;
 pub use plugin::{component_animator_system, AnimationSystem, TweeningPlugin};
+#[cfg(feature = "bevy_asset")]
+pub use tweenable::AssetTarget;
 pub use tweenable::{
-    BoxedTweenable, Delay, Sequence, Targetable, TotalDuration, Tracks, Tween, TweenCompleted,
-    TweenState, Tweenable,
+    BoxedTweenable, ComponentTarget, Delay, Sequence, Targetable, TotalDuration, Tracks, Tween,
+    TweenCompleted, TweenState, Tweenable,
 };
 
 pub mod lens;
