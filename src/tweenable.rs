@@ -224,6 +224,7 @@ impl<'a, T: 'a> DerefMut for dyn Targetable<T> + 'a {
     }
 }
 
+/// Implementation of [`Targetable`] for a [`Component`].
 pub struct ComponentTarget<'a, T: Component> {
     target: Mut<'a, T>,
 }
@@ -251,9 +252,11 @@ impl<'a, T: Component> Targetable<T> for ComponentTarget<'a, T> {
     }
 }
 
+/// Implementation of [`Targetable`] for an [`Asset`].
 #[cfg(feature = "bevy_asset")]
 pub struct AssetTarget<'a, T: Asset> {
     assets: Mut<'a, Assets<T>>,
+    /// Handle to the asset to mutate.
     pub handle: Handle<T>,
 }
 
