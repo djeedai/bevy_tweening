@@ -435,7 +435,7 @@ pub struct Tween<T> {
     lens: Box<dyn Lens<T> + Send + Sync + 'static>,
     on_completed: Option<Box<CompletedCallback<Tween<T>>>>,
     event_data: Option<u64>,
-    system_data: Option<SystemId>,
+    system_id: Option<SystemId>,
 }
 
 impl<T: 'static> Tween<T> {
@@ -500,7 +500,7 @@ impl<T> Tween<T> {
             lens: Box::new(lens),
             on_completed: None,
             event_data: None,
-            system_data: None,
+            system_id: None,
         }
     }
 
@@ -592,6 +592,7 @@ impl<T> Tween<T> {
     /// # use bevy_tweening::{lens::*, *};
     /// # use bevy::{ecs::event::EventReader, math::Vec3};
     /// # use std::time::Duration;
+    /// let world = World::new();  
     /// let test_system_system_id = world.register_system(test_system);
     /// let tween = Tween::new(
     ///     // [...]
@@ -610,11 +611,11 @@ impl<T> Tween<T> {
     ///    }
     /// }
     /// ```
-    ///
-    /// [`with_completed_system()`]: Tween::with_completed_system
+    /// [`with_completed()`]: Tween::with_completed
+    /// [`register_system()`]: bevy::ecs::world::World::register_system
     #[must_use]
-    pub fn with_completed_system(mut self, user_data: SystemId) -> Self {
-        self.system_data = Some(user_data);
+    pub fn with_completed_system(mut self, system_id: SystemId) -> Self {
+        self.system_id = Some(system_id);
         self
     }
 
@@ -718,20 +719,19 @@ impl<T> Tween<T> {
     /// animation completes. This is similar to the [`with_completed()`],
     /// but uses a system registered by [`register_system()`] instead of a callback.
     ///
-    /// See [`with_completed_system()`] for details.
-    ///
-    /// [`set_completed_system()`]: Tween::set_completed_system
-    pub fn set_completed_system(&mut self, user_data: SystemId) {
-        self.system_data = Some(user_data);
+    /// [`with_completed()`]: Tween::with_completed  
+    /// [`register_system()`]: bevy::ecs::world::World::register_system 
+    pub fn set_completed_system(&mut self, user_data: SystemId) { 
+        self.system_id = Some(user_data);
     }
 
     /// Clear the system that will execute when the animation completes.
     ///
     /// See also [`set_completed_system()`].
     ///
-    /// [`clear_completed_system()`]: Tween::clear_completed_system
+    /// [`set_completed_system()`]: Tween::set_completed_system
     pub fn clear_completed_system(&mut self) {
-        self.system_data = None;
+        self.system_id = None;
     }
 }
 
@@ -796,7 +796,7 @@ impl<T> Tweenable<T> for Tween<T> {
             if let Some(cb) = &self.on_completed {
                 cb(entity, self);
             }
-            if let Some(system_id) = &self.system_data {
+            if let Some(system_id) = &self.system_id {
                 commands.run_system(*system_id);
             }
         }
@@ -1055,7 +1055,7 @@ pub struct Delay<T> {
     timer: Timer,
     on_completed: Option<Box<CompletedCallback<Delay<T>>>>,
     event_data: Option<u64>,
-    system_data: Option<SystemId>,
+    system_id: Option<SystemId>,
 }
 
 impl<T: 'static> Delay<T> {
@@ -1080,7 +1080,7 @@ impl<T> Delay<T> {
             timer: Timer::new(duration, TimerMode::Once),
             on_completed: None,
             event_data: None,
-            system_data: None,
+            system_id: None,
         }
     }
 
@@ -1184,10 +1184,11 @@ impl<T> Delay<T> {
     /// }
     /// ```
     ///
-    /// [`with_completed_system()`]: Tween::with_completed_system
+    /// [`with_completed()`]: Tween::with_completed
+    /// [`register_system()`]: bevy::ecs::world::World::register_system 
     #[must_use]
-    pub fn with_completed_system(mut self, user_data: SystemId) -> Self {
-        self.system_data = Some(user_data);
+    pub fn with_completed_system(mut self, system_id: SystemId) -> Self {
+        self.system_id = Some(system_id);
         self
     }
 
@@ -1259,9 +1260,10 @@ impl<T> Delay<T> {
     ///
     /// See [`with_completed_system()`] for details.
     ///
-    /// [`set_completed_system()`]: Tween::set_completed_system
-    pub fn set_completed_system(&mut self, user_data: SystemId) {
-        self.system_data = Some(user_data);
+    /// [`with_completed()`]: Tween::with_completed
+    /// [`register_system()`]: bevy::ecs::world::World::register_system 
+    pub fn set_completed_system(&mut self, system_id: SystemId) {
+        self.system_id = Some(system_id);
     }
 
     /// Clear the system that will execute when the animation completes.
@@ -1270,7 +1272,7 @@ impl<T> Delay<T> {
     ///
     /// [`clear_completed_system()`]: Tween::clear_completed_system
     pub fn clear_completed_system(&mut self) {
-        self.system_data = None;
+        self.system_id = None;
     }
 }
 
@@ -1320,7 +1322,7 @@ impl<T> Tweenable<T> for Delay<T> {
             if let Some(cb) = &self.on_completed {
                 cb(entity, self);
             }
-            if let Some(system_id) = &self.system_data {
+            if let Some(system_id) = &self.system_id {
                 commands.run_system(*system_id);
             }
         }
@@ -1547,8 +1549,8 @@ mod tests {
 
                 // Activate oneshot system
                 tween.set_completed_system(system_id);
-                assert!(tween.system_data.is_some());
-                assert_eq!(tween.system_data.unwrap(), system_id);
+                assert!(tween.system_id.is_some());
+                assert_eq!(tween.system_id.unwrap(), system_id);
 
                 // Loop over 2.2 seconds, so greater than one ping-pong loop
                 let tick_duration = Duration::from_millis(200);
@@ -1735,7 +1737,7 @@ mod tests {
 
                 // Clear oneshot system
                 tween.clear_completed_system();
-                assert!(tween.system_data.is_none());
+                assert!(tween.system_id.is_none());
             }
         }
     }
@@ -2056,8 +2058,8 @@ mod tests {
         assert!(delay.event_data.is_some());
         assert_eq!(delay.event_data.unwrap(), USER_DATA);
 
-        assert!(delay.system_data.is_some());
-        assert_eq!(delay.system_data.unwrap(), system_id);
+        assert!(delay.system_id.is_some());
+        assert_eq!(delay.system_id.unwrap(), system_id);
 
         delay.clear_completed_event();
         assert!(delay.event_data.is_none());
@@ -2067,11 +2069,11 @@ mod tests {
         assert_eq!(delay.event_data.unwrap(), USER_DATA);
 
         delay.clear_completed_system();
-        assert!(delay.system_data.is_none());
+        assert!(delay.system_id.is_none());
 
         delay.set_completed_system(system_id);
-        assert!(delay.system_data.is_some());
-        assert_eq!(delay.system_data.unwrap(), system_id);
+        assert!(delay.system_id.is_some());
+        assert_eq!(delay.system_id.unwrap(), system_id);
 
         {
             let tweenable: &dyn Tweenable<Transform> = &delay;
