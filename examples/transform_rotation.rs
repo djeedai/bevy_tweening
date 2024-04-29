@@ -106,7 +106,7 @@ fn setup(mut commands: Commands) {
                         },
                         ..default()
                     },
-                    Animator::new(tween),
+                    TweenAnimator::new(tween),
                 ));
             });
 
@@ -118,7 +118,10 @@ fn setup(mut commands: Commands) {
     }
 }
 
-fn update_animation_speed(options: Res<Options>, mut animators: Query<&mut Animator<Transform>>) {
+fn update_animation_speed(
+    options: Res<Options>,
+    mut animators: Query<&mut TweenAnimator<Transform>>,
+) {
     if !options.is_changed() {
         return;
     }

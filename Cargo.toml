@@ -25,6 +25,7 @@ bevy_text = ["bevy/bevy_text", "bevy/bevy_render", "bevy/bevy_sprite"]
 
 [dependencies]
 interpolation = "0.3"
+slotmap = "1.0"
 bevy = { version = "0.14", default-features = false }
 
 [dev-dependencies]

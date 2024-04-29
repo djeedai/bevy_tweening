@@ -291,7 +291,7 @@ impl<'a, T: Asset> Targetable<T> for AssetTarget<'a, T> {
 }
 
 /// An animatable entity, either a single [`Tween`] or a collection of them.
-pub trait Tweenable<T>: Send + Sync {
+pub trait UntypedTweenable: Send + Sync {
     /// Get the duration of a single iteration of the animation.
     ///
     /// Note that for [`RepeatStrategy::MirroredRepeat`], this is the duration
@@ -332,31 +332,6 @@ pub trait Tweenable<T>: Send + Sync {
     ///
     /// [`duration()`]: Tweenable::duration
     fn elapsed(&self) -> Duration;
-
-    /// Tick the animation, advancing it by the given delta time and mutating
-    /// the given target component or asset.
-    ///
-    /// This returns [`TweenState::Active`] if the tweenable didn't reach its
-    /// final state yet (progress < `1.0`), or [`TweenState::Completed`] if
-    /// the tweenable completed this tick. Only non-looping tweenables return
-    /// a completed state, since looping ones continue forever.
-    ///
-    /// Calling this method with a duration of [`Duration::ZERO`] is valid, and
-    /// updates the target to the current state of the tweenable without
-    /// actually modifying the tweenable state. This is useful after certain
-    /// operations like [`rewind()`] or [`set_progress()`] whose effect is
-    /// otherwise only visible on target on next frame.
-    ///
-    /// [`rewind()`]: Tweenable::rewind
-    /// [`set_progress()`]: Tweenable::set_progress
-    fn tick(
-        &mut self,
-        delta: Duration,
-        target: &mut dyn Targetable<T>,
-        entity: Entity,
-        events: &mut Mut<Events<TweenCompleted>>,
-        commands: &mut Commands,
-    ) -> TweenState;
 
     /// Rewind the animation to its starting state.
     ///
@@ -406,6 +381,32 @@ pub trait Tweenable<T>: Send + Sync {
     fn times_completed(&self) -> u32 {
         (self.elapsed().as_nanos() / self.duration().as_nanos()) as u32
     }
+}
+
+pub trait Tweenable<T>: UntypedTweenable {
+    /// Tick the animation, advancing it by the given delta time and mutating
+    /// the given target component or asset.
+    ///
+    /// This returns [`TweenState::Active`] if the tweenable didn't reach its
+    /// final state yet (progress < `1.0`), or [`TweenState::Completed`] if
+    /// the tweenable completed this tick. Only non-looping tweenables return
+    /// a completed state, since looping ones continue forever.
+    ///
+    /// Calling this method with a duration of [`Duration::ZERO`] is valid, and
+    /// updates the target to the current state of the tweenable without
+    /// actually modifying the tweenable state. This is useful after certain
+    /// operations like [`rewind()`] or [`set_progress()`] whose effect is
+    /// otherwise only visible on target on next frame.
+    ///
+    /// [`rewind()`]: Tweenable::rewind
+    /// [`set_progress()`]: Tweenable::set_progress
+    fn tick(
+        &mut self,
+        delta: Duration,
+        target: &mut dyn Targetable<T>,
+        entity: Entity,
+        events: Mut<Events<TweenCompleted>>,
+    ) -> TweenState;
 }
 
 macro_rules! impl_boxed {
@@ -738,7 +739,7 @@ impl<T> Tween<T> {
     }
 }
 
-impl<T> Tweenable<T> for Tween<T> {
+impl<T> UntypedTweenable for Tween<T> {
     fn duration(&self) -> Duration {
         self.clock.duration
     }
@@ -755,13 +756,32 @@ impl<T> Tweenable<T> for Tween<T> {
         self.clock.elapsed()
     }
 
+    fn rewind(&mut self) {
+        if self.clock.strategy == RepeatStrategy::MirroredRepeat {
+            // In mirrored mode, direction alternates each loop. To reset to the original
+            // direction on Tween creation, we count the number of completions, ignoring the
+            // last one if the Tween is currently in TweenState::Completed because that one
+            // freezes all parameters.
+            let mut times_completed = self.clock.times_completed();
+            if self.clock.state() == TweenState::Completed {
+                debug_assert!(times_completed > 0);
+                times_completed -= 1;
+            }
+            if times_completed & 1 != 0 {
+                self.direction = !self.direction;
+            }
+        }
+        self.clock.reset();
+    }
+}
+
+impl<T> Tweenable<T> for Tween<T> {
     fn tick(
         &mut self,
         delta: Duration,
         target: &mut dyn Targetable<T>,
         entity: Entity,
-        events: &mut Mut<Events<TweenCompleted>>,
-        commands: &mut Commands,
+        mut events: Mut<Events<TweenCompleted>>,
     ) -> TweenState {
         if self.clock.state() == TweenState::Completed {
             return TweenState::Completed;
@@ -805,24 +825,6 @@ impl<T> Tweenable<T> for Tween<T> {
         }
 
         state
-    }
-
-    fn rewind(&mut self) {
-        if self.clock.strategy == RepeatStrategy::MirroredRepeat {
-            // In mirrored mode, direction alternates each loop. To reset to the original
-            // direction on Tween creation, we count the number of completions, ignoring the
-            // last one if the Tween is currently in TweenState::Completed because that one
-            // freezes all parameters.
-            let mut times_completed = self.clock.times_completed();
-            if self.clock.state() == TweenState::Completed {
-                debug_assert!(times_completed > 0);
-                times_completed -= 1;
-            }
-            if times_completed & 1 != 0 {
-                self.direction = !self.direction;
-            }
-        }
-        self.clock.reset();
     }
 }
 
@@ -900,7 +902,7 @@ impl<T> Sequence<T> {
     }
 }
 
-impl<T> Tweenable<T> for Sequence<T> {
+impl<T> UntypedTweenable for Sequence<T> {
     fn duration(&self) -> Duration {
         self.duration
     }
@@ -937,19 +939,29 @@ impl<T> Tweenable<T> for Sequence<T> {
         self.elapsed
     }
 
+    fn rewind(&mut self) {
+        self.elapsed = Duration::ZERO;
+        self.index = 0;
+        for tween in &mut self.tweens {
+            // or only first?
+            tween.rewind();
+        }
+    }
+}
+
+impl<T> Tweenable<T> for Sequence<T> {
     fn tick(
         &mut self,
         mut delta: Duration,
         target: &mut dyn Targetable<T>,
         entity: Entity,
-        events: &mut Mut<Events<TweenCompleted>>,
-        commands: &mut Commands,
+        mut events: Mut<Events<TweenCompleted>>,
     ) -> TweenState {
         self.elapsed = self.elapsed.saturating_add(delta).min(self.duration);
         while self.index < self.tweens.len() {
             let tween = &mut self.tweens[self.index];
             let tween_remaining = tween.duration() - tween.elapsed();
-            if let TweenState::Active = tween.tick(delta, target, entity, events, commands) {
+            if let TweenState::Active = tween.tick(delta, target, entity, events.reborrow()) {
                 return TweenState::Active;
             }
 
@@ -959,15 +971,6 @@ impl<T> Tweenable<T> for Sequence<T> {
         }
 
         TweenState::Completed
-    }
-
-    fn rewind(&mut self) {
-        self.elapsed = Duration::ZERO;
-        self.index = 0;
-        for tween in &mut self.tweens {
-            // or only first?
-            tween.rewind();
-        }
     }
 }
 
@@ -1024,13 +1027,12 @@ impl<T> Tweenable<T> for Tracks<T> {
         delta: Duration,
         target: &mut dyn Targetable<T>,
         entity: Entity,
-        events: &mut Mut<Events<TweenCompleted>>,
-        commands: &mut Commands,
+        mut events: Mut<Events<TweenCompleted>>,
     ) -> TweenState {
         self.elapsed = self.elapsed.saturating_add(delta).min(self.duration);
         let mut any_active = false;
         for tweenable in &mut self.tracks {
-            let state = tweenable.tick(delta, target, entity, events, commands);
+            let state = tweenable.tick(delta, target, entity, events.reborrow());
             any_active = any_active || (state == TweenState::Active);
         }
         if any_active {
@@ -1309,8 +1311,7 @@ impl<T> Tweenable<T> for Delay<T> {
         delta: Duration,
         _target: &mut dyn Targetable<T>,
         entity: Entity,
-        events: &mut Mut<Events<TweenCompleted>>,
-        commands: &mut Commands,
+        mut events: Mut<Events<TweenCompleted>>,
     ) -> TweenState {
         let was_completed = self.is_completed();
 
@@ -1388,22 +1389,11 @@ mod tests {
         world: &mut World,
         entity: Entity,
     ) -> TweenState {
-        world.resource_scope(
-            |world: &mut World, mut events: Mut<Events<TweenCompleted>>| {
-                let transform = world.get_mut::<T>(entity).unwrap();
-                let mut target = ComponentTarget::new(transform);
-                // let command_queue = &mut CommandQueue::default(); // todo
-                // let mut asd = Commands::new(command_queue, world);
-                tween.tick(
-                    duration,
-                    &mut target,
-                    entity,
-                    &mut events,
-                    // passing dummy values to let things compile
-                    &mut Commands::new(&mut CommandQueue::default(), &World::default()),
-                )
-            },
-        )
+        world.resource_scope(|world: &mut World, events: Mut<Events<TweenCompleted>>| {
+            let transform = world.get_mut::<T>(entity).unwrap();
+            let mut target = ComponentTarget::new(transform);
+            tween.tick(duration, &mut target, entity, events)
+        })
     }
 
     #[derive(Debug, Default, Clone, Copy, Component)]

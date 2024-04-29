@@ -108,7 +108,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 ),
                 ..default()
             },
-            Animator::new(tween),
+            TweenAnimator::new(tween),
         ));
 
         y += delta_y;

@@ -119,14 +119,14 @@ fn setup(mut commands: Commands) {
                 background_color: BackgroundColor(RED.into()),
                 ..default()
             },
-            Animator::new(tween),
+            TweenAnimator::new(tween),
         ));
 
         x += offset_x;
     }
 }
 
-fn update_animation_speed(options: Res<Options>, mut animators: Query<&mut Animator<Style>>) {
+fn update_animation_speed(options: Res<Options>, mut animators: Query<&mut TweenAnimator<Style>>) {
     if !options.is_changed() {
         return;
     }

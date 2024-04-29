@@ -146,11 +146,9 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 custom_size: Some(Vec2::new(size, size)),
                 ..default()
             },
-            ..default()
-        },
-        RedSprite,
-        Animator::new(seq),
-    ));
+            RedSprite,
+        ))
+        .tween(seq);
 
     // First move from left to right, then rotate around self 180 degrees while
     // scaling size at the same time.
@@ -193,22 +191,21 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 custom_size: Some(Vec2::new(size * 3., size)),
                 ..default()
             },
-            ..Default::default()
-        },
-        BlueSprite,
-        Animator::new(seq2),
-    ));
+            BlueSprite,
+        ))
+        .tween(seq2);
 }
 
 fn update_text(
+    animator: Res<TweenAnimator>,
     mut query_text_red: Query<&mut Text, (With<RedProgress>, Without<BlueProgress>)>,
     mut query_text_blue: Query<&mut Text, (With<BlueProgress>, Without<RedProgress>)>,
-    query_anim_red: Query<&Animator<Transform>, With<RedSprite>>,
-    query_anim_blue: Query<&Animator<Transform>, With<BlueSprite>>,
+    query_anim_red: Query<Entity, With<RedSprite>>,
+    query_anim_blue: Query<Entity, With<BlueSprite>>,
     mut query_event: EventReader<TweenCompleted>,
 ) {
     let anim_red = query_anim_red.single();
-    let progress_red = anim_red.tweenable().progress();
+    let progress_red = animator.get(anim_red).tweenable().progress();
 
     let anim_blue = query_anim_blue.single();
     let progress_blue = anim_blue.tweenable().progress();

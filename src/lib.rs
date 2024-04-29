@@ -206,19 +206,23 @@
 
 use std::time::Duration;
 
-use bevy::prelude::*;
+use bevy::{
+    ecs::system::{EntityCommand, EntityCommands},
+    prelude::*,
+};
 use interpolation::Ease as IEase;
 pub use interpolation::{EaseFunction, Lerp};
+use slotmap::new_key_type;
 
 pub use lens::Lens;
-#[cfg(feature = "bevy_asset")]
-pub use plugin::asset_animator_system;
-pub use plugin::{component_animator_system, AnimationSystem, TweeningPlugin};
+pub use plugin::{AnimationSystem, TweeningPlugin};
+use slotmap::SlotMap;
 #[cfg(feature = "bevy_asset")]
 pub use tweenable::AssetTarget;
+use tweenable::Tweenable;
 pub use tweenable::{
     BoxedTweenable, ComponentTarget, Delay, Sequence, Targetable, TotalDuration, Tracks, Tween,
-    TweenCompleted, TweenState, Tweenable,
+    TweenCompleted, TweenState, UntypedTweenable,
 };
 
 pub mod lens;
@@ -440,81 +444,150 @@ impl std::ops::Not for TweeningDirection {
     }
 }
 
-macro_rules! animator_impl {
-    () => {
-        /// Set the initial playback state of the animator.
-        #[must_use]
-        pub fn with_state(mut self, state: AnimatorState) -> Self {
-            self.state = state;
-            self
-        }
+// macro_rules! animator_impl {
+//     () => {
+//         /// Set the initial playback state of the animator.
+//         #[must_use]
+//         pub fn with_state(mut self, state: AnimatorState) -> Self {
+//             self.state = state;
+//             self
+//         }
 
-        /// Set the initial speed of the animator. See [`Animator::set_speed`] for
-        /// details.
-        #[must_use]
-        pub fn with_speed(mut self, speed: f32) -> Self {
-            self.speed = speed;
-            self
-        }
+//         /// Set the initial speed of the animator. See
+// [`Animator::set_speed`] for         /// details.
+//         #[must_use]
+//         pub fn with_speed(mut self, speed: f32) -> Self {
+//             self.speed = speed;
+//             self
+//         }
 
-        /// Set the animation speed. Defaults to 1.
-        ///
-        /// A speed of 2 means the animation will run twice as fast while a speed of 0.1
-        /// will result in a 10x slowed animation.
-        pub fn set_speed(&mut self, speed: f32) {
-            self.speed = speed;
-        }
+//         /// Set the animation speed. Defaults to 1.
+//         ///
+//         /// A speed of 2 means the animation will run twice as fast while a
+// speed of 0.1         /// will result in a 10x slowed animation.
+//         pub fn set_speed(&mut self, speed: f32) {
+//             self.speed = speed;
+//         }
 
-        /// Get the animation speed.
-        ///
-        /// See [`set_speed()`] for a definition of what the animation speed is.
-        ///
-        /// [`set_speed()`]: Animator::speed
-        pub fn speed(&self) -> f32 {
-            self.speed
-        }
+//         /// Get the animation speed.
+//         ///
+//         /// See [`set_speed()`] for a definition of what the animation speed
+// is.         ///
+//         /// [`set_speed()`]: Animator::speed
+//         pub fn speed(&self) -> f32 {
+//             self.speed
+//         }
 
-        /// Set the top-level tweenable item this animator controls.
-        pub fn set_tweenable(&mut self, tween: impl Tweenable<T> + 'static) {
-            self.tweenable = Box::new(tween);
-        }
+//         /// Set the top-level tweenable item this animator controls.
+//         pub fn set_tweenable(&mut self, tween: impl Tweenable<T> + 'static) {
+//             self.tweenable = Box::new(tween);
+//         }
 
-        /// Get the top-level tweenable this animator is currently controlling.
-        #[must_use]
-        pub fn tweenable(&self) -> &dyn Tweenable<T> {
-            self.tweenable.as_ref()
-        }
+//         /// Get the top-level tweenable this animator is currently
+// controlling.         #[must_use]
+//         pub fn tweenable(&self) -> &dyn Tweenable<T> {
+//             self.tweenable.as_ref()
+//         }
 
-        /// Get the top-level mutable tweenable this animator is currently controlling.
-        #[must_use]
-        pub fn tweenable_mut(&mut self) -> &mut dyn Tweenable<T> {
-            self.tweenable.as_mut()
-        }
+//         /// Get the top-level mutable tweenable this animator is currently
+// controlling.         #[must_use]
+//         pub fn tweenable_mut(&mut self) -> &mut dyn Tweenable<T> {
+//             self.tweenable.as_mut()
+//         }
 
-        /// Stop animation playback and rewind the animation.
-        ///
-        /// This changes the animator state to [`AnimatorState::Paused`] and rewind its
-        /// tweenable.
-        pub fn stop(&mut self) {
-            self.state = AnimatorState::Paused;
-            self.tweenable_mut().rewind();
-        }
-    };
+//         /// Stop animation playback and rewind the animation.
+//         ///
+//         /// This changes the animator state to [`AnimatorState::Paused`] and
+// rewind its         /// tweenable.
+//         pub fn stop(&mut self) {
+//             self.state = AnimatorState::Paused;
+//             self.tweenable_mut().rewind();
+//         }
+//     };
+// }
+
+new_key_type! {
+    /// Tween ID.
+    pub struct TweenId;
 }
 
-/// Component to control the animation of another component.
-///
-/// The animated component is the component located on the same entity as the
-/// [`Animator<T>`] itself.
-#[derive(Component)]
-pub struct Animator<T: Component> {
-    /// Control if this animation is played or not.
+/// Extensions for [`EntityCommands`] to queue tween-based animations.
+pub trait EntityCommandsTweeningExtensions<'a> {
+    /// Queue the given [`Tweenable`].
+    fn tween<T: Component>(&mut self, tweenable: impl Tweenable<T> + 'static) -> &mut Self;
+
+    /// Queue a new tween animation to move the current entity.
+    ///
+    /// The entity must have a [`Transform`] component. The tween animation will
+    /// be initialized with the current [`Transform::translation`] as its
+    /// starting point, and the given endpoint and duration.
+    ///
+    /// Note that the starting point position is saved when the command is
+    /// applied, generally after the current system when [`apply_deferred()`]
+    /// runs. So any change to [`Transform::translation`] between this call and
+    /// [`apply_deferred()`] will be taken into account.
+    fn move_to(&mut self, end: Vec3, duration: Duration) -> &mut Self;
+}
+
+/// Build an [`EntityCommand`] which queues the new tweenable into the
+/// [`Animator`].
+fn make_tween_command<C: Component>(tweenable: impl Tweenable<C> + 'static) -> impl EntityCommand {
+    move |target: Entity, world: &mut World| {
+        let (target, action) = TweenAnimator::make(target, tweenable);
+        world.resource_mut::<TweenAnimator>().queue(target, action);
+    }
+}
+
+fn make_transform_from_command(end: Vec3, duration: Duration) -> impl EntityCommand {
+    move |target: Entity, world: &mut World| {
+        let start = world.entity(target).get::<Transform>().unwrap().translation;
+        let tween = Tween::new(
+            EaseMethod::Linear,
+            duration,
+            lens::TransformPositionLens { start, end },
+        );
+        let (target, action) = TweenAnimator::make(target, tween);
+        world.resource_mut::<TweenAnimator>().queue(target, action);
+    }
+}
+
+impl<'a> EntityCommandsTweeningExtensions<'a> for EntityCommands<'a> {
+    fn tween<T: Component>(
+        &mut self,
+        tweenable: impl Tweenable<T> + 'static,
+    ) -> &mut EntityCommands<'a> {
+        self.add(make_tween_command(tweenable))
+    }
+
+    fn move_to(&mut self, end: Vec3, duration: Duration) -> &mut EntityCommands<'a> {
+        self.add(make_transform_from_command(end, duration))
+    }
+}
+
+type TypeErasedAnimAction = dyn FnMut(&mut World, Entity, Duration, Mut<Events<TweenCompleted>>) -> TweenState
+    + Send
+    + Sync
+    + 'static;
+
+/// Animator for tween-based animations.
+#[derive(Resource)]
+pub struct TweenAnimator {
+    /// Control if animations are played or not.
     pub state: AnimatorState,
-    tweenable: BoxedTweenable<T>,
-    speed: f32,
+    /// Queue of animations currently playing.
+    anims: SlotMap<TweenId, (Entity, Box<TypeErasedAnimAction>)>,
 }
 
-impl<T: Component + std::fmt::Debug> std::fmt::Debug for Animator<T> {
+impl Default for TweenAnimator {
+    fn default() -> Self {
+        Self {
+            state: AnimatorState::default(),
+            anims: Default::default(),
+        }
+    }
+}
+
+impl std::fmt::Debug for TweenAnimator {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Animator")
             .field("state", &self.state)
@@ -522,55 +595,164 @@ impl<T: Component + std::fmt::Debug> std::fmt::Debug for Animator<T> {
     }
 }
 
-impl<T: Component> Animator<T> {
-    /// Create a new animator component from a single tweenable.
-    #[must_use]
-    pub fn new(tween: impl Tweenable<T> + 'static) -> Self {
-        Self {
-            state: default(),
-            tweenable: Box::new(tween),
-            speed: 1.,
-        }
+impl TweenAnimator {
+    /// Add a new component animation to the animator queue.
+    ///
+    /// In general you don't need to call this directly. Instead, use the
+    /// extensions provided by [`EntityCommandsTweening`] to directly create and
+    /// queue tweenable animations on a given [`EntityCommands`], like this:
+    ///
+    /// ```
+    /// # use bevy::prelude::*
+    /// # use bevy_tweening::{lens::*, *};
+    /// # use std::time::Duration;
+    /// # let mut world = World::default();
+    /// # let entity = Entity::default();
+    /// let tween = Tween::new(
+    ///     EaseFunction::QuadraticInOut,
+    ///     Duration::from_secs(1),
+    ///     TransformPositionLens {
+    ///         start: Vec3::ZERO,
+    ///         end: Vec3::new(3.5, 0., 0.),
+    /// };
+    /// world.entity(entity).tween(tween);
+    /// ```
+    #[inline]
+    pub fn add<T: Component>(
+        &mut self,
+        target: Entity,
+        tweenable: impl Tweenable<T> + 'static,
+    ) -> TweenId {
+        self.anims.insert(Self::make(target, tweenable))
     }
 
-    animator_impl!();
-}
+    /// Make a type-erased tweenable animation entry for subsequent queueing
+    /// with [`queue()`].
+    ///
+    /// [`queue()`]: Animator::queue
+    pub(crate) fn make<T: Component>(
+        target: Entity,
+        mut tweenable: impl Tweenable<T> + 'static,
+    ) -> (Entity, Box<TypeErasedAnimAction>) {
+        // Build the type-erased action which will be invoked to mutate the component.
+        let action = move |world: &mut World,
+                           entity: Entity,
+                           delta_time: Duration,
+                           events: Mut<Events<TweenCompleted>>|
+              -> TweenState {
 
-/// Component to control the animation of an asset.
-///
-/// The animated asset is the asset referenced by a [`Handle<T>`] component
-/// located on the same entity as the [`AssetAnimator<T>`] itself.
-#[cfg(feature = "bevy_asset")]
-#[derive(Component)]
-pub struct AssetAnimator<T: Asset> {
-    /// Control if this animation is played or not.
-    pub state: AnimatorState,
-    tweenable: BoxedTweenable<T>,
-    speed: f32,
-}
+            TODO: can move that call outside, and pass an EntityMut<> instead, which
+            allows via World::get_many_entities_mut to parallelize animating different Entity
+            let mut ent_ref = world.entity_mut(entity);
 
-#[cfg(feature = "bevy_asset")]
-impl<T: Asset + std::fmt::Debug> std::fmt::Debug for AssetAnimator<T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("AssetAnimator")
-            .field("state", &self.state)
-            .finish()
+            TODO: it feels silly to have 1 closure per tweenable which essentially cast to
+            the component then call the Tweenable<T> trait. Can we have 1 closure per component
+            type rather? That would require the closure taking a type-erased Tweenable<T> which
+            can still tick()...
+
+            let comp = ent_ref.get_mut::<T>().unwrap();
+
+            let mut target = ComponentTarget::new(comp);
+
+            // Animate
+            tweenable.tick(delta_time, &mut target, entity, events)
+        };
+
+        (target, Box::new(action))
+    }
+
+    /// Queue a prepared tweenable animation.
+    ///
+    /// See [`make()`] to prepare the animation closure.
+    ///
+    /// [`make()`]: Animator::make
+    #[inline]
+    pub(crate) fn queue(&mut self, target: Entity, action: Box<TypeErasedAnimAction>) {
+        self.anims.insert((target, action));
+    }
+
+    /// Get a tweenable from its ID.
+    ///
+    /// This fails and returns `None` if the tweenable has completed and was
+    /// removed from the animator's internal queue.
+    pub fn get(&self, id: TweenId) -> Option<&dyn UntypedTweenable> {
+        self.anims.get(id).map(|(_, tweenable)| tweenable)
+    }
+
+    /// Play all queued animations.
+    ///
+    /// Loop over the internal queue of tweenable animations, apply them to
+    /// their respective target [`Entity`], and prune all the completed
+    /// ones (the ones returning [`TweenState::Completed`]). In the later case,
+    /// send [`TweenCompleted`] events if enabled on the tweenable.
+    pub fn play(
+        &mut self,
+        world: &mut World,
+        delta_time: Duration,
+        mut events: Mut<Events<TweenCompleted>>,
+    ) {
+        self.anims.retain(|_id, (entity, action)| {
+            let state = action(world, *entity, delta_time, events.reborrow());
+            state == TweenState::Active
+        });
     }
 }
 
-#[cfg(feature = "bevy_asset")]
-impl<T: Asset> AssetAnimator<T> {
-    /// Create a new asset animator component from a single tweenable.
-    #[must_use]
-    pub fn new(tween: impl Tweenable<T> + 'static) -> Self {
-        Self {
-            state: default(),
-            tweenable: Box::new(tween),
-            speed: 1.,
-        }
-    }
+// /// Component to control the animation of an asset.
+// ///
+// /// The animated asset is the asset referenced by a [`Handle<T>`] component
+// /// located on the same entity as the [`AssetAnimator<T>`] itself.
+// #[cfg(feature = "bevy_asset")]
+// #[derive(Component)]
+// pub struct AssetAnimator<T: Asset> {
+//     /// Control if this animation is played or not.
+//     pub state: AnimatorState,
+//     tweenable: BoxedTweenable<T>,
+//     speed: f32,
+// }
 
-    animator_impl!();
+// #[cfg(feature = "bevy_asset")]
+// impl<T: Asset + std::fmt::Debug> std::fmt::Debug for AssetAnimator<T> {
+//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+//         f.debug_struct("AssetAnimator")
+//             .field("state", &self.state)
+//             .finish()
+//     }
+// }
+
+// #[cfg(feature = "bevy_asset")]
+// impl<T: Asset> AssetAnimator<T> {
+//     /// Create a new asset animator component from a single tweenable.
+//     #[must_use]
+//     pub fn new(tween: impl Tweenable<T> + 'static) -> Self {
+//         Self {
+//             state: default(),
+//             tweenable: Box::new(tween),
+//             speed: 1.,
+//         }
+//     }
+
+//     //animator_impl!();
+// }
+
+/// Trait to interpolate between two values.
+/// Needed for color.
+#[allow(dead_code)]
+#[cfg(any(feature = "bevy_sprite", feature = "bevy_ui", feature = "bevy_text"))]
+trait ColorLerper {
+    fn lerp(&self, target: &Self, ratio: f32) -> Self;
+}
+
+#[allow(dead_code)]
+#[cfg(any(feature = "bevy_sprite", feature = "bevy_ui", feature = "bevy_text"))]
+impl ColorLerper for Color {
+    fn lerp(&self, target: &Color, ratio: f32) -> Color {
+        let r = self.r().lerp(target.r(), ratio);
+        let g = self.g().lerp(target.g(), ratio);
+        let b = self.b().lerp(target.b(), ratio);
+        let a = self.a().lerp(target.a(), ratio);
+        Color::rgba(r, g, b, a)
+    }
 }
 
 #[cfg(test)]
@@ -718,117 +900,117 @@ mod tests {
         assert_eq!(1., ease.sample(0.));
     }
 
-    #[test]
-    fn animator_new() {
-        let tween = Tween::new(
-            EaseFunction::QuadraticInOut,
-            Duration::from_secs(1),
-            DummyLens { start: 0., end: 1. },
-        );
-        let animator = Animator::<DummyComponent>::new(tween);
-        assert_eq!(animator.state, AnimatorState::default());
-        assert_eq!(animator.tweenable().progress(), 0.);
-    }
+    // #[test]
+    // fn animator_new() {
+    //     let tween = Tween::new(
+    //         EaseFunction::QuadraticInOut,
+    //         Duration::from_secs(1),
+    //         DummyLens { start: 0., end: 1. },
+    //     );
+    //     let animator = Animator::<DummyComponent>::new(tween);
+    //     assert_eq!(animator.state, AnimatorState::default());
+    //     assert_eq!(animator.tweenable().progress(), 0.);
+    // }
 
-    #[test]
-    fn animator_with_state() {
-        for state in [AnimatorState::Playing, AnimatorState::Paused] {
-            let tween = Tween::<DummyComponent>::new(
-                EaseFunction::QuadraticInOut,
-                Duration::from_secs(1),
-                DummyLens { start: 0., end: 1. },
-            );
-            let animator = Animator::new(tween).with_state(state);
-            assert_eq!(animator.state, state);
+    // #[test]
+    // fn animator_with_state() {
+    //     for state in [AnimatorState::Playing, AnimatorState::Paused] {
+    //         let tween = Tween::<DummyComponent>::new(
+    //             EaseFunction::QuadraticInOut,
+    //             Duration::from_secs(1),
+    //             DummyLens { start: 0., end: 1. },
+    //         );
+    //         let animator = Animator::new(tween).with_state(state);
+    //         assert_eq!(animator.state, state);
 
-            // impl Debug
-            let debug_string = format!("{:?}", animator);
-            assert_eq!(
-                debug_string,
-                format!("Animator {{ state: {:?} }}", animator.state)
-            );
-        }
-    }
+    //         // impl Debug
+    //         let debug_string = format!("{:?}", animator);
+    //         assert_eq!(
+    //             debug_string,
+    //             format!("Animator {{ state: {:?} }}", animator.state)
+    //         );
+    //     }
+    // }
 
-    #[test]
-    fn animator_controls() {
-        let tween = Tween::<DummyComponent>::new(
-            EaseFunction::QuadraticInOut,
-            Duration::from_secs(1),
-            DummyLens { start: 0., end: 1. },
-        );
-        let mut animator = Animator::new(tween);
-        assert_eq!(animator.state, AnimatorState::Playing);
-        assert_approx_eq!(animator.tweenable().progress(), 0.);
+    // #[test]
+    // fn animator_controls() {
+    //     let tween = Tween::<DummyComponent>::new(
+    //         EaseFunction::QuadraticInOut,
+    //         Duration::from_secs(1),
+    //         DummyLens { start: 0., end: 1. },
+    //     );
+    //     let mut animator = Animator::new(tween);
+    //     assert_eq!(animator.state, AnimatorState::Playing);
+    //     assert_approx_eq!(animator.tweenable().progress(), 0.);
 
-        animator.stop();
-        assert_eq!(animator.state, AnimatorState::Paused);
-        assert_approx_eq!(animator.tweenable().progress(), 0.);
+    //     animator.stop();
+    //     assert_eq!(animator.state, AnimatorState::Paused);
+    //     assert_approx_eq!(animator.tweenable().progress(), 0.);
 
-        animator.tweenable_mut().set_progress(0.5);
-        assert_eq!(animator.state, AnimatorState::Paused);
-        assert_approx_eq!(animator.tweenable().progress(), 0.5);
+    //     animator.tweenable_mut().set_progress(0.5);
+    //     assert_eq!(animator.state, AnimatorState::Paused);
+    //     assert_approx_eq!(animator.tweenable().progress(), 0.5);
 
-        animator.tweenable_mut().rewind();
-        assert_eq!(animator.state, AnimatorState::Paused);
-        assert_approx_eq!(animator.tweenable().progress(), 0.);
+    //     animator.tweenable_mut().rewind();
+    //     assert_eq!(animator.state, AnimatorState::Paused);
+    //     assert_approx_eq!(animator.tweenable().progress(), 0.);
 
-        animator.tweenable_mut().set_progress(0.5);
-        animator.state = AnimatorState::Playing;
-        assert_eq!(animator.state, AnimatorState::Playing);
-        assert_approx_eq!(animator.tweenable().progress(), 0.5);
+    //     animator.tweenable_mut().set_progress(0.5);
+    //     animator.state = AnimatorState::Playing;
+    //     assert_eq!(animator.state, AnimatorState::Playing);
+    //     assert_approx_eq!(animator.tweenable().progress(), 0.5);
 
-        animator.tweenable_mut().rewind();
-        assert_eq!(animator.state, AnimatorState::Playing);
-        assert_approx_eq!(animator.tweenable().progress(), 0.);
+    //     animator.tweenable_mut().rewind();
+    //     assert_eq!(animator.state, AnimatorState::Playing);
+    //     assert_approx_eq!(animator.tweenable().progress(), 0.);
 
-        animator.stop();
-        assert_eq!(animator.state, AnimatorState::Paused);
-        assert_approx_eq!(animator.tweenable().progress(), 0.);
-    }
+    //     animator.stop();
+    //     assert_eq!(animator.state, AnimatorState::Paused);
+    //     assert_approx_eq!(animator.tweenable().progress(), 0.);
+    // }
 
-    #[test]
-    fn animator_speed() {
-        let tween = Tween::<DummyComponent>::new(
-            EaseFunction::QuadraticInOut,
-            Duration::from_secs(1),
-            DummyLens { start: 0., end: 1. },
-        );
+    // #[test]
+    // fn animator_speed() {
+    //     let tween = Tween::<DummyComponent>::new(
+    //         EaseFunction::QuadraticInOut,
+    //         Duration::from_secs(1),
+    //         DummyLens { start: 0., end: 1. },
+    //     );
 
-        let mut animator = Animator::new(tween);
-        assert_approx_eq!(animator.speed(), 1.); // default speed
+    //     let mut animator = Animator::new(tween);
+    //     assert_approx_eq!(animator.speed(), 1.); // default speed
 
-        animator.set_speed(2.4);
-        assert_approx_eq!(animator.speed(), 2.4);
+    //     animator.set_speed(2.4);
+    //     assert_approx_eq!(animator.speed(), 2.4);
 
-        let tween = Tween::<DummyComponent>::new(
-            EaseFunction::QuadraticInOut,
-            Duration::from_secs(1),
-            DummyLens { start: 0., end: 1. },
-        );
+    //     let tween = Tween::<DummyComponent>::new(
+    //         EaseFunction::QuadraticInOut,
+    //         Duration::from_secs(1),
+    //         DummyLens { start: 0., end: 1. },
+    //     );
 
-        let animator = Animator::new(tween).with_speed(3.5);
-        assert_approx_eq!(animator.speed(), 3.5);
-    }
+    //     let animator = Animator::new(tween).with_speed(3.5);
+    //     assert_approx_eq!(animator.speed(), 3.5);
+    // }
 
-    #[test]
-    fn animator_set_tweenable() {
-        let tween = Tween::<DummyComponent>::new(
-            EaseFunction::QuadraticInOut,
-            Duration::from_secs(1),
-            DummyLens { start: 0., end: 1. },
-        );
-        let mut animator = Animator::new(tween);
+    // #[test]
+    // fn animator_set_tweenable() {
+    //     let tween = Tween::<DummyComponent>::new(
+    //         EaseFunction::QuadraticInOut,
+    //         Duration::from_secs(1),
+    //         DummyLens { start: 0., end: 1. },
+    //     );
+    //     let mut animator = Animator::new(tween);
 
-        let tween2 = Tween::<DummyComponent>::new(
-            EaseFunction::QuadraticInOut,
-            Duration::from_secs(2),
-            DummyLens { start: 0., end: 1. },
-        );
-        animator.set_tweenable(tween2);
+    //     let tween2 = Tween::<DummyComponent>::new(
+    //         EaseFunction::QuadraticInOut,
+    //         Duration::from_secs(2),
+    //         DummyLens { start: 0., end: 1. },
+    //     );
+    //     animator.set_tweenable(tween2);
 
-        assert_eq!(animator.tweenable().duration(), Duration::from_secs(2));
-    }
+    //     assert_eq!(animator.tweenable().duration(), Duration::from_secs(2));
+    // }
 
     #[cfg(feature = "bevy_asset")]
     #[test]

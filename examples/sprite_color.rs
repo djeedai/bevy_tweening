@@ -84,7 +84,7 @@ fn setup(mut commands: Commands) {
                 },
                 ..default()
             },
-            Animator::new(tween),
+            TweenAnimator::new(tween),
         ));
 
         y -= size * spacing;

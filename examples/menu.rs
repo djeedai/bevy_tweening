@@ -88,50 +88,49 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 )
                 .with_completed_event(INIT_TRANSITION_DONE);
 
-                let animator = if start_time_ms > 0 {
-                    let delay = Delay::new(Duration::from_millis(start_time_ms));
-                    Animator::new(delay.then(tween_scale))
-                } else {
-                    Animator::new(tween_scale)
-                };
-
-                start_time_ms += 500;
-                container
-                    .spawn((
-                        ButtonBundle {
-                            style: Style {
-                                min_width: Val::Px(300.),
-                                min_height: Val::Px(80.),
-                                margin: UiRect::all(Val::Px(8.)),
-                                padding: UiRect::all(Val::Px(8.)),
-                                align_content: AlignContent::Center,
-                                align_items: AlignItems::Center,
-                                align_self: AlignSelf::Center,
-                                justify_content: JustifyContent::Center,
-                                ..default()
-                            },
-                            background_color: BackgroundColor(NORMAL_COLOR),
-                            transform: Transform::from_scale(Vec3::splat(0.01)),
+                let mut ec = container.spawn((
+                    ButtonBundle {
+                        style: Style {
+                            min_width: Val::Px(300.),
+                            min_height: Val::Px(80.),
+                            margin: UiRect::all(Val::Px(8.)),
+                            padding: UiRect::all(Val::Px(8.)),
+                            align_content: AlignContent::Center,
+                            align_items: AlignItems::Center,
+                            align_self: AlignSelf::Center,
+                            justify_content: JustifyContent::Center,
                             ..default()
                         },
-                        Name::new(format!("button:{}", text)),
-                        animator,
-                        label,
-                    ))
-                    .with_children(|parent| {
-                        parent.spawn(TextBundle {
-                            text: Text::from_section(
-                                text.to_string(),
-                                TextStyle {
-                                    font: font.clone(),
-                                    font_size: 48.0,
-                                    color: TEXT_COLOR,
-                                },
-                            )
-                            .with_justify(JustifyText::Center),
-                            ..default()
-                        });
+                        background_color: BackgroundColor(NORMAL_COLOR),
+                        transform: Transform::from_scale(Vec3::splat(0.01)),
+                        ..default()
+                    },
+                    Name::new(format!("button:{}", text)),
+                    label,
+                ));
+
+                let mut ec = if start_time_ms > 0 {
+                    let delay = Delay::new(Duration::from_millis(start_time_ms));
+                    ec.tween(delay.then(tween_scale))
+                } else {
+                    ec.tween(tween_scale)
+                };
+                start_time_ms += 500;
+
+                ec.with_children(|parent| {
+                    parent.spawn(TextBundle {
+                        text: Text::from_section(
+                            text.to_string(),
+                            TextStyle {
+                                font: font.clone(),
+                                font_size: 48.0,
+                                color: TEXT_COLOR,
+                            },
+                        )
+                        .with_justify(JustifyText::Center),
+                        ..default()
                     });
+                });
             }
         });
 }
@@ -159,9 +158,10 @@ enum ButtonLabel {
 }
 
 fn interaction(
+    mut commands: Commands,
     mut interaction_query: Query<
         (
-            &mut Animator<Transform>,
+            Entity,
             &Transform,
             &Interaction,
             &mut BackgroundColor,
@@ -170,7 +170,7 @@ fn interaction(
         (Changed<Interaction>, With<InitTransitionDone>),
     >,
 ) {
-    for (mut animator, transform, interaction, mut color, button_label) in &mut interaction_query {
+    for (entity, transform, interaction, mut color, button_label) in &mut interaction_query {
         match *interaction {
             Interaction::Pressed => {
                 *color = CLICK_COLOR.into();
@@ -192,7 +192,7 @@ fn interaction(
             }
             Interaction::Hovered => {
                 *color = HOVER_COLOR.into();
-                animator.set_tweenable(Tween::new(
+                commands.entity(entity).tween(Tween::new(
                     EaseFunction::QuadraticIn,
                     Duration::from_millis(200),
                     TransformScaleLens {
@@ -205,7 +205,7 @@ fn interaction(
                 *color = NORMAL_COLOR.into();
                 let start_scale = transform.scale;
 
-                animator.set_tweenable(Tween::new(
+                commands.entity(entity).tween(Tween::new(
                     EaseFunction::QuadraticIn,
                     Duration::from_millis(200),
                     TransformScaleLens {
