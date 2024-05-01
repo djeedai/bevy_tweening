@@ -85,8 +85,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                         start: Vec3::splat(0.01),
                         end: Vec3::ONE,
                     },
-                )
-                .with_completed_event(INIT_TRANSITION_DONE);
+                );
+                //.with_completed_event(INIT_TRANSITION_DONE);
 
                 let mut ec = container.spawn((
                     ButtonBundle {

@@ -51,7 +51,7 @@ use crate::{EaseMethod, Lens, RepeatCount, RepeatStrategy, TweeningDirection};
 ///     }
 /// }
 /// ```
-pub type BoxedTweenable<T> = Box<dyn Tweenable<T> + 'static>;
+pub type BoxedTweenable = Box<dyn UntypedTweenable + 'static>;
 
 /// Playback state of a [`Tweenable`].
 ///
@@ -333,6 +333,12 @@ pub trait UntypedTweenable: Send + Sync {
     /// [`duration()`]: Tweenable::duration
     fn elapsed(&self) -> Duration;
 
+    /// Tick the tweenable.
+    fn tick(&mut self, delta: Duration, entity: Entity) -> (f32, TweenState);
+
+    /// Apply the current state.
+    fn apply_state(&mut self, ent_mut: EntityMut);
+
     /// Rewind the animation to its starting state.
     ///
     /// Note that the starting state depends on the current direction. For
@@ -411,7 +417,7 @@ pub trait Tweenable<T>: UntypedTweenable {
 
 macro_rules! impl_boxed {
     ($tweenable:ty) => {
-        impl<T: 'static> From<$tweenable> for BoxedTweenable<T> {
+        impl From<$tweenable> for BoxedTweenable {
             fn from(t: $tweenable) -> Self {
                 Box::new(t)
             }
@@ -419,28 +425,23 @@ macro_rules! impl_boxed {
     };
 }
 
-impl_boxed!(Tween<T>);
-impl_boxed!(Sequence<T>);
-impl_boxed!(Tracks<T>);
-impl_boxed!(Delay<T>);
+impl_boxed!(Tween);
+impl_boxed!(Sequence);
+impl_boxed!(Tracks);
+impl_boxed!(Delay);
 
-/// Type of a callback invoked when a [`Tween`] or [`Delay`] has completed.
-///
-/// See [`Tween::set_completed()`] or [`Delay::set_completed()`] for usage.
-pub type CompletedCallback<T> = dyn Fn(Entity, &T) + Send + Sync + 'static;
+type TweenAction = dyn FnMut(EntityMut, f32) + Send + Sync + 'static;
 
 /// Single tweening animation instance.
-pub struct Tween<T> {
+pub struct Tween {
     ease_function: EaseMethod,
     clock: AnimClock,
     direction: TweeningDirection,
-    lens: Box<dyn Lens<T> + Send + Sync + 'static>,
-    on_completed: Option<Box<CompletedCallback<Tween<T>>>>,
-    event_data: Option<u64>,
+    action: Box<TweenAction>,
     system_id: Option<SystemId>,
 }
 
-impl<T: 'static> Tween<T> {
+impl Tween {
     /// Chain another [`Tweenable`] after this tween, making a [`Sequence`] with
     /// the two.
     ///
@@ -468,12 +469,12 @@ impl<T: 'static> Tween<T> {
     /// let seq = tween1.then(tween2);
     /// ```
     #[must_use]
-    pub fn then(self, tween: impl Tweenable<T> + 'static) -> Sequence<T> {
+    pub fn then(self, tween: impl UntypedTweenable + 'static) -> Sequence {
         Sequence::with_capacity(2).then(self).then(tween)
     }
 }
 
-impl<T> Tween<T> {
+impl Tween {
     /// Create a new tween animation.
     ///
     /// # Example
@@ -491,135 +492,27 @@ impl<T> Tween<T> {
     /// );
     /// ```
     #[must_use]
-    pub fn new<L>(ease_function: impl Into<EaseMethod>, duration: Duration, lens: L) -> Self
+    pub fn new<C: Component, L>(
+        ease_function: impl Into<EaseMethod>,
+        duration: Duration,
+        mut lens: L,
+    ) -> Self
     where
-        L: Lens<T> + Send + Sync + 'static,
+        L: Lens<C> + Send + Sync + 'static,
     {
+        let action = move |mut ent_mut: EntityMut, ratio: f32| {
+            let Some(comp) = ent_mut.get_mut::<C>() else {
+                return; // TODO
+            };
+            let mut target = ComponentTarget::new(comp);
+            lens.lerp(&mut target, ratio);
+        };
         Self {
             ease_function: ease_function.into(),
             clock: AnimClock::new(duration),
             direction: TweeningDirection::Forward,
-            lens: Box::new(lens),
-            on_completed: None,
-            event_data: None,
-            system_id: None,
+            action: Box::new(action),
         }
-    }
-
-    /// Enable raising a completed event.
-    ///
-    /// If enabled, the tween will raise a [`TweenCompleted`] event when the
-    /// animation completed. This is similar to the [`with_completed()`]
-    /// callback, but uses Bevy events instead.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use bevy_tweening::{lens::*, *};
-    /// # use bevy::{ecs::event::EventReader, math::Vec3};
-    /// # use std::time::Duration;
-    /// let tween = Tween::new(
-    ///     // [...]
-    /// #    EaseFunction::QuadraticInOut,
-    /// #    Duration::from_secs(1),
-    /// #    TransformPositionLens {
-    /// #        start: Vec3::ZERO,
-    /// #        end: Vec3::new(3.5, 0., 0.),
-    /// #    },
-    /// )
-    /// .with_completed_event(42);
-    ///
-    /// fn my_system(mut reader: EventReader<TweenCompleted>) {
-    ///   for ev in reader.read() {
-    ///     assert_eq!(ev.user_data, 42);
-    ///     println!("Entity {:?} raised TweenCompleted!", ev.entity);
-    ///   }
-    /// }
-    /// ```
-    ///
-    /// [`with_completed()`]: Tween::with_completed
-    #[must_use]
-    pub fn with_completed_event(mut self, user_data: u64) -> Self {
-        self.event_data = Some(user_data);
-        self
-    }
-
-    /// Set a callback invoked when the delay completes.
-    ///
-    /// The callback when invoked receives as parameters the [`Entity`] on which
-    /// the target and the animator are, as well as a reference to the
-    /// current [`Tween`]. This is similar to [`with_completed_event()`], but
-    /// with a callback instead.
-    ///
-    /// Only non-looping tweenables can complete.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use bevy_tweening::{lens::*, *};
-    /// # use bevy::{ecs::event::EventReader, math::Vec3};
-    /// # use std::time::Duration;
-    /// let tween = Tween::new(
-    ///     // [...]
-    /// #    EaseFunction::QuadraticInOut,
-    /// #    Duration::from_secs(1),
-    /// #    TransformPositionLens {
-    /// #        start: Vec3::ZERO,
-    /// #        end: Vec3::new(3.5, 0., 0.),
-    /// #    },
-    /// )
-    /// .with_completed(|entity, _tween| {
-    ///   println!("Tween completed on entity {:?}", entity);
-    /// });
-    /// ```
-    ///
-    /// [`with_completed_event()`]: Tween::with_completed_event
-    pub fn with_completed<C>(mut self, callback: C) -> Self
-    where
-        C: Fn(Entity, &Self) + Send + Sync + 'static,
-    {
-        self.on_completed = Some(Box::new(callback));
-        self
-    }
-
-    /// Enable running a one-shot system upon completion.
-    ///
-    /// If enabled, the tween will run a system via a provided [`SystemId`] when
-    /// the animation completes. This is similar to the
-    /// [`with_completed()`], but uses a system registered by
-    /// [`register_system()`] instead of a callback.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use bevy_tweening::{lens::*, *};
-    /// # use bevy::{ecs::event::EventReader, math::Vec3, ecs::world::World, ecs::system::Query, ecs::entity::Entity, ecs::query::With};
-    /// # use std::time::Duration;
-    /// let mut world = World::new();
-    /// let test_system_system_id = world.register_system(test_system);
-    /// let tween = Tween::new(
-    ///     // [...]
-    /// #    EaseFunction::QuadraticInOut,
-    /// #    Duration::from_secs(1),
-    /// #    TransformPositionLens {
-    /// #        start: Vec3::ZERO,
-    /// #        end: Vec3::new(3.5, 0., 0.),
-    /// #    },
-    /// )
-    /// .with_completed_system(test_system_system_id);
-    ///
-    /// fn test_system(query: Query<Entity>) {
-    ///    for entity in query.iter() {
-    ///       println!("Found an entity!");
-    ///    }
-    /// }
-    /// ```
-    /// [`with_completed()`]: Tween::with_completed
-    /// [`register_system()`]: bevy::ecs::world::World::register_system
-    #[must_use]
-    pub fn with_completed_system(mut self, system_id: SystemId) -> Self {
-        self.system_id = Some(system_id);
-        self
     }
 
     /// Set the playback direction of the tween.
@@ -669,77 +562,9 @@ impl<T> Tween<T> {
         self.clock.strategy = strategy;
         self
     }
-
-    /// Set a callback invoked when the animation completes.
-    ///
-    /// The callback when invoked receives as parameters the [`Entity`] on which
-    /// the target and the animator are, as well as a reference to the
-    /// current [`Tween`].
-    ///
-    /// Only non-looping tweenables can complete.
-    pub fn set_completed<C>(&mut self, callback: C)
-    where
-        C: Fn(Entity, &Self) + Send + Sync + 'static,
-    {
-        self.on_completed = Some(Box::new(callback));
-    }
-
-    /// Clear the callback invoked when the animation completes.
-    ///
-    /// See also [`set_completed()`].
-    ///
-    /// [`set_completed()`]: Tween::set_completed
-    pub fn clear_completed(&mut self) {
-        self.on_completed = None;
-    }
-
-    /// Enable or disable raising a completed event.
-    ///
-    /// If enabled, the tween will raise a [`TweenCompleted`] event when the
-    /// animation completed. This is similar to the [`set_completed()`]
-    /// callback, but uses Bevy events instead.
-    ///
-    /// See [`with_completed_event()`] for details.
-    ///
-    /// [`set_completed()`]: Tween::set_completed
-    /// [`with_completed_event()`]: Tween::with_completed_event
-    pub fn set_completed_event(&mut self, user_data: u64) {
-        self.event_data = Some(user_data);
-    }
-
-    /// Clear the event sent when the animation completes.
-    ///
-    /// See also [`set_completed_event()`].
-    ///
-    /// [`set_completed_event()`]: Tween::set_completed_event
-    pub fn clear_completed_event(&mut self) {
-        self.event_data = None;
-    }
-
-    /// Enable running a one-shot system upon completion.
-    ///
-    /// If enabled, the tween will run a system via a provided [`SystemId`] when
-    /// the animation completes. This is similar to the
-    /// [`with_completed()`], but uses a system registered by
-    /// [`register_system()`] instead of a callback.
-    ///
-    /// [`with_completed()`]: Tween::with_completed
-    /// [`register_system()`]: bevy::ecs::world::World::register_system
-    pub fn set_completed_system(&mut self, user_data: SystemId) {
-        self.system_id = Some(user_data);
-    }
-
-    /// Clear the system that will execute when the animation completes.
-    ///
-    /// See also [`set_completed_system()`].
-    ///
-    /// [`set_completed_system()`]: Tween::set_completed_system
-    pub fn clear_completed_system(&mut self) {
-        self.system_id = None;
-    }
 }
 
-impl<T> UntypedTweenable for Tween<T> {
+impl UntypedTweenable for Tween {
     fn duration(&self) -> Duration {
         self.clock.duration
     }
@@ -756,35 +581,9 @@ impl<T> UntypedTweenable for Tween<T> {
         self.clock.elapsed()
     }
 
-    fn rewind(&mut self) {
-        if self.clock.strategy == RepeatStrategy::MirroredRepeat {
-            // In mirrored mode, direction alternates each loop. To reset to the original
-            // direction on Tween creation, we count the number of completions, ignoring the
-            // last one if the Tween is currently in TweenState::Completed because that one
-            // freezes all parameters.
-            let mut times_completed = self.clock.times_completed();
-            if self.clock.state() == TweenState::Completed {
-                debug_assert!(times_completed > 0);
-                times_completed -= 1;
-            }
-            if times_completed & 1 != 0 {
-                self.direction = !self.direction;
-            }
-        }
-        self.clock.reset();
-    }
-}
-
-impl<T> Tweenable<T> for Tween<T> {
-    fn tick(
-        &mut self,
-        delta: Duration,
-        target: &mut dyn Targetable<T>,
-        entity: Entity,
-        mut events: Mut<Events<TweenCompleted>>,
-    ) -> TweenState {
+    fn tick(&mut self, delta: Duration, _entity: Entity) -> (f32, TweenState) {
         if self.clock.state() == TweenState::Completed {
-            return TweenState::Completed;
+            return (1., TweenState::Completed);
         }
 
         // Tick the animation clock
@@ -806,48 +605,111 @@ impl<T> Tweenable<T> for Tween<T> {
             factor = 1. - factor;
         }
         let factor = self.ease_function.sample(factor);
-        self.lens.lerp(target, factor);
 
-        // If completed at least once this frame, notify the user
-        if times_completed > 0 {
-            if let Some(user_data) = &self.event_data {
-                events.send(TweenCompleted {
-                    entity,
-                    user_data: *user_data,
-                });
+        (factor, state)
+    }
+
+    fn apply_state(&mut self, ent_mut: EntityMut) {
+        let mut factor = self.progress();
+        if self.direction.is_backward() {
+            factor = 1. - factor;
+        }
+        let factor = self.ease_function.sample(factor);
+        (self.action)(ent_mut, factor);
+    }
+
+    fn rewind(&mut self) {
+        if self.clock.strategy == RepeatStrategy::MirroredRepeat {
+            // In mirrored mode, direction alternates each loop. To reset to the original
+            // direction on Tween creation, we count the number of completions, ignoring the
+            // last one if the Tween is currently in TweenState::Completed because that one
+            // freezes all parameters.
+            let mut times_completed = self.clock.times_completed();
+            if self.clock.state() == TweenState::Completed {
+                debug_assert!(times_completed > 0);
+                times_completed -= 1;
             }
-            if let Some(cb) = &self.on_completed {
-                cb(entity, self);
+            if times_completed & 1 != 0 {
+                self.direction = !self.direction;
             }
             if let Some(system_id) = &self.system_id {
                 commands.run_system(*system_id);
             }
         }
-
-        state
+        self.clock.reset();
     }
 }
 
+// impl<T> Tweenable<T> for Tween {
+//     fn tick(
+//         &mut self,
+//         delta: Duration,
+//         target: &mut dyn Targetable<T>,
+//         entity: Entity,
+//         mut events: Mut<Events<TweenCompleted>>,
+//     ) -> TweenState {
+//         if self.clock.state() == TweenState::Completed {
+//             return TweenState::Completed;
+//         }
+
+//         // Tick the animation clock
+//         let (state, times_completed) = self.clock.tick(delta);
+//         let (progress, times_completed_for_direction) = match state {
+//             TweenState::Active => (self.progress(), times_completed),
+//             TweenState::Completed => (1., times_completed.max(1) - 1), // ignore last
+//         };
+//         if self.clock.strategy == RepeatStrategy::MirroredRepeat
+//             && times_completed_for_direction & 1 != 0
+//         {
+//             self.direction = !self.direction;
+//         }
+
+//         // Apply the lens, even if the animation finished, to ensure the state is
+//         // consistent
+//         let mut factor = progress;
+//         if self.direction.is_backward() {
+//             factor = 1. - factor;
+//         }
+//         let factor = self.ease_function.sample(factor);
+//         self.lens.lerp(target, factor);
+
+//         // If completed at least once this frame, notify the user
+//         if times_completed > 0 {
+//             if let Some(user_data) = &self.event_data {
+//                 events.send(TweenCompleted {
+//                     entity,
+//                     user_data: *user_data,
+//                 });
+//             }
+//             if let Some(cb) = &self.on_completed {
+//                 cb(entity, self);
+//             }
+//         }
+
+//         state
+//     }
+// }
+
 /// A sequence of tweens played back in order one after the other.
-pub struct Sequence<T> {
-    tweens: Vec<BoxedTweenable<T>>,
+pub struct Sequence {
+    tweens: Vec<BoxedTweenable>,
     index: usize,
     duration: Duration,
     elapsed: Duration,
 }
 
-impl<T> Sequence<T> {
+impl Sequence {
     /// Create a new sequence of tweens.
     ///
     /// This method panics if the input collection is empty.
     #[must_use]
-    pub fn new(items: impl IntoIterator<Item = impl Into<BoxedTweenable<T>>>) -> Self {
+    pub fn new(items: impl IntoIterator<Item = impl Into<BoxedTweenable>>) -> Self {
         let tweens: Vec<_> = items.into_iter().map(Into::into).collect();
         assert!(!tweens.is_empty());
         let duration = tweens
             .iter()
             .map(AsRef::as_ref)
-            .map(Tweenable::duration)
+            .map(UntypedTweenable::duration)
             .sum();
         Self {
             tweens,
@@ -859,9 +721,9 @@ impl<T> Sequence<T> {
 
     /// Create a new sequence containing a single tween.
     #[must_use]
-    pub fn from_single(tween: impl Tweenable<T> + 'static) -> Self {
+    pub fn from_single(tween: impl UntypedTweenable + 'static) -> Self {
         let duration = tween.duration();
-        let boxed: BoxedTweenable<T> = Box::new(tween);
+        let boxed: BoxedTweenable = Box::new(tween);
         Self {
             tweens: vec![boxed],
             index: 0,
@@ -883,7 +745,7 @@ impl<T> Sequence<T> {
 
     /// Append a [`Tweenable`] to this sequence.
     #[must_use]
-    pub fn then(mut self, tween: impl Tweenable<T> + 'static) -> Self {
+    pub fn then(mut self, tween: impl UntypedTweenable + 'static) -> Self {
         self.duration += tween.duration();
         self.tweens.push(Box::new(tween));
         self
@@ -897,12 +759,12 @@ impl<T> Sequence<T> {
 
     /// Get the current active tween in the sequence.
     #[must_use]
-    pub fn current(&self) -> &dyn Tweenable<T> {
+    pub fn current(&self) -> &dyn UntypedTweenable {
         self.tweens[self.index()].as_ref()
     }
 }
 
-impl<T> UntypedTweenable for Sequence<T> {
+impl UntypedTweenable for Sequence {
     fn duration(&self) -> Duration {
         self.duration
     }
@@ -939,6 +801,35 @@ impl<T> UntypedTweenable for Sequence<T> {
         self.elapsed
     }
 
+    fn tick(&mut self, mut delta: Duration, entity: Entity) -> (f32, TweenState) {
+        self.elapsed = self.elapsed.saturating_add(delta).min(self.duration);
+        while self.index < self.tweens.len() {
+            let tween = &mut self.tweens[self.index];
+            let tween_remaining = tween.duration() - tween.elapsed();
+            if let (ratio, TweenState::Active) = tween.tick(delta, entity) {
+                return (ratio, TweenState::Active);
+            }
+
+            tween.rewind();
+            delta -= tween_remaining;
+            self.index += 1;
+        }
+
+        (1., TweenState::Completed)
+    }
+
+    fn apply_state(&mut self, ent_mut: EntityMut) {
+        let num = self.tweens.len();
+        if num == 0 {
+            return;
+        }
+        if self.index < num {
+            self.tweens[self.index].apply_state(ent_mut);
+        } else {
+            self.tweens[num - 1].apply_state(ent_mut);
+        }
+    }
+
     fn rewind(&mut self) {
         self.elapsed = Duration::ZERO;
         self.index = 0;
@@ -949,48 +840,48 @@ impl<T> UntypedTweenable for Sequence<T> {
     }
 }
 
-impl<T> Tweenable<T> for Sequence<T> {
-    fn tick(
-        &mut self,
-        mut delta: Duration,
-        target: &mut dyn Targetable<T>,
-        entity: Entity,
-        mut events: Mut<Events<TweenCompleted>>,
-    ) -> TweenState {
-        self.elapsed = self.elapsed.saturating_add(delta).min(self.duration);
-        while self.index < self.tweens.len() {
-            let tween = &mut self.tweens[self.index];
-            let tween_remaining = tween.duration() - tween.elapsed();
-            if let TweenState::Active = tween.tick(delta, target, entity, events.reborrow()) {
-                return TweenState::Active;
-            }
+// impl<T> Tweenable<T> for Sequence {
+//     fn tick(
+//         &mut self,
+//         mut delta: Duration,
+//         target: &mut dyn Targetable<T>,
+//         entity: Entity,
+//         mut events: Mut<Events<TweenCompleted>>,
+//     ) -> TweenState {
+//         self.elapsed = self.elapsed.saturating_add(delta).min(self.duration);
+//         while self.index < self.tweens.len() {
+//             let tween = &mut self.tweens[self.index];
+//             let tween_remaining = tween.duration() - tween.elapsed();
+//             if let TweenState::Active = tween.tick(delta, target, entity, events.reborrow()) {
+//                 return TweenState::Active;
+//             }
 
-            tween.rewind();
-            delta -= tween_remaining;
-            self.index += 1;
-        }
+//             tween.rewind();
+//             delta -= tween_remaining;
+//             self.index += 1;
+//         }
 
-        TweenState::Completed
-    }
-}
+//         TweenState::Completed
+//     }
+// }
 
 /// A collection of [`Tweenable`] executing in parallel.
-pub struct Tracks<T> {
-    tracks: Vec<BoxedTweenable<T>>,
+pub struct Tracks {
+    tracks: Vec<BoxedTweenable>,
     duration: Duration,
     elapsed: Duration,
 }
 
-impl<T> Tracks<T> {
+impl Tracks {
     /// Create a new [`Tracks`] from an iterator over a collection of
     /// [`Tweenable`].
     #[must_use]
-    pub fn new(items: impl IntoIterator<Item = impl Into<BoxedTweenable<T>>>) -> Self {
+    pub fn new(items: impl IntoIterator<Item = impl Into<BoxedTweenable>>) -> Self {
         let tracks: Vec<_> = items.into_iter().map(Into::into).collect();
         let duration = tracks
             .iter()
             .map(AsRef::as_ref)
-            .map(Tweenable::duration)
+            .map(UntypedTweenable::duration)
             .max()
             .unwrap();
         Self {
@@ -1001,7 +892,7 @@ impl<T> Tracks<T> {
     }
 }
 
-impl<T> Tweenable<T> for Tracks<T> {
+impl UntypedTweenable for Tracks {
     fn duration(&self) -> Duration {
         self.duration
     }
@@ -1022,23 +913,25 @@ impl<T> Tweenable<T> for Tracks<T> {
         self.elapsed
     }
 
-    fn tick(
-        &mut self,
-        delta: Duration,
-        target: &mut dyn Targetable<T>,
-        entity: Entity,
-        mut events: Mut<Events<TweenCompleted>>,
-    ) -> TweenState {
+    fn tick(&mut self, delta: Duration, entity: Entity) -> (f32, TweenState) {
         self.elapsed = self.elapsed.saturating_add(delta).min(self.duration);
         let mut any_active = false;
         for tweenable in &mut self.tracks {
-            let state = tweenable.tick(delta, target, entity, events.reborrow());
+            let (_, state) = tweenable.tick(delta, entity);
             any_active = any_active || (state == TweenState::Active);
         }
         if any_active {
-            TweenState::Active
+            // FIXME(nightly): Duration::div_duration_f32()
+            let ratio = self.elapsed.as_secs_f32() / self.duration.as_secs_f32();
+            (ratio, TweenState::Active) // TODO
         } else {
-            TweenState::Completed
+            (1., TweenState::Completed)
+        }
+    }
+
+    fn apply_state(&mut self, mut ent_mut: EntityMut) {
+        for tweenable in &mut self.tracks {
+            tweenable.apply_state(ent_mut.reborrow());
         }
     }
 
@@ -1050,29 +943,46 @@ impl<T> Tweenable<T> for Tracks<T> {
     }
 }
 
+// impl<T> Tweenable<T> for Tracks {
+//     fn tick(
+//         &mut self,
+//         delta: Duration,
+//         target: &mut dyn Targetable<T>,
+//         entity: Entity,
+//         mut events: Mut<Events<TweenCompleted>>,
+//     ) -> TweenState {
+//         self.elapsed = self.elapsed.saturating_add(delta).min(self.duration);
+//         let mut any_active = false;
+//         for tweenable in &mut self.tracks {
+//             let state = tweenable.tick(delta, target, entity, events.reborrow());
+//             any_active = any_active || (state == TweenState::Active);
+//         }
+//         if any_active {
+//             TweenState::Active
+//         } else {
+//             TweenState::Completed
+//         }
+//     }
+// }
+
 /// A time delay that doesn't animate anything.
 ///
 /// This is generally useful for combining with other tweenables into sequences
 /// and tracks, for example to delay the start of a tween in a track relative to
 /// another track. The `menu` example (`examples/menu.rs`) uses this technique
 /// to delay the animation of its buttons.
-pub struct Delay<T> {
+pub struct Delay {
     timer: Timer,
-    on_completed: Option<Box<CompletedCallback<Delay<T>>>>,
-    event_data: Option<u64>,
-    system_id: Option<SystemId>,
 }
 
-impl<T: 'static> Delay<T> {
+impl Delay {
     /// Chain another [`Tweenable`] after this tween, making a [`Sequence`] with
     /// the two.
     #[must_use]
-    pub fn then(self, tween: impl Tweenable<T> + 'static) -> Sequence<T> {
+    pub fn then(self, tween: impl UntypedTweenable + 'static) -> Sequence {
         Sequence::with_capacity(2).then(self).then(tween)
     }
-}
 
-impl<T> Delay<T> {
     /// Create a new [`Delay`] with a given duration.
     ///
     /// # Panics
@@ -1083,120 +993,7 @@ impl<T> Delay<T> {
         assert!(!duration.is_zero());
         Self {
             timer: Timer::new(duration, TimerMode::Once),
-            on_completed: None,
-            event_data: None,
-            system_id: None,
         }
-    }
-
-    /// Enable raising a completed event.
-    ///
-    /// If enabled, the tweenable will raise a [`TweenCompleted`] event when it
-    /// completed. This is similar to the [`set_completed()`] callback, but
-    /// uses Bevy events instead.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use bevy_tweening::{lens::*, *};
-    /// # use bevy::{ecs::event::EventReader, math::Vec3, transform::components::Transform};
-    /// # use std::time::Duration;
-    /// let delay: Delay<Transform> = Delay::new(Duration::from_secs(5))
-    ///   .with_completed_event(42);
-    ///
-    /// fn my_system(mut reader: EventReader<TweenCompleted>) {
-    ///   for ev in reader.read() {
-    ///     assert_eq!(ev.user_data, 42);
-    ///     println!("Entity {:?} raised TweenCompleted!", ev.entity);
-    ///   }
-    /// }
-    /// ```
-    ///
-    /// [`set_completed()`]: Delay::set_completed
-    #[must_use]
-    pub fn with_completed_event(mut self, user_data: u64) -> Self {
-        self.event_data = Some(user_data);
-        self
-    }
-
-    /// Set a callback invoked when the delay completes.
-    ///
-    /// The callback when invoked receives as parameters the [`Entity`] on which
-    /// the target and the animator are, as well as a reference to the
-    /// current [`Delay`]. This is similar to [`with_completed_event()`], but
-    /// with a callback instead.
-    ///
-    /// Only non-looping tweenables can complete.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use bevy_tweening::{lens::*, *};
-    /// # use bevy::{ecs::event::EventReader, math::Vec3};
-    /// # use std::time::Duration;
-    /// let tween = Tween::new(
-    ///     // [...]
-    /// #    EaseFunction::QuadraticInOut,
-    /// #    Duration::from_secs(1),
-    /// #    TransformPositionLens {
-    /// #        start: Vec3::ZERO,
-    /// #        end: Vec3::new(3.5, 0., 0.),
-    /// #    },
-    /// )
-    /// .with_completed(|entity, delay| {
-    ///   println!("Delay of {} seconds elapsed on entity {:?}",
-    ///     delay.duration().as_secs(), entity);
-    /// });
-    /// ```
-    ///
-    /// [`with_completed_event()`]: Delay::with_completed_event
-    pub fn with_completed<C>(mut self, callback: C) -> Self
-    where
-        C: Fn(Entity, &Self) + Send + Sync + 'static,
-    {
-        self.on_completed = Some(Box::new(callback));
-        self
-    }
-
-    /// Enable running a one-shot system upon completion.
-    ///
-    /// If enabled, the tween will run a system via a provided [`SystemId`] when
-    /// the animation completes. This is similar to the
-    /// [`with_completed()`], but uses a system registered by
-    /// [`register_system()`] instead.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use bevy_tweening::{lens::*, *};
-    /// # use bevy::{ecs::event::EventReader, math::Vec3, ecs::world::World, ecs::system::Query, ecs::entity::Entity};
-    /// # use std::time::Duration;
-    /// let mut world = World::new();
-    /// let test_system_system_id = world.register_system(test_system);
-    /// let tween = Tween::new(
-    ///     // [...]
-    /// #    EaseFunction::QuadraticInOut,
-    /// #    Duration::from_secs(1),
-    /// #    TransformPositionLens {
-    /// #        start: Vec3::ZERO,
-    /// #        end: Vec3::new(3.5, 0., 0.),
-    /// #    },
-    /// )
-    /// .with_completed_system(test_system_system_id);
-    ///
-    /// fn test_system(query: Query<Entity>) {
-    ///    for entity in query.iter() {
-    ///       println!("Found an Entity!");
-    ///    }
-    /// }
-    /// ```
-    ///
-    /// [`with_completed()`]: Delay::with_completed
-    /// [`register_system()`]: bevy::ecs::world::World::register_system
-    #[must_use]
-    pub fn with_completed_system(mut self, system_id: SystemId) -> Self {
-        self.system_id = Some(system_id);
-        self
     }
 
     /// Check if the delay completed.
@@ -1212,80 +1009,9 @@ impl<T> Delay<T> {
             TweenState::Active
         }
     }
-
-    /// Set a callback invoked when the animation completes.
-    ///
-    /// The callback when invoked receives as parameters the [`Entity`] on which
-    /// the target and the animator are, as well as a reference to the
-    /// current [`Tween`].
-    ///
-    /// Only non-looping tweenables can complete.
-    pub fn set_completed<C>(&mut self, callback: C)
-    where
-        C: Fn(Entity, &Self) + Send + Sync + 'static,
-    {
-        self.on_completed = Some(Box::new(callback));
-    }
-
-    /// Clear the callback invoked when the animation completes.
-    ///
-    /// See also [`set_completed()`].
-    ///
-    /// [`set_completed()`]: Delay::set_completed
-    pub fn clear_completed(&mut self) {
-        self.on_completed = None;
-    }
-
-    /// Enable or disable raising a completed event.
-    ///
-    /// If enabled, the tween will raise a [`TweenCompleted`] event when the
-    /// animation completed. This is similar to the [`set_completed()`]
-    /// callback, but uses Bevy events instead.
-    ///
-    /// See [`with_completed_event()`] for details.
-    ///
-    /// [`set_completed()`]: Delay::set_completed
-    /// [`with_completed_event()`]: Delay::with_completed_event
-    pub fn set_completed_event(&mut self, user_data: u64) {
-        self.event_data = Some(user_data);
-    }
-
-    /// Clear the event sent when the animation completes.
-    ///
-    /// See also [`set_completed_event()`].
-    ///
-    /// [`set_completed_event()`]: Delay::set_completed_event
-    pub fn clear_completed_event(&mut self) {
-        self.event_data = None;
-    }
-
-    /// Enable running a one-shot system upon completion.
-    ///
-    /// If enabled, the tween will run a system via a provided [`SystemId`] when
-    /// the animation completes. This is similar to the
-    /// [`with_completed()`], but uses a system registered by
-    /// [`register_system()`] instead of a callback.
-    ///
-    /// See [`with_completed_system()`] for details.
-    ///
-    /// [`with_completed()`]: Delay::with_completed
-    /// [`with_completed_system()`]: Delay::with_completed_system
-    /// [`register_system()`]: bevy::ecs::world::World::register_system
-    pub fn set_completed_system(&mut self, system_id: SystemId) {
-        self.system_id = Some(system_id);
-    }
-
-    /// Clear the system that will execute when the animation completes.
-    ///
-    /// See also [`set_completed_system()`].
-    ///
-    /// [`set_completed_system()`]: Delay::set_completed_system
-    pub fn clear_completed_system(&mut self) {
-        self.system_id = None;
-    }
 }
 
-impl<T> Tweenable<T> for Delay<T> {
+impl UntypedTweenable for Delay {
     fn duration(&self) -> Duration {
         self.timer.duration()
     }
@@ -1306,42 +1032,52 @@ impl<T> Tweenable<T> for Delay<T> {
         self.timer.elapsed()
     }
 
-    fn tick(
-        &mut self,
-        delta: Duration,
-        _target: &mut dyn Targetable<T>,
-        entity: Entity,
-        mut events: Mut<Events<TweenCompleted>>,
-    ) -> TweenState {
-        let was_completed = self.is_completed();
-
+    fn tick(&mut self, delta: Duration, _entity: Entity) -> (f32, TweenState) {
         self.timer.tick(delta);
 
+        let ratio = self.elapsed().as_secs_f32() / self.duration().as_secs_f32();
         let state = self.state();
 
-        // If completed this frame, notify the user
-        if (state == TweenState::Completed) && !was_completed {
-            if let Some(user_data) = &self.event_data {
-                events.send(TweenCompleted {
-                    entity,
-                    user_data: *user_data,
-                });
-            }
-            if let Some(cb) = &self.on_completed {
-                cb(entity, self);
-            }
-            if let Some(system_id) = &self.system_id {
-                commands.run_system(*system_id);
-            }
-        }
-
-        state
+        (ratio, state)
     }
+
+    fn apply_state(&mut self, _: EntityMut) {}
 
     fn rewind(&mut self) {
         self.timer.reset();
     }
 }
+
+// impl<T> Tweenable<T> for Delay {
+//     fn tick(
+//         &mut self,
+//         delta: Duration,
+//         _target: &mut dyn Targetable<T>,
+//         entity: Entity,
+//         mut events: Mut<Events<TweenCompleted>>,
+//     ) -> TweenState {
+//         let was_completed = self.is_completed();
+
+//         self.timer.tick(delta);
+
+//         let state = self.state();
+
+//         // If completed this frame, notify the user
+//         if (state == TweenState::Completed) && !was_completed {
+//             if let Some(user_data) = &self.event_data {
+//                 events.send(TweenCompleted {
+//                     entity,
+//                     user_data: *user_data,
+//                 });
+//             }
+//             if let Some(cb) = &self.on_completed {
+//                 cb(entity, self);
+//             }
+//         }
+
+//         state
+//     }
+// }
 
 #[cfg(test)]
 mod tests {
@@ -1359,10 +1095,9 @@ mod tests {
     }
 
     /// Utility to create a tween for testing.
-    fn make_test_tween() -> Tween<Transform> {
-        Tween::new(
-            EaseMethod::Linear,
-            Duration::from_secs(1),
+    fn make_test_tween() -> (Tween, impl Lens<Transform>) {
+        (
+            Tween::new(EaseMethod::Linear, Duration::from_secs(1)),
             TransformPositionLens {
                 start: Vec3::ZERO,
                 end: Vec3::ONE,
@@ -1463,29 +1198,14 @@ mod tests {
 
     #[test]
     fn into_repeat_count() {
-        let tween = Tween::new(
-            EaseMethod::Linear,
-            Duration::from_secs(1),
-            TransformPositionLens {
-                start: Vec3::ZERO,
-                end: Vec3::ONE,
-            },
-        )
-        .with_repeat_count(5);
+        let tween = Tween::new(EaseMethod::Linear, Duration::from_secs(1)).with_repeat_count(5);
         assert_eq!(
             tween.total_duration(),
             TotalDuration::Finite(Duration::from_secs(5))
         );
 
-        let tween = Tween::new(
-            EaseMethod::Linear,
-            Duration::from_secs(1),
-            TransformPositionLens {
-                start: Vec3::ZERO,
-                end: Vec3::ONE,
-            },
-        )
-        .with_repeat_count(Duration::from_secs(3));
+        let tween = Tween::new(EaseMethod::Linear, Duration::from_secs(1))
+            .with_repeat_count(Duration::from_secs(3));
         assert_eq!(
             tween.total_duration(),
             TotalDuration::Finite(Duration::from_secs(3))

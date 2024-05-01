@@ -219,7 +219,6 @@ pub use plugin::{AnimationSystem, TweeningPlugin};
 use slotmap::SlotMap;
 #[cfg(feature = "bevy_asset")]
 pub use tweenable::AssetTarget;
-use tweenable::Tweenable;
 pub use tweenable::{
     BoxedTweenable, ComponentTarget, Delay, Sequence, Targetable, TotalDuration, Tracks, Tween,
     TweenCompleted, TweenState, UntypedTweenable,
@@ -514,7 +513,9 @@ new_key_type! {
 /// Extensions for [`EntityCommands`] to queue tween-based animations.
 pub trait EntityCommandsTweeningExtensions<'a> {
     /// Queue the given [`Tweenable`].
-    fn tween<T: Component>(&mut self, tweenable: impl Tweenable<T> + 'static) -> &mut Self;
+    fn tween<T>(&mut self, tweenable: T) -> &mut Self
+    where
+        T: UntypedTweenable + 'static;
 
     /// Queue a new tween animation to move the current entity.
     ///
@@ -531,31 +532,31 @@ pub trait EntityCommandsTweeningExtensions<'a> {
 
 /// Build an [`EntityCommand`] which queues the new tweenable into the
 /// [`Animator`].
-fn make_tween_command<C: Component>(tweenable: impl Tweenable<C> + 'static) -> impl EntityCommand {
+fn make_tween_command<T>(tweenable: T) -> impl EntityCommand
+where
+    T: UntypedTweenable + 'static,
+{
     move |target: Entity, world: &mut World| {
-        let (target, action) = TweenAnimator::make(target, tweenable);
-        world.resource_mut::<TweenAnimator>().queue(target, action);
+        world
+            .resource_mut::<TweenAnimator>()
+            .queue(target, tweenable);
     }
 }
 
 fn make_transform_from_command(end: Vec3, duration: Duration) -> impl EntityCommand {
     move |target: Entity, world: &mut World| {
         let start = world.entity(target).get::<Transform>().unwrap().translation;
-        let tween = Tween::new(
-            EaseMethod::Linear,
-            duration,
-            lens::TransformPositionLens { start, end },
-        );
-        let (target, action) = TweenAnimator::make(target, tween);
-        world.resource_mut::<TweenAnimator>().queue(target, action);
+        let lens = lens::TransformPositionLens { start, end };
+        let tween = Tween::new(EaseMethod::Linear, duration, lens);
+        world.resource_mut::<TweenAnimator>().queue(target, tween);
     }
 }
 
 impl<'a> EntityCommandsTweeningExtensions<'a> for EntityCommands<'a> {
-    fn tween<T: Component>(
-        &mut self,
-        tweenable: impl Tweenable<T> + 'static,
-    ) -> &mut EntityCommands<'a> {
+    fn tween<T>(&mut self, tweenable: T) -> &mut EntityCommands<'a>
+    where
+        T: UntypedTweenable + 'static,
+    {
         self.add(make_tween_command(tweenable))
     }
 
@@ -564,18 +565,13 @@ impl<'a> EntityCommandsTweeningExtensions<'a> for EntityCommands<'a> {
     }
 }
 
-type TypeErasedAnimAction = dyn FnMut(&mut World, Entity, Duration, Mut<Events<TweenCompleted>>) -> TweenState
-    + Send
-    + Sync
-    + 'static;
-
 /// Animator for tween-based animations.
 #[derive(Resource)]
 pub struct TweenAnimator {
     /// Control if animations are played or not.
     pub state: AnimatorState,
     /// Queue of animations currently playing.
-    anims: SlotMap<TweenId, (Entity, Box<TypeErasedAnimAction>)>,
+    anims: SlotMap<TweenId, (Entity, BoxedTweenable)>,
 }
 
 impl Default for TweenAnimator {
@@ -618,47 +614,11 @@ impl TweenAnimator {
     /// world.entity(entity).tween(tween);
     /// ```
     #[inline]
-    pub fn add<T: Component>(
-        &mut self,
-        target: Entity,
-        tweenable: impl Tweenable<T> + 'static,
-    ) -> TweenId {
-        self.anims.insert(Self::make(target, tweenable))
-    }
-
-    /// Make a type-erased tweenable animation entry for subsequent queueing
-    /// with [`queue()`].
-    ///
-    /// [`queue()`]: Animator::queue
-    pub(crate) fn make<T: Component>(
-        target: Entity,
-        mut tweenable: impl Tweenable<T> + 'static,
-    ) -> (Entity, Box<TypeErasedAnimAction>) {
-        // Build the type-erased action which will be invoked to mutate the component.
-        let action = move |world: &mut World,
-                           entity: Entity,
-                           delta_time: Duration,
-                           events: Mut<Events<TweenCompleted>>|
-              -> TweenState {
-
-            TODO: can move that call outside, and pass an EntityMut<> instead, which
-            allows via World::get_many_entities_mut to parallelize animating different Entity
-            let mut ent_ref = world.entity_mut(entity);
-
-            TODO: it feels silly to have 1 closure per tweenable which essentially cast to
-            the component then call the Tweenable<T> trait. Can we have 1 closure per component
-            type rather? That would require the closure taking a type-erased Tweenable<T> which
-            can still tick()...
-
-            let comp = ent_ref.get_mut::<T>().unwrap();
-
-            let mut target = ComponentTarget::new(comp);
-
-            // Animate
-            tweenable.tick(delta_time, &mut target, entity, events)
-        };
-
-        (target, Box::new(action))
+    pub fn add<C: Component, T>(&mut self, target: Entity, tweenable: T) -> TweenId
+    where
+        T: UntypedTweenable + 'static,
+    {
+        self.anims.insert((target, Box::new(tweenable)))
     }
 
     /// Queue a prepared tweenable animation.
@@ -667,8 +627,8 @@ impl TweenAnimator {
     ///
     /// [`make()`]: Animator::make
     #[inline]
-    pub(crate) fn queue(&mut self, target: Entity, action: Box<TypeErasedAnimAction>) {
-        self.anims.insert((target, action));
+    pub(crate) fn queue(&mut self, target: Entity, tweenable: impl UntypedTweenable + 'static) {
+        self.anims.insert((target, Box::new(tweenable)));
     }
 
     /// Get a tweenable from its ID.
@@ -676,7 +636,7 @@ impl TweenAnimator {
     /// This fails and returns `None` if the tweenable has completed and was
     /// removed from the animator's internal queue.
     pub fn get(&self, id: TweenId) -> Option<&dyn UntypedTweenable> {
-        self.anims.get(id).map(|(_, tweenable)| tweenable)
+        self.anims.get(id).map(|(_, tweenable)| &**tweenable)
     }
 
     /// Play all queued animations.
@@ -691,8 +651,39 @@ impl TweenAnimator {
         delta_time: Duration,
         mut events: Mut<Events<TweenCompleted>>,
     ) {
-        self.anims.retain(|_id, (entity, action)| {
-            let state = action(world, *entity, delta_time, events.reborrow());
+        // // Tick all active tweenables
+        // for (_, (target, action, tweenable)) in &mut self.anims {
+        //     // Note: we use get_many_entities_mut() to get an EntityMut instead of an EntityWorldMut,
+        //     // as the former is enough. This can be optimized by parallelizing tweening of separate entities.
+        //     let ent_mut = &mut world.get_many_entities_mut([*target]).unwrap()[0];
+        //     let state = action(
+        //         ent_mut.reborrow(),
+        //         *target,
+        //         tweenable.as_mut(),
+        //         delta_time,
+        //         events.reborrow(),
+        //     );
+        // }
+
+        self.anims.retain(|_id, (entity, tweenable)| {
+            // Note: we use get_many_entities_mut() to get an EntityMut instead of an EntityWorldMut,
+            // as the former is enough. This can be optimized by parallelizing tweening of separate entities.
+            let ent_mut = &mut world.get_many_entities_mut([*entity]).unwrap()[0];
+
+            // Apply the animation tweenable
+            let (_ratio, state) = tweenable.tick(delta_time, *entity);
+
+            // Apply the state
+            tweenable.apply_state(ent_mut.reborrow());
+
+            // Raise completed event
+            if state == TweenState::Completed {
+                events.send(TweenCompleted {
+                    entity: *entity,
+                    user_data: 0, // TODO
+                });
+            }
+
             state == TweenState::Active
         });
     }
