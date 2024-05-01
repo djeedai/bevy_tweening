@@ -221,7 +221,7 @@ use slotmap::SlotMap;
 pub use tweenable::AssetTarget;
 pub use tweenable::{
     BoxedTweenable, ComponentTarget, Delay, Sequence, Targetable, TotalDuration, Tracks, Tween,
-    TweenCompleted, TweenState, UntypedTweenable,
+    TweenCompleted, TweenState, Tweenable,
 };
 
 pub mod lens;
@@ -515,7 +515,7 @@ pub trait EntityCommandsTweeningExtensions<'a> {
     /// Queue the given [`Tweenable`].
     fn tween<T>(&mut self, tweenable: T) -> &mut Self
     where
-        T: UntypedTweenable + 'static;
+        T: Tweenable + 'static;
 
     /// Queue a new tween animation to move the current entity.
     ///
@@ -534,7 +534,7 @@ pub trait EntityCommandsTweeningExtensions<'a> {
 /// [`Animator`].
 fn make_tween_command<T>(tweenable: T) -> impl EntityCommand
 where
-    T: UntypedTweenable + 'static,
+    T: Tweenable + 'static,
 {
     move |target: Entity, world: &mut World| {
         world
@@ -555,7 +555,7 @@ fn make_transform_from_command(end: Vec3, duration: Duration) -> impl EntityComm
 impl<'a> EntityCommandsTweeningExtensions<'a> for EntityCommands<'a> {
     fn tween<T>(&mut self, tweenable: T) -> &mut EntityCommands<'a>
     where
-        T: UntypedTweenable + 'static,
+        T: Tweenable + 'static,
     {
         self.add(make_tween_command(tweenable))
     }
@@ -616,7 +616,7 @@ impl TweenAnimator {
     #[inline]
     pub fn add<C: Component, T>(&mut self, target: Entity, tweenable: T) -> TweenId
     where
-        T: UntypedTweenable + 'static,
+        T: Tweenable + 'static,
     {
         self.anims.insert((target, Box::new(tweenable)))
     }
@@ -627,7 +627,7 @@ impl TweenAnimator {
     ///
     /// [`make()`]: Animator::make
     #[inline]
-    pub(crate) fn queue(&mut self, target: Entity, tweenable: impl UntypedTweenable + 'static) {
+    pub(crate) fn queue(&mut self, target: Entity, tweenable: impl Tweenable + 'static) {
         self.anims.insert((target, Box::new(tweenable)));
     }
 
@@ -635,7 +635,7 @@ impl TweenAnimator {
     ///
     /// This fails and returns `None` if the tweenable has completed and was
     /// removed from the animator's internal queue.
-    pub fn get(&self, id: TweenId) -> Option<&dyn UntypedTweenable> {
+    pub fn get(&self, id: TweenId) -> Option<&dyn Tweenable> {
         self.anims.get(id).map(|(_, tweenable)| &**tweenable)
     }
 

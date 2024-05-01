@@ -109,7 +109,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     label,
                 ));
 
-                let mut ec = if start_time_ms > 0 {
+                let ec = if start_time_ms > 0 {
                     let delay = Delay::new(Duration::from_millis(start_time_ms));
                     ec.tween(delay.then(tween_scale))
                 } else {

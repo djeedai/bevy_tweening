@@ -51,7 +51,7 @@ use crate::{EaseMethod, Lens, RepeatCount, RepeatStrategy, TweeningDirection};
 ///     }
 /// }
 /// ```
-pub type BoxedTweenable = Box<dyn UntypedTweenable + 'static>;
+pub type BoxedTweenable = Box<dyn Tweenable + 'static>;
 
 /// Playback state of a [`Tweenable`].
 ///
@@ -291,7 +291,7 @@ impl<'a, T: Asset> Targetable<T> for AssetTarget<'a, T> {
 }
 
 /// An animatable entity, either a single [`Tween`] or a collection of them.
-pub trait UntypedTweenable: Send + Sync {
+pub trait Tweenable: Send + Sync {
     /// Get the duration of a single iteration of the animation.
     ///
     /// Note that for [`RepeatStrategy::MirroredRepeat`], this is the duration
@@ -389,32 +389,6 @@ pub trait UntypedTweenable: Send + Sync {
     }
 }
 
-pub trait Tweenable<T>: UntypedTweenable {
-    /// Tick the animation, advancing it by the given delta time and mutating
-    /// the given target component or asset.
-    ///
-    /// This returns [`TweenState::Active`] if the tweenable didn't reach its
-    /// final state yet (progress < `1.0`), or [`TweenState::Completed`] if
-    /// the tweenable completed this tick. Only non-looping tweenables return
-    /// a completed state, since looping ones continue forever.
-    ///
-    /// Calling this method with a duration of [`Duration::ZERO`] is valid, and
-    /// updates the target to the current state of the tweenable without
-    /// actually modifying the tweenable state. This is useful after certain
-    /// operations like [`rewind()`] or [`set_progress()`] whose effect is
-    /// otherwise only visible on target on next frame.
-    ///
-    /// [`rewind()`]: Tweenable::rewind
-    /// [`set_progress()`]: Tweenable::set_progress
-    fn tick(
-        &mut self,
-        delta: Duration,
-        target: &mut dyn Targetable<T>,
-        entity: Entity,
-        events: Mut<Events<TweenCompleted>>,
-    ) -> TweenState;
-}
-
 macro_rules! impl_boxed {
     ($tweenable:ty) => {
         impl From<$tweenable> for BoxedTweenable {
@@ -469,7 +443,7 @@ impl Tween {
     /// let seq = tween1.then(tween2);
     /// ```
     #[must_use]
-    pub fn then(self, tween: impl UntypedTweenable + 'static) -> Sequence {
+    pub fn then(self, tween: impl Tweenable + 'static) -> Sequence {
         Sequence::with_capacity(2).then(self).then(tween)
     }
 }
@@ -564,7 +538,7 @@ impl Tween {
     }
 }
 
-impl UntypedTweenable for Tween {
+impl Tweenable for Tween {
     fn duration(&self) -> Duration {
         self.clock.duration
     }
@@ -709,7 +683,7 @@ impl Sequence {
         let duration = tweens
             .iter()
             .map(AsRef::as_ref)
-            .map(UntypedTweenable::duration)
+            .map(Tweenable::duration)
             .sum();
         Self {
             tweens,
@@ -721,7 +695,7 @@ impl Sequence {
 
     /// Create a new sequence containing a single tween.
     #[must_use]
-    pub fn from_single(tween: impl UntypedTweenable + 'static) -> Self {
+    pub fn from_single(tween: impl Tweenable + 'static) -> Self {
         let duration = tween.duration();
         let boxed: BoxedTweenable = Box::new(tween);
         Self {
@@ -745,7 +719,7 @@ impl Sequence {
 
     /// Append a [`Tweenable`] to this sequence.
     #[must_use]
-    pub fn then(mut self, tween: impl UntypedTweenable + 'static) -> Self {
+    pub fn then(mut self, tween: impl Tweenable + 'static) -> Self {
         self.duration += tween.duration();
         self.tweens.push(Box::new(tween));
         self
@@ -759,12 +733,12 @@ impl Sequence {
 
     /// Get the current active tween in the sequence.
     #[must_use]
-    pub fn current(&self) -> &dyn UntypedTweenable {
+    pub fn current(&self) -> &dyn Tweenable {
         self.tweens[self.index()].as_ref()
     }
 }
 
-impl UntypedTweenable for Sequence {
+impl Tweenable for Sequence {
     fn duration(&self) -> Duration {
         self.duration
     }
@@ -881,7 +855,7 @@ impl Tracks {
         let duration = tracks
             .iter()
             .map(AsRef::as_ref)
-            .map(UntypedTweenable::duration)
+            .map(Tweenable::duration)
             .max()
             .unwrap();
         Self {
@@ -892,7 +866,7 @@ impl Tracks {
     }
 }
 
-impl UntypedTweenable for Tracks {
+impl Tweenable for Tracks {
     fn duration(&self) -> Duration {
         self.duration
     }
@@ -979,7 +953,7 @@ impl Delay {
     /// Chain another [`Tweenable`] after this tween, making a [`Sequence`] with
     /// the two.
     #[must_use]
-    pub fn then(self, tween: impl UntypedTweenable + 'static) -> Sequence {
+    pub fn then(self, tween: impl Tweenable + 'static) -> Sequence {
         Sequence::with_capacity(2).then(self).then(tween)
     }
 
@@ -1011,7 +985,7 @@ impl Delay {
     }
 }
 
-impl UntypedTweenable for Delay {
+impl Tweenable for Delay {
     fn duration(&self) -> Duration {
         self.timer.duration()
     }
