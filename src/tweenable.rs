@@ -25,6 +25,7 @@ use crate::{EaseMethod, Lens, RepeatCount, RepeatStrategy, TweeningDirection};
 /// implement [`From`]:
 /// ```no_run
 /// # use std::time::Duration;
+/// # use bevy::ecs::system::Commands;
 /// # use bevy::prelude::{Entity, Events, Mut, Transform};
 /// # use bevy_tweening::{BoxedTweenable, Sequence, Tweenable, TweenCompleted, TweenState, Targetable, TotalDuration};
 /// #
@@ -34,7 +35,7 @@ use crate::{EaseMethod, Lens, RepeatCount, RepeatStrategy, TweeningDirection};
 /// #     fn total_duration(&self) -> TotalDuration  { unimplemented!() }
 /// #     fn set_elapsed(&mut self, elapsed: Duration)  { unimplemented!() }
 /// #     fn elapsed(&self) -> Duration  { unimplemented!() }
-/// #     fn tick<'a>(&mut self, delta: Duration, target: &'a mut dyn Targetable<Transform>, entity: Entity, events: &mut Mut<Events<TweenCompleted>>) -> TweenState  { unimplemented!() }
+/// #     fn tick<'a>(&mut self, delta: Duration, target: &'a mut dyn Targetable<Transform>, entity: Entity, events: &mut Mut<Events<TweenCompleted>>, commands: &mut Commands) -> TweenState  { unimplemented!() }
 /// #     fn rewind(&mut self) { unimplemented!() }
 /// # }
 ///
@@ -590,9 +591,9 @@ impl<T> Tween<T> {
     ///
     /// ```
     /// # use bevy_tweening::{lens::*, *};
-    /// # use bevy::{ecs::event::EventReader, math::Vec3};
+    /// # use bevy::{ecs::event::EventReader, math::Vec3, ecs::world::World, ecs::system::Query, ecs::entity::Entity, ecs::query::With};
     /// # use std::time::Duration;
-    /// let world = World::new();  
+    /// let mut world = World::new();  
     /// let test_system_system_id = world.register_system(test_system);
     /// let tween = Tween::new(
     ///     // [...]
@@ -605,9 +606,9 @@ impl<T> Tween<T> {
     /// )
     /// .with_completed_system(test_system_system_id);
     ///
-    /// fn test_system(query: Query<Entity, With<Enemy>>) {
-    ///    for enemy in query.iter() {
-    ///       println!("Found an enemy!");
+    /// fn test_system(query: Query<Entity>) {
+    ///    for entity in query.iter() {
+    ///       println!("Found an entity!");
     ///    }
     /// }
     /// ```
@@ -720,8 +721,8 @@ impl<T> Tween<T> {
     /// but uses a system registered by [`register_system()`] instead of a callback.
     ///
     /// [`with_completed()`]: Tween::with_completed  
-    /// [`register_system()`]: bevy::ecs::world::World::register_system 
-    pub fn set_completed_system(&mut self, user_data: SystemId) { 
+    /// [`register_system()`]: bevy::ecs::world::World::register_system
+    pub fn set_completed_system(&mut self, user_data: SystemId) {
         self.system_id = Some(user_data);
     }
 
@@ -1163,8 +1164,9 @@ impl<T> Delay<T> {
     ///
     /// ```
     /// # use bevy_tweening::{lens::*, *};
-    /// # use bevy::{ecs::event::EventReader, math::Vec3};
+    /// # use bevy::{ecs::event::EventReader, math::Vec3, ecs::world::World, ecs::system::Query, ecs::entity::Entity};
     /// # use std::time::Duration;
+    /// let mut world = World::new();
     /// let test_system_system_id = world.register_system(test_system);
     /// let tween = Tween::new(
     ///     // [...]
@@ -1177,15 +1179,15 @@ impl<T> Delay<T> {
     /// )
     /// .with_completed_system(test_system_system_id);
     ///
-    /// fn test_system(query: Query<Entity, With<Enemy>>) {
-    ///    for enemy in query.iter() {
-    ///       println!("Found an enemy!");
+    /// fn test_system(query: Query<Entity>) {
+    ///    for entity in query.iter() {
+    ///       println!("Found an Entity!");
     ///    }
     /// }
     /// ```
     ///
     /// [`with_completed()`]: Tween::with_completed
-    /// [`register_system()`]: bevy::ecs::world::World::register_system 
+    /// [`register_system()`]: bevy::ecs::world::World::register_system
     #[must_use]
     pub fn with_completed_system(mut self, system_id: SystemId) -> Self {
         self.system_id = Some(system_id);
@@ -1261,7 +1263,7 @@ impl<T> Delay<T> {
     /// See [`with_completed_system()`] for details.
     ///
     /// [`with_completed()`]: Tween::with_completed
-    /// [`register_system()`]: bevy::ecs::world::World::register_system 
+    /// [`register_system()`]: bevy::ecs::world::World::register_system
     pub fn set_completed_system(&mut self, system_id: SystemId) {
         self.system_id = Some(system_id);
     }
