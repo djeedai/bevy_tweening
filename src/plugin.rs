@@ -88,6 +88,7 @@ pub fn component_animator_system<T: Component>(
     time: Res<Time>,
     mut query: Query<(Entity, &mut T, &mut Animator<T>)>,
     events: ResMut<Events<TweenCompleted>>,
+    mut commands: Commands,
 ) {
     let mut events: Mut<Events<TweenCompleted>> = events.into();
     for (entity, target, mut animator) in query.iter_mut() {
@@ -99,6 +100,7 @@ pub fn component_animator_system<T: Component>(
                 &mut target,
                 entity,
                 &mut events,
+                &mut commands,
             );
         }
     }
@@ -116,6 +118,7 @@ pub fn asset_animator_system<T: Asset>(
     mut assets: ResMut<Assets<T>>,
     mut query: Query<(Entity, &Handle<T>, &mut AssetAnimator<T>)>,
     events: ResMut<Events<TweenCompleted>>,
+    mut commands: Commands,
 ) {
     let mut events: Mut<Events<TweenCompleted>> = events.into();
     let mut target = AssetTarget::new(assets.reborrow());
@@ -131,6 +134,7 @@ pub fn asset_animator_system<T: Asset>(
                 &mut target,
                 entity,
                 &mut events,
+                &mut commands,
             );
         }
     }
