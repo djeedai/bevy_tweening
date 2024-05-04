@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 #[cfg(feature = "bevy_asset")]
 use crate::{tweenable::AssetTarget, AssetAnimator};
-use crate::{tweenable::ComponentTarget, Animator, AnimatorState, TweenCompleted};
+use crate::{tweenable::ComponentTarget, Animator, AnimatorState, TweenCompleted, TweenState};
 
 /// Plugin to add systems related to tweening of common components and assets.
 ///
@@ -95,13 +95,16 @@ pub fn component_animator_system<T: Component>(
         if animator.state != AnimatorState::Paused {
             let speed = animator.speed();
             let mut target = ComponentTarget::new(target);
-            animator.tweenable_mut().tick(
+            let tween_state = animator.tweenable_mut().tick(
                 time.delta().mul_f32(speed),
                 &mut target,
                 entity,
                 &mut events,
                 &mut commands,
             );
+            if tween_state == TweenState::Completed && animator.remove_on_completed {
+                commands.entity(entity).remove::<Animator<T>>();
+            }
         }
     }
 }
@@ -129,13 +132,16 @@ pub fn asset_animator_system<T: Asset>(
                 continue;
             }
             let speed = animator.speed();
-            animator.tweenable_mut().tick(
+            let tween_state = animator.tweenable_mut().tick(
                 time.delta().mul_f32(speed),
                 &mut target,
                 entity,
                 &mut events,
                 &mut commands,
             );
+            if tween_state == TweenState::Completed && animator.remove_on_completed {
+                commands.entity(entity).remove::<AssetAnimator<T>>();
+            }
         }
     }
 }
