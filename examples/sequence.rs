@@ -29,12 +29,16 @@ struct RedProgress;
 struct BlueProgress;
 
 #[derive(Component)]
-struct RedSprite;
+struct RedSprite(pub TweenId);
 
 #[derive(Component)]
-struct BlueSprite;
+struct BlueSprite(pub TweenId);
 
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn setup(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut animator: ResMut<TweenAnimator>,
+) {
     commands.spawn(Camera2dBundle::default());
 
     let font = asset_server.load("fonts/FiraMono-Regular.ttf");
@@ -135,20 +139,25 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 },
             )
             // Get an event after each segment
-            .with_completed_event(index as u64),
+            ,//.with_completed_event(index as u64),
         ])
     }));
 
-    commands.spawn((
-        SpriteBundle {
+    // Because we want to monitor the progress of the animations, we need to fetch
+    // their TweenId. This requires inserting them manually in the TweenAnimator
+    // resource, instead of using the extensions of EntityCommands.
+    let entity = commands
+        .spawn(SpriteBundle {
             sprite: Sprite {
                 color: RED.into(),
                 custom_size: Some(Vec2::new(size, size)),
                 ..default()
             },
-            RedSprite,
-        ))
-        .tween(seq);
+            ..default()
+        })
+        .id();
+    let tween_id = animator.add(entity, seq);
+    commands.entity(entity).insert(RedSprite(tween_id));
 
     // First move from left to right, then rotate around self 180 degrees while
     // scaling size at the same time.
@@ -159,8 +168,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             start: Vec3::new(-200., 100., 0.),
             end: Vec3::new(200., 100., 0.),
         },
-    )
-    .with_completed_event(99); // Get an event once move completed
+    ); //.with_completed_event(99); // Get an event once move completed
     let tween_rotate = Tween::new(
         EaseFunction::QuadraticInOut,
         Duration::from_secs(1),
@@ -182,33 +190,46 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let tracks = Tracks::new([tween_rotate, tween_scale]);
     // Build a sequence from an heterogeneous list of tweenables by casting them
     // manually to a BoxedTweenable: first move, then { rotate + scale }.
-    let seq2 = Sequence::new([Box::new(tween_move) as BoxedTweenable<_>, tracks.into()]);
+    let seq2 = Sequence::new([Box::new(tween_move) as BoxedTweenable, tracks.into()]);
 
-    commands.spawn((
-        SpriteBundle {
+    // Because we want to monitor the progress of the animations, we need to fetch
+    // their TweenId. This requires inserting them manually in the TweenAnimator
+    // resource, instead of using the extensions of EntityCommands.
+    let entity = commands
+        .spawn((SpriteBundle {
             sprite: Sprite {
-                color: BLUE.into(),
+                color: Color::BLUE,
                 custom_size: Some(Vec2::new(size * 3., size)),
                 ..default()
             },
-            BlueSprite,
-        ))
-        .tween(seq2);
+            ..Default::default()
+        },))
+        .id();
+    let tween_id = animator.add(entity, seq2);
+    commands.entity(entity).insert(BlueSprite(tween_id));
 }
 
 fn update_text(
     animator: Res<TweenAnimator>,
     mut query_text_red: Query<&mut Text, (With<RedProgress>, Without<BlueProgress>)>,
     mut query_text_blue: Query<&mut Text, (With<BlueProgress>, Without<RedProgress>)>,
-    query_anim_red: Query<Entity, With<RedSprite>>,
-    query_anim_blue: Query<Entity, With<BlueSprite>>,
+    query_anim_red: Query<&RedSprite>,
+    query_anim_blue: Query<&BlueSprite>,
     mut query_event: EventReader<TweenCompleted>,
 ) {
     let anim_red = query_anim_red.single();
-    let progress_red = animator.get(anim_red).tweenable().progress();
+    let progress_red = if let Some(anim) = animator.get(anim_red.0) {
+        anim.tweenable.progress()
+    } else {
+        1.
+    };
 
     let anim_blue = query_anim_blue.single();
-    let progress_blue = anim_blue.tweenable().progress();
+    let progress_blue = if let Some(anim) = animator.get(anim_blue.0) {
+        anim.tweenable.progress()
+    } else {
+        1.
+    };
 
     let mut red_text = query_text_red.single_mut();
     red_text.sections[1].value = format!("{:5.1}%", progress_red * 100.);
@@ -218,8 +239,8 @@ fn update_text(
 
     for ev in query_event.read() {
         println!(
-            "Event: TweenCompleted entity={:?} user_data={}",
-            ev.entity, ev.user_data
+            "Event: TweenCompleted tween_id={:?} entity={:?}",
+            ev.id, ev.entity
         );
     }
 }

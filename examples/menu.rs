@@ -85,8 +85,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                         start: Vec3::splat(0.01),
                         end: Vec3::ONE,
                     },
-                );
-                //.with_completed_event(INIT_TRANSITION_DONE);
+                )
+                .with_completed_event(true);
 
                 let mut ec = container.spawn((
                     ButtonBundle {
@@ -140,9 +140,7 @@ fn enable_interaction_after_initial_animation(
     mut reader: EventReader<TweenCompleted>,
 ) {
     for event in reader.read() {
-        if event.user_data == INIT_TRANSITION_DONE {
-            commands.entity(event.entity).insert(InitTransitionDone);
-        }
+        commands.entity(event.entity).insert(InitTransitionDone);
     }
 }
 

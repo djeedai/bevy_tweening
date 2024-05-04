@@ -443,70 +443,8 @@ impl std::ops::Not for TweeningDirection {
     }
 }
 
-// macro_rules! animator_impl {
-//     () => {
-//         /// Set the initial playback state of the animator.
-//         #[must_use]
-//         pub fn with_state(mut self, state: AnimatorState) -> Self {
-//             self.state = state;
-//             self
-//         }
-
-//         /// Set the initial speed of the animator. See
-// [`Animator::set_speed`] for         /// details.
-//         #[must_use]
-//         pub fn with_speed(mut self, speed: f32) -> Self {
-//             self.speed = speed;
-//             self
-//         }
-
-//         /// Set the animation speed. Defaults to 1.
-//         ///
-//         /// A speed of 2 means the animation will run twice as fast while a
-// speed of 0.1         /// will result in a 10x slowed animation.
-//         pub fn set_speed(&mut self, speed: f32) {
-//             self.speed = speed;
-//         }
-
-//         /// Get the animation speed.
-//         ///
-//         /// See [`set_speed()`] for a definition of what the animation speed
-// is.         ///
-//         /// [`set_speed()`]: Animator::speed
-//         pub fn speed(&self) -> f32 {
-//             self.speed
-//         }
-
-//         /// Set the top-level tweenable item this animator controls.
-//         pub fn set_tweenable(&mut self, tween: impl Tweenable<T> + 'static) {
-//             self.tweenable = Box::new(tween);
-//         }
-
-//         /// Get the top-level tweenable this animator is currently
-// controlling.         #[must_use]
-//         pub fn tweenable(&self) -> &dyn Tweenable<T> {
-//             self.tweenable.as_ref()
-//         }
-
-//         /// Get the top-level mutable tweenable this animator is currently
-// controlling.         #[must_use]
-//         pub fn tweenable_mut(&mut self) -> &mut dyn Tweenable<T> {
-//             self.tweenable.as_mut()
-//         }
-
-//         /// Stop animation playback and rewind the animation.
-//         ///
-//         /// This changes the animator state to [`AnimatorState::Paused`] and
-// rewind its         /// tweenable.
-//         pub fn stop(&mut self) {
-//             self.state = AnimatorState::Paused;
-//             self.tweenable_mut().rewind();
-//         }
-//     };
-// }
-
 new_key_type! {
-    /// Tween ID.
+    /// Unique identifier for a tweenable.
     pub struct TweenId;
 }
 
@@ -565,29 +503,51 @@ impl<'a> EntityCommandsTweeningExtensions<'a> for EntityCommands<'a> {
     }
 }
 
+/// A [`Tweenable`]-based animation.
+pub struct TweenAnim {
+    /// Target [`Entity`] containing the component to animate.
+    pub target: Entity,
+    /// Animation description.
+    pub tweenable: BoxedTweenable,
+    /// Control if the animation is played or not.
+    pub state: AnimatorState,
+    /// Relative playback speed. Defaults to `1.` (normal speed).
+    pub speed: f32,
+}
+
+impl TweenAnim {
+    /// Create a new tween animation.
+    pub fn new(target: Entity, tweenable: impl Tweenable + 'static) -> Self {
+        Self {
+            target,
+            tweenable: Box::new(tweenable),
+            state: AnimatorState::Playing,
+            speed: 1.,
+        }
+    }
+
+    /// Stop animation playback and rewind the animation.
+    ///
+    /// This changes the animator state to [`AnimatorState::Paused`] and  rewind
+    /// its tweenable.
+    pub fn stop(&mut self) {
+        self.state = AnimatorState::Paused;
+        self.tweenable.rewind();
+    }
+}
+
 /// Animator for tween-based animations.
 #[derive(Resource)]
 pub struct TweenAnimator {
-    /// Control if animations are played or not.
-    pub state: AnimatorState,
     /// Queue of animations currently playing.
-    anims: SlotMap<TweenId, (Entity, BoxedTweenable)>,
+    anims: SlotMap<TweenId, TweenAnim>,
 }
 
 impl Default for TweenAnimator {
     fn default() -> Self {
         Self {
-            state: AnimatorState::default(),
             anims: Default::default(),
         }
-    }
-}
-
-impl std::fmt::Debug for TweenAnimator {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Animator")
-            .field("state", &self.state)
-            .finish()
     }
 }
 
@@ -614,11 +574,11 @@ impl TweenAnimator {
     /// world.entity(entity).tween(tween);
     /// ```
     #[inline]
-    pub fn add<C: Component, T>(&mut self, target: Entity, tweenable: T) -> TweenId
+    pub fn add<T>(&mut self, target: Entity, tweenable: T) -> TweenId
     where
         T: Tweenable + 'static,
     {
-        self.anims.insert((target, Box::new(tweenable)))
+        self.anims.insert(TweenAnim::new(target, tweenable))
     }
 
     /// Queue a prepared tweenable animation.
@@ -628,15 +588,33 @@ impl TweenAnimator {
     /// [`make()`]: Animator::make
     #[inline]
     pub(crate) fn queue(&mut self, target: Entity, tweenable: impl Tweenable + 'static) {
-        self.anims.insert((target, Box::new(tweenable)));
+        self.anims.insert(TweenAnim::new(target, tweenable));
     }
 
     /// Get a tweenable from its ID.
     ///
     /// This fails and returns `None` if the tweenable has completed and was
     /// removed from the animator's internal queue.
-    pub fn get(&self, id: TweenId) -> Option<&dyn Tweenable> {
-        self.anims.get(id).map(|(_, tweenable)| &**tweenable)
+    pub fn get(&self, id: TweenId) -> Option<&TweenAnim> {
+        self.anims.get(id)
+    }
+
+    /// Get a tweenable from its ID.
+    ///
+    /// This fails and returns `None` if the tweenable has completed and was
+    /// removed from the animator's internal queue.
+    pub fn get_mut(&mut self, id: TweenId) -> Option<&mut TweenAnim> {
+        self.anims.get_mut(id)
+    }
+
+    /// Get an iterator over the active tweens.
+    pub fn iter(&self) -> impl Iterator<Item = (TweenId, &TweenAnim)> {
+        self.anims.iter()
+    }
+
+    /// Get a mutable iterator over the active tweens.
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (TweenId, &mut TweenAnim)> {
+        self.anims.iter_mut()
     }
 
     /// Play all queued animations.
@@ -644,43 +622,30 @@ impl TweenAnimator {
     /// Loop over the internal queue of tweenable animations, apply them to
     /// their respective target [`Entity`], and prune all the completed
     /// ones (the ones returning [`TweenState::Completed`]). In the later case,
-    /// send [`TweenCompleted`] events if enabled on the tweenable.
+    /// send [`TweenCompleted`] events if enabled on each individual tweenable.
     pub fn play(
         &mut self,
         world: &mut World,
         delta_time: Duration,
         mut events: Mut<Events<TweenCompleted>>,
     ) {
-        // // Tick all active tweenables
-        // for (_, (target, action, tweenable)) in &mut self.anims {
-        //     // Note: we use get_many_entities_mut() to get an EntityMut instead of an EntityWorldMut,
-        //     // as the former is enough. This can be optimized by parallelizing tweening of separate entities.
-        //     let ent_mut = &mut world.get_many_entities_mut([*target]).unwrap()[0];
-        //     let state = action(
-        //         ent_mut.reborrow(),
-        //         *target,
-        //         tweenable.as_mut(),
-        //         delta_time,
-        //         events.reborrow(),
-        //     );
-        // }
-
-        self.anims.retain(|_id, (entity, tweenable)| {
-            // Note: we use get_many_entities_mut() to get an EntityMut instead of an EntityWorldMut,
-            // as the former is enough. This can be optimized by parallelizing tweening of separate entities.
-            let ent_mut = &mut world.get_many_entities_mut([*entity]).unwrap()[0];
+        // Loop over active animations, tick them, and retain those which are still
+        // active after that
+        self.anims.retain(|id, anim| {
+            // Note: we use get_many_entities_mut() to get an EntityMut instead of an
+            // EntityWorldMut, as the former is enough. This can allow
+            // optimizing by parallelizing tweening of separate entities (which can't be
+            // done with EntityWorldMut has it has exclusive World access).
+            let ent_mut = &mut world.get_many_entities_mut([anim.target]).unwrap()[0];
 
             // Apply the animation tweenable
-            let (_ratio, state) = tweenable.tick(delta_time, *entity);
-
-            // Apply the state
-            tweenable.apply_state(ent_mut.reborrow());
+            let (_ratio, state) = anim.tweenable.tick(delta_time, ent_mut.reborrow());
 
             // Raise completed event
             if state == TweenState::Completed {
                 events.send(TweenCompleted {
-                    entity: *entity,
-                    user_data: 0, // TODO
+                    id,
+                    entity: anim.target,
                 });
             }
 
@@ -749,6 +714,7 @@ impl ColorLerper for Color {
 #[cfg(test)]
 mod tests {
     use bevy::ecs::component::Tick;
+    use slotmap::Key as _;
 
     use self::tweenable::ComponentTarget;
 
@@ -891,17 +857,13 @@ mod tests {
         assert_eq!(1., ease.sample(0.));
     }
 
-    // #[test]
-    // fn animator_new() {
-    //     let tween = Tween::new(
-    //         EaseFunction::QuadraticInOut,
-    //         Duration::from_secs(1),
-    //         DummyLens { start: 0., end: 1. },
-    //     );
-    //     let animator = Animator::<DummyComponent>::new(tween);
-    //     assert_eq!(animator.state, AnimatorState::default());
-    //     assert_eq!(animator.tweenable().progress(), 0.);
-    // }
+    #[test]
+    fn animator_default() {
+        let mut animator = TweenAnimator::default();
+        assert!(animator.get(TweenId::null()).is_none());
+        assert!(animator.iter().next().is_none());
+        assert!(animator.iter_mut().next().is_none());
+    }
 
     // #[test]
     // fn animator_with_state() {
@@ -1003,121 +965,82 @@ mod tests {
     //     assert_eq!(animator.tweenable().duration(), Duration::from_secs(2));
     // }
 
-    #[cfg(feature = "bevy_asset")]
-    #[test]
-    fn asset_animator_new() {
-        let tween = Tween::<DummyAsset>::new(
-            EaseFunction::QuadraticInOut,
-            Duration::from_secs(1),
-            DummyLens { start: 0., end: 1. },
-        );
-        let animator = AssetAnimator::new(tween);
-        assert_eq!(animator.state, AnimatorState::default());
-        let tween = animator;
-        assert_eq!(tween.tweenable().progress(), 0.);
-    }
+    // #[cfg(feature = "bevy_asset")]
+    // #[test]
+    // fn asset_animator_with_state() {
+    //     for state in [AnimatorState::Playing, AnimatorState::Paused] {
+    //         let tween = Tween::new(
+    //             EaseFunction::QuadraticInOut,
+    //             Duration::from_secs(1),
+    //             DummyLens { start: 0., end: 1. },
+    //         );
+    //         let animator = AssetAnimator::new(tween).with_state(state);
+    //         assert_eq!(animator.state, state);
 
-    #[cfg(feature = "bevy_asset")]
-    #[test]
-    fn asset_animator_with_state() {
-        for state in [AnimatorState::Playing, AnimatorState::Paused] {
-            let tween = Tween::<DummyAsset>::new(
-                EaseFunction::QuadraticInOut,
-                Duration::from_secs(1),
-                DummyLens { start: 0., end: 1. },
-            );
-            let animator = AssetAnimator::new(tween).with_state(state);
-            assert_eq!(animator.state, state);
+    //         // impl Debug
+    //         let debug_string = format!("{:?}", animator);
+    //         assert_eq!(
+    //             debug_string,
+    //             format!("AssetAnimator {{ state: {:?} }}", animator.state)
+    //         );
+    //     }
+    // }
 
-            // impl Debug
-            let debug_string = format!("{:?}", animator);
-            assert_eq!(
-                debug_string,
-                format!("AssetAnimator {{ state: {:?} }}", animator.state)
-            );
-        }
-    }
+    // #[cfg(feature = "bevy_asset")]
+    // #[test]
+    // fn asset_animator_controls() {
+    //     let tween = Tween::new(
+    //         EaseFunction::QuadraticInOut,
+    //         Duration::from_secs(1),
+    //         DummyLens { start: 0., end: 1. },
+    //     );
+    //     let mut animator = AssetAnimator::new(tween);
+    //     assert_eq!(animator.state, AnimatorState::Playing);
+    //     assert_approx_eq!(animator.tweenable().progress(), 0.);
 
-    #[cfg(feature = "bevy_asset")]
-    #[test]
-    fn asset_animator_controls() {
-        let tween: Tween<DummyAsset> = Tween::new(
-            EaseFunction::QuadraticInOut,
-            Duration::from_secs(1),
-            DummyLens { start: 0., end: 1. },
-        );
-        let mut animator = AssetAnimator::new(tween);
-        assert_eq!(animator.state, AnimatorState::Playing);
-        assert_approx_eq!(animator.tweenable().progress(), 0.);
+    //     animator.stop();
+    //     assert_eq!(animator.state, AnimatorState::Paused);
+    //     assert_approx_eq!(animator.tweenable().progress(), 0.);
 
-        animator.stop();
-        assert_eq!(animator.state, AnimatorState::Paused);
-        assert_approx_eq!(animator.tweenable().progress(), 0.);
+    //     animator.tweenable_mut().set_progress(0.5);
+    //     assert_eq!(animator.state, AnimatorState::Paused);
+    //     assert_approx_eq!(animator.tweenable().progress(), 0.5);
 
-        animator.tweenable_mut().set_progress(0.5);
-        assert_eq!(animator.state, AnimatorState::Paused);
-        assert_approx_eq!(animator.tweenable().progress(), 0.5);
+    //     animator.tweenable_mut().rewind();
+    //     assert_eq!(animator.state, AnimatorState::Paused);
+    //     assert_approx_eq!(animator.tweenable().progress(), 0.);
 
-        animator.tweenable_mut().rewind();
-        assert_eq!(animator.state, AnimatorState::Paused);
-        assert_approx_eq!(animator.tweenable().progress(), 0.);
+    //     animator.tweenable_mut().set_progress(0.5);
+    //     animator.state = AnimatorState::Playing;
+    //     assert_eq!(animator.state, AnimatorState::Playing);
+    //     assert_approx_eq!(animator.tweenable().progress(), 0.5);
 
-        animator.tweenable_mut().set_progress(0.5);
-        animator.state = AnimatorState::Playing;
-        assert_eq!(animator.state, AnimatorState::Playing);
-        assert_approx_eq!(animator.tweenable().progress(), 0.5);
+    //     animator.tweenable_mut().rewind();
+    //     assert_eq!(animator.state, AnimatorState::Playing);
+    //     assert_approx_eq!(animator.tweenable().progress(), 0.);
 
-        animator.tweenable_mut().rewind();
-        assert_eq!(animator.state, AnimatorState::Playing);
-        assert_approx_eq!(animator.tweenable().progress(), 0.);
+    //     animator.stop();
+    //     assert_eq!(animator.state, AnimatorState::Paused);
+    //     assert_approx_eq!(animator.tweenable().progress(), 0.);
+    // }
 
-        animator.stop();
-        assert_eq!(animator.state, AnimatorState::Paused);
-        assert_approx_eq!(animator.tweenable().progress(), 0.);
-    }
+    // #[cfg(feature = "bevy_asset")]
+    // #[test]
+    // fn asset_animator_set_tweenable() {
+    //     let tween = Tween::new(
+    //         EaseFunction::QuadraticInOut,
+    //         Duration::from_secs(1),
+    //         DummyLens { start: 0., end: 1. },
+    //     );
+    //     let mut animator = AssetAnimator::new(tween);
 
-    #[cfg(feature = "bevy_asset")]
-    #[test]
-    fn asset_animator_speed() {
-        let tween: Tween<DummyAsset> = Tween::new(
-            EaseFunction::QuadraticInOut,
-            Duration::from_secs(1),
-            DummyLens { start: 0., end: 1. },
-        );
+    //     let tween2 = Tween::new(
+    //         EaseFunction::QuadraticInOut,
+    //         Duration::from_secs(2),
+    //         DummyLens { start: 0., end: 1. },
+    //     );
+    //     animator.set_tweenable(tween2);
 
-        let mut animator = AssetAnimator::new(tween);
-        assert_approx_eq!(animator.speed(), 1.); // default speed
-
-        animator.set_speed(2.4);
-        assert_approx_eq!(animator.speed(), 2.4);
-
-        let tween: Tween<DummyAsset> = Tween::new(
-            EaseFunction::QuadraticInOut,
-            Duration::from_secs(1),
-            DummyLens { start: 0., end: 1. },
-        );
-
-        let animator = AssetAnimator::new(tween).with_speed(3.5);
-        assert_approx_eq!(animator.speed(), 3.5);
-    }
-
-    #[cfg(feature = "bevy_asset")]
-    #[test]
-    fn asset_animator_set_tweenable() {
-        let tween: Tween<DummyAsset> = Tween::new(
-            EaseFunction::QuadraticInOut,
-            Duration::from_secs(1),
-            DummyLens { start: 0., end: 1. },
-        );
-        let mut animator = AssetAnimator::new(tween);
-
-        let tween2 = Tween::new(
-            EaseFunction::QuadraticInOut,
-            Duration::from_secs(2),
-            DummyLens { start: 0., end: 1. },
-        );
-        animator.set_tweenable(tween2);
-
-        assert_eq!(animator.tweenable().duration(), Duration::from_secs(2));
-    }
+    //     assert_eq!(animator.tweenable().duration(), Duration::from_secs(2));
+    // }
 }
