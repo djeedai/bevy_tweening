@@ -242,85 +242,90 @@ mod tests {
         }
     }
 
-    // #[test]
-    // fn change_detect_component_conditional() {
-    //     let defer = Arc::new(AtomicBool::new(false));
-    //     let tween = Tween::new(
-    //         EaseMethod::Linear,
-    //         Duration::from_secs(1),
-    //         ConditionalDeferLens {
-    //             defer: Arc::clone(&defer),
-    //         },
-    //     )
-    //     .with_completed_event(true);
+    #[test]
+    fn change_detect_component_conditional() {
+        let defer = Arc::new(AtomicBool::new(false));
+        let tween = Tween::new(
+            EaseMethod::Linear,
+            Duration::from_secs(1),
+            ConditionalDeferLens {
+                defer: Arc::clone(&defer),
+            },
+        )
+        .with_completed_event(true);
 
-    //     let mut env = TestEnv::<DummyComponent>::new(tween);
+        let mut env = TestEnv::<DummyComponent>::new(tween);
 
-    //     // After being inserted, components are always considered changed
-    //     let component = env.component_mut();
-    //     assert!(component.is_changed());
+        // After being inserted, components are always considered changed
+        let component = env.component_mut();
+        assert!(component.is_changed());
 
-    //     let mut system = IntoSystem::into_system(plugin::animator_system);
-    //     system.initialize(env.world_mut());
+        let mut system = IntoSystem::into_system(plugin::animator_system);
+        system.initialize(env.world_mut());
 
-    //     assert!(!defer.load(Ordering::SeqCst));
+        assert!(!defer.load(Ordering::SeqCst));
 
-    //     // Mutation disabled
-    //     env.tick(Duration::ZERO, &mut system);
+        // Mutation disabled
+        env.tick(Duration::ZERO, &mut system);
 
-    //     let animator = env.animator();
-    //     assert_eq!(animator.state, AnimatorState::Playing);
-    //     // assert_eq!(animator.tweenable().times_completed(), 0);
-    //     let component = env.component_mut();
-    //     assert!(!component.is_changed());
-    //     assert!(((*component).value - 0.).abs() <= 1e-5);
+        let animator = env.animator();
+        let anim = animator.get(env.tween_id).unwrap();
+        assert_eq!(anim.state, PlaybackState::Playing);
+        assert_eq!(anim.tweenable.times_completed(), 0);
+        let component = env.component_mut();
+        assert!(!component.is_changed());
+        assert!(((*component).value - 0.).abs() <= 1e-5);
 
-    //     // Zero-length tick should not change the component
-    //     env.tick(Duration::from_millis(0), &mut system);
+        // Zero-length tick should not change the component
+        env.tick(Duration::from_millis(0), &mut system);
 
-    //     let animator = env.animator();
-    //     assert_eq!(animator.state, AnimatorState::Playing);
-    //     // assert_eq!(animator.tweenable().times_completed(), 0);
-    //     let component = env.component_mut();
-    //     assert!(!component.is_changed());
-    //     assert!(((*component).value - 0.).abs() <= 1e-5);
+        let animator = env.animator();
+        let anim = animator.get(env.tween_id).unwrap();
+        assert_eq!(anim.state, PlaybackState::Playing);
+        assert_eq!(anim.tweenable.times_completed(), 0);
+        let component = env.component_mut();
+        assert!(!component.is_changed());
+        assert!(((*component).value - 0.).abs() <= 1e-5);
 
-    //     // New tick, but lens mutation still disabled
-    //     env.tick(Duration::from_millis(200), &mut system);
+        // New tick, but lens mutation still disabled
+        env.tick(Duration::from_millis(200), &mut system);
 
-    //     let animator = env.animator();
-    //     assert_eq!(animator.state, AnimatorState::Playing);
-    //     // assert_eq!(animator.tweenable().times_completed(), 0);
-    //     let component = env.component_mut();
-    //     assert!(!component.is_changed());
-    //     assert!(((*component).value - 0.).abs() <= 1e-5);
+        let animator = env.animator();
+        let anim = animator.get(env.tween_id).unwrap();
+        assert_eq!(anim.state, PlaybackState::Playing);
+        assert_eq!(anim.tweenable.times_completed(), 0);
+        let component = env.component_mut();
+        assert!(!component.is_changed());
+        assert!(((*component).value - 0.).abs() <= 1e-5);
 
-    //     // Enable lens mutation
-    //     defer.store(true, Ordering::SeqCst);
+        // Enable lens mutation
+        defer.store(true, Ordering::SeqCst);
 
-    //     // The current time is already at t=0.2s, so even if we don't
-    // increment it, for     // a tween duration of 1s the ratio is t=0.2,
-    // so the lens will actually     // increment the component's value.
-    //     env.tick(Duration::from_millis(0), &mut system);
+        // The current time is already at t=0.2s, so even if we don't increment it, for
+        // a tween duration of 1s the ratio is t=0.2, so the lens will actually
+        // increment the component's value.
+        env.tick(Duration::from_millis(0), &mut system);
 
-    //     let animator = env.animator();
-    //     assert_eq!(animator.state, AnimatorState::Playing);
-    //     // assert_eq!(animator.tweenable().times_completed(), 0);
-    //     let component = env.component_mut();
-    //     assert!(component.is_changed());
-    //     assert!(((*component).value - 0.2).abs() <= 1e-5);
+        let animator = env.animator();
+        let anim = animator.get(env.tween_id).unwrap();
+        assert_eq!(anim.state, PlaybackState::Playing);
+        assert_eq!(anim.tweenable.times_completed(), 0);
+        let component = env.component_mut();
+        assert!(component.is_changed());
+        assert!(((*component).value - 0.2).abs() <= 1e-5);
 
-    //     // 0.2s + 0.3s = 0.5s
-    //     // t = 0.5s / 1s = 0.5
-    //     // value += 0.5
-    //     // value == 0.7
-    //     env.tick(Duration::from_millis(300), &mut system);
+        // 0.2s + 0.3s = 0.5s
+        // t = 0.5s / 1s = 0.5
+        // value += 0.5
+        // value == 0.7
+        env.tick(Duration::from_millis(300), &mut system);
 
-    //     let animator = env.animator();
-    //     assert_eq!(animator.state, AnimatorState::Playing);
-    //     // assert_eq!(animator.tweenable().times_completed(), 0);
-    //     let component = env.component_mut();
-    //     assert!(component.is_changed());
-    //     assert!(((*component).value - 0.7).abs() <= 1e-5);
-    // }
+        let animator = env.animator();
+        let anim = animator.get(env.tween_id).unwrap();
+        assert_eq!(anim.state, PlaybackState::Playing);
+        assert_eq!(anim.tweenable.times_completed(), 0);
+        let component = env.component_mut();
+        assert!(component.is_changed());
+        assert!(((*component).value - 0.7).abs() <= 1e-5);
+    }
 }

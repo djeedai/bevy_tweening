@@ -563,19 +563,20 @@ impl TweenAnimator {
     /// queue tweenable animations on a given [`EntityCommands`], like this:
     ///
     /// ```
-    /// # use bevy::prelude::*
+    /// # use bevy::prelude::*;
     /// # use bevy_tweening::{lens::*, *};
     /// # use std::time::Duration;
     /// # let mut world = World::default();
-    /// # let entity = Entity::default();
+    /// # let entity = Entity::PLACEHOLDER;
     /// let tween = Tween::new(
     ///     EaseFunction::QuadraticInOut,
     ///     Duration::from_secs(1),
     ///     TransformPositionLens {
     ///         start: Vec3::ZERO,
     ///         end: Vec3::new(3.5, 0., 0.),
-    /// };
-    /// world.entity(entity).tween(tween);
+    ///     },
+    /// );
+    /// world.entity_mut(entity).tween(tween);
     /// ```
     #[inline]
     pub fn add<T>(&mut self, target: Entity, tweenable: T) -> TweenId
