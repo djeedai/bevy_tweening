@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::{TweenAnimator, TweenCompleted};
+use crate::{AnimCompleted, TweenAnimator, TweenCompleted};
 
 /// Plugin to add systems related to tweening of common components and assets.
 ///
@@ -37,6 +37,7 @@ impl Plugin for TweeningPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<TweenAnimator>()
             .add_event::<TweenCompleted>()
+            .add_event::<AnimCompleted>()
             .add_systems(
                 Update,
                 animator_system.in_set(AnimationSystem::AnimationUpdate),
@@ -51,15 +52,15 @@ pub enum AnimationSystem {
     AnimationUpdate,
 }
 
-/// Animator system for components.
-///
-/// This system extracts all components of type `T` with an [`Animator<T>`]
-/// attached to the same entity, and tick the animator to animate the component.
+/// TODO
 pub fn animator_system(world: &mut World) {
     let delta_time = world.resource::<Time>().delta();
+    // TODO: Use SystemState to cache all of that...
     world.resource_scope(|world, events: Mut<Events<TweenCompleted>>| {
-        world.resource_scope(|world, mut animator: Mut<TweenAnimator>| {
-            animator.play(world, delta_time, events);
+        world.resource_scope(|world, anim_events: Mut<Events<AnimCompleted>>| {
+            world.resource_scope(|world, mut animator: Mut<TweenAnimator>| {
+                animator.play(world, delta_time, events, anim_events);
+            });
         });
     });
 }
@@ -93,6 +94,7 @@ mod tests {
             let mut world = World::new();
             world.init_resource::<Time>();
             world.init_resource::<Events<TweenCompleted>>();
+            world.init_resource::<Events<AnimCompleted>>();
             world.init_resource::<TweenAnimator>();
 
             let entity = world.spawn(T::default()).id();
@@ -134,6 +136,8 @@ mod tests {
             // Update events after system ticked, in case system emitted some events
             let mut events = self.world.resource_mut::<Events<TweenCompleted>>();
             events.update();
+            let mut events = self.world.resource_mut::<Events<AnimCompleted>>();
+            events.update();
         }
 
         /// Get the animator for the component.
@@ -162,7 +166,8 @@ mod tests {
                 start: Vec3::ZERO,
                 end: Vec3::ONE,
             },
-        );
+        )
+        .with_completed_event(true);
 
         let mut env = TestEnv::<Transform>::new(tween);
 
@@ -177,7 +182,7 @@ mod tests {
 
         let animator = env.animator();
         let anim = animator.get(env.tween_id).unwrap();
-        assert_eq!(anim.state, AnimatorState::Playing);
+        assert_eq!(anim.state, PlaybackState::Playing);
         assert_eq!(anim.tweenable.times_completed(), 0);
         let transform = env.component_mut();
         assert!(transform.is_changed());
@@ -188,7 +193,7 @@ mod tests {
         assert_eq!(env.event_count(), 0);
         let animator = env.animator();
         let anim = animator.get(env.tween_id).unwrap();
-        assert_eq!(anim.state, AnimatorState::Playing);
+        assert_eq!(anim.state, PlaybackState::Playing);
         assert_eq!(anim.tweenable.times_completed(), 0);
         let transform = env.component_mut();
         assert!(transform.is_changed());

@@ -69,10 +69,10 @@ pub enum TweenState {
     Completed,
 }
 
-/// Event raised when a tween completed.
+/// Event raised when a [`Tween`] completed.
 ///
-/// This event is raised when a tween completed. When looping, this is raised
-/// once per iteration. In case the animation direction changes
+/// This event is raised when a [`Tween`] completed. When looping, this is
+/// raised once per iteration. In case the animation direction changes
 /// ([`RepeatStrategy::MirroredRepeat`]), an iteration corresponds to a single
 /// progress from one endpoint to the other, whatever the direction. Therefore a
 /// complete cycle start -> end -> start counts as 2 iterations and raises 2
@@ -87,11 +87,16 @@ pub enum TweenState {
 /// iteration.
 #[derive(Copy, Clone, Event)]
 pub struct TweenCompleted {
-    /// The ID of the tween which completed.
+    /// The ID of the tween animation which completed.
+    ///
+    /// This is the ID of the top-level [`TweenAnim`] this tween is part of. It
+    /// can be used to retrieve the animation with [`TweenAnimator::get`].
     pub id: TweenId,
-    /// The [`Entity`] the tween which completed and its animator are attached
-    /// to.
+    /// The [`Entity`] the tween which completed and the [`TweenAnim`] it's part
+    /// of are attached to.
     pub entity: Entity,
+    /// Current progress of the owner [`TweenAnim`].
+    pub progress: f32,
 }
 
 /// Calculate the progress fraction in \[0:1\] of the ratio between two
@@ -343,7 +348,13 @@ pub trait Tweenable: Send + Sync {
     /// tweenable.
     ///
     /// [`apply_state()`]: Tweenable::apply_state
-    fn tick(&mut self, delta: Duration, ent_mut: EntityMut) -> (f32, TweenState);
+    fn tick(
+        &mut self,
+        tween_id: TweenId,
+        delta: Duration,
+        ent_mut: EntityMut,
+        events: Mut<Events<TweenCompleted>>,
+    ) -> (f32, TweenState);
 
     /// Rewind the animation to its starting state.
     ///
@@ -623,12 +634,18 @@ impl Tweenable for Tween {
         self.clock.elapsed()
     }
 
-    fn tick(&mut self, delta: Duration, ent_mut: EntityMut) -> (f32, TweenState) {
+    fn tick(
+        &mut self,
+        tween_id: TweenId,
+        delta: Duration,
+        ent_mut: EntityMut,
+        mut events: Mut<Events<TweenCompleted>>,
+    ) -> (f32, TweenState) {
         if self.clock.state() == TweenState::Completed {
             return (1., TweenState::Completed);
         }
 
-        // Tick the animation clock
+        // Advance the animation clock
         let (state, times_completed) = self.clock.tick(delta);
         let (progress, times_completed_for_direction) = match state {
             TweenState::Active => (self.progress(), times_completed),
@@ -640,17 +657,30 @@ impl Tweenable for Tween {
             self.direction = !self.direction;
         }
 
-        // Apply the lens, even if the animation finished, to ensure the state is
-        // consistent
-        let mut factor = progress;
-        if self.direction.is_backward() {
-            factor = 1. - factor;
+        let entity = ent_mut.id();
+
+        // Apply new animation state to target, even if the animation finished, to
+        // ensure the state is consistent
+        {
+            // 'factor' maps to Lens 0:start and 1:end, whatever the playback direction
+            let mut factor = progress;
+            if self.direction.is_backward() {
+                factor = 1. - factor;
+            }
+            let factor = self.ease_function.sample(factor);
+            (self.action)(ent_mut, factor);
         }
-        let factor = self.ease_function.sample(factor);
 
-        (self.action)(ent_mut, factor);
+        // Send completion event
+        if self.send_completed_event && times_completed > 0 {
+            events.send(TweenCompleted {
+                id: tween_id,
+                entity,
+                progress,
+            });
+        }
 
-        (factor, state)
+        (progress, state)
     }
 
     fn rewind(&mut self) {
@@ -836,13 +866,24 @@ impl Tweenable for Sequence {
         self.elapsed
     }
 
-    fn tick(&mut self, mut delta: Duration, mut ent_mut: EntityMut) -> (f32, TweenState) {
+    fn tick(
+        &mut self,
+        tween_id: TweenId,
+        mut delta: Duration,
+        mut ent_mut: EntityMut,
+        mut events: Mut<Events<TweenCompleted>>,
+    ) -> (f32, TweenState) {
+        // Calculate the new elapsed time at the end of this tick
         self.elapsed = self.elapsed.saturating_add(delta).min(self.duration);
+
+        // Tick one or more tweenables until the new elapsed time is reached.
         while self.index < self.tweens.len() {
-            // Tick the current tween
+            // Tick the current tweenable
             let tween = &mut self.tweens[self.index];
             let tween_remaining = tween.duration() - tween.elapsed();
-            if let (ratio, TweenState::Active) = tween.tick(delta, ent_mut.reborrow()) {
+            if let (ratio, TweenState::Active) =
+                tween.tick(tween_id, delta, ent_mut.reborrow(), events.reborrow())
+            {
                 return (ratio, TweenState::Active);
             }
 
@@ -937,11 +978,17 @@ impl Tweenable for Tracks {
         self.elapsed
     }
 
-    fn tick(&mut self, delta: Duration, mut ent_mut: EntityMut) -> (f32, TweenState) {
+    fn tick(
+        &mut self,
+        tween_id: TweenId,
+        delta: Duration,
+        mut ent_mut: EntityMut,
+        mut events: Mut<Events<TweenCompleted>>,
+    ) -> (f32, TweenState) {
         self.elapsed = self.elapsed.saturating_add(delta).min(self.duration);
         let mut any_active = false;
         for tweenable in &mut self.tracks {
-            let (_, state) = tweenable.tick(delta, ent_mut.reborrow());
+            let (_, state) = tweenable.tick(tween_id, delta, ent_mut.reborrow(), events.reborrow());
             any_active = any_active || (state == TweenState::Active);
         }
         if any_active {
@@ -1050,13 +1097,19 @@ impl Tweenable for Delay {
         self.timer.elapsed()
     }
 
-    fn tick(&mut self, delta: Duration, _ent_mut: EntityMut) -> (f32, TweenState) {
+    fn tick(
+        &mut self,
+        _tween_id: TweenId,
+        delta: Duration,
+        _ent_mut: EntityMut,
+        _events: Mut<Events<TweenCompleted>>,
+    ) -> (f32, TweenState) {
         self.timer.tick(delta);
 
-        let ratio = self.elapsed().as_secs_f32() / self.duration().as_secs_f32();
+        let progress = fraction_progress(self.elapsed(), self.duration());
         let state = self.state();
 
-        (ratio, state)
+        (progress, state)
     }
 
     fn rewind(&mut self) {
@@ -1100,6 +1153,7 @@ mod tests {
     // use std::sync::{Arc, Mutex};
 
     use bevy::ecs::{component::Tick, event::Events, system::SystemState, world::CommandQueue};
+    use slotmap::Key as _;
 
     use super::*;
     use crate::{lens::*, test_utils::*};
@@ -1136,14 +1190,15 @@ mod tests {
 
     /// Manually tick a test tweenable targeting a component.
     fn manual_tick_component(
+        tween_id: TweenId,
         duration: Duration,
         tween: &mut dyn Tweenable,
         world: &mut World,
         entity: Entity,
     ) -> TweenState {
-        world.resource_scope(|world: &mut World, _events: Mut<Events<TweenCompleted>>| {
+        world.resource_scope(|world: &mut World, events: Mut<Events<TweenCompleted>>| {
             let entity_mut = &mut world.get_many_entities_mut([entity]).unwrap()[0];
-            let (_, state) = tween.tick(duration, entity_mut.reborrow());
+            let (_, state) = tween.tick(tween_id, duration, entity_mut.reborrow(), events);
             state
         })
     }
@@ -1395,8 +1450,13 @@ mod tests {
                     );
 
                     // Tick the tween
-                    let actual_state =
-                        manual_tick_component(tick_duration, &mut tween, &mut world, entity);
+                    let actual_state = manual_tick_component(
+                        TweenId::null(), // unused in this test
+                        tick_duration,
+                        &mut tween,
+                        &mut world,
+                        entity,
+                    );
 
                     // Propagate events
                     {
@@ -1435,8 +1495,13 @@ mod tests {
                 assert_eq!(tween.times_completed(), 0);
 
                 // Dummy tick to update target
-                let actual_state =
-                    manual_tick_component(Duration::ZERO, &mut tween, &mut world, entity);
+                let actual_state = manual_tick_component(
+                    TweenId::null(), // unused in this test
+                    Duration::ZERO,
+                    &mut tween,
+                    &mut world,
+                    entity,
+                );
                 assert_eq!(actual_state, TweenState::Active);
                 let expected_translation = if tweening_direction.is_backward() {
                     Vec3::ONE
@@ -1492,7 +1557,13 @@ mod tests {
         // Progress always increases alongside the current direction
         tween.set_direction(TweeningDirection::Backward);
         assert_approx_eq!(tween.progress(), 0.3);
-        manual_tick_component(Duration::from_millis(100), &mut tween, &mut world, entity);
+        manual_tick_component(
+            TweenId::null(), // unused in this test
+            Duration::from_millis(100),
+            &mut tween,
+            &mut world,
+            entity,
+        );
         assert_approx_eq!(tween.progress(), 0.4);
         let transform = world.entity(entity).get::<Transform>().unwrap();
         assert!(transform.translation.abs_diff_eq(Vec3::splat(0.6), 1e-5));
@@ -1545,8 +1616,13 @@ mod tests {
         let (mut world, entity, _system_id) = make_test_env();
 
         for i in 1..=16 {
-            let state =
-                manual_tick_component(Duration::from_millis(200), &mut seq, &mut world, entity);
+            let state = manual_tick_component(
+                TweenId::null(), // unused in this test
+                Duration::from_millis(200),
+                &mut seq,
+                &mut world,
+                entity,
+            );
             let transform = world.entity(entity).get::<Transform>().unwrap();
             if i < 5 {
                 assert_eq!(state, TweenState::Active);
@@ -1592,6 +1668,7 @@ mod tests {
         // - Start the third tween
         for delta_ms in [500, 2000] {
             manual_tick_component(
+                TweenId::null(), // unused in this test
                 Duration::from_millis(delta_ms),
                 &mut seq,
                 &mut world,
@@ -1699,8 +1776,13 @@ mod tests {
         let (mut world, entity, _system_id) = make_test_env();
 
         for i in 1..=6 {
-            let state =
-                manual_tick_component(Duration::from_millis(200), &mut tracks, &mut world, entity);
+            let state = manual_tick_component(
+                TweenId::null(), // unused in this test
+                Duration::from_millis(200),
+                &mut tracks,
+                &mut world,
+                entity,
+            );
             let transform = world.entity(entity).get::<Transform>().unwrap();
             if i < 5 {
                 assert_eq!(state, TweenState::Active);
@@ -1730,21 +1812,39 @@ mod tests {
         tracks.set_progress(0.9);
         assert_approx_eq!(tracks.progress(), 0.9);
         // tick to udpate state (set_progress() does not update state)
-        let state = manual_tick_component(Duration::ZERO, &mut tracks, &mut world, entity);
+        let state = manual_tick_component(
+            TweenId::null(), // unused in this test
+            Duration::ZERO,
+            &mut tracks,
+            &mut world,
+            entity,
+        );
         assert_eq!(state, TweenState::Active);
         assert_eq!(tracks.times_completed(), 0);
 
         tracks.set_progress(3.2);
         assert_approx_eq!(tracks.progress(), 1.);
         // tick to udpate state (set_progress() does not update state)
-        let state = manual_tick_component(Duration::ZERO, &mut tracks, &mut world, entity);
+        let state = manual_tick_component(
+            TweenId::null(), // unused in this test
+            Duration::ZERO,
+            &mut tracks,
+            &mut world,
+            entity,
+        );
         assert_eq!(state, TweenState::Completed);
         assert_eq!(tracks.times_completed(), 1); // no looping
 
         tracks.set_progress(-0.5);
         assert_approx_eq!(tracks.progress(), 0.);
         // tick to udpate state (set_progress() does not update state)
-        let state = manual_tick_component(Duration::ZERO, &mut tracks, &mut world, entity);
+        let state = manual_tick_component(
+            TweenId::null(), // unused in this test
+            Duration::ZERO,
+            &mut tracks,
+            &mut world,
+            entity,
+        );
         assert_eq!(state, TweenState::Active);
         assert_eq!(tracks.times_completed(), 0); // no looping
     }
@@ -1919,8 +2019,13 @@ mod tests {
         let (mut world, entity, _system_id) = make_test_env();
 
         // 10%
-        let state =
-            manual_tick_component(Duration::from_millis(100), &mut tween, &mut world, entity);
+        let state = manual_tick_component(
+            TweenId::null(), // unused in this test
+            Duration::from_millis(100),
+            &mut tween,
+            &mut world,
+            entity,
+        );
         assert_eq!(TweenState::Active, state);
         assert_eq!(0, tween.times_completed());
         assert_approx_eq!(tween.progress(), 0.1);
@@ -1928,8 +2033,13 @@ mod tests {
         assert!(transform.translation.abs_diff_eq(Vec3::splat(0.1), 1e-5));
 
         // 130%
-        let state =
-            manual_tick_component(Duration::from_millis(1200), &mut tween, &mut world, entity);
+        let state = manual_tick_component(
+            TweenId::null(), // unused in this test
+            Duration::from_millis(1200),
+            &mut tween,
+            &mut world,
+            entity,
+        );
         assert_eq!(TweenState::Active, state);
         assert_eq!(1, tween.times_completed());
         assert_approx_eq!(tween.progress(), 0.3);
@@ -1937,8 +2047,13 @@ mod tests {
         assert!(transform.translation.abs_diff_eq(Vec3::splat(0.3), 1e-5));
 
         // 480%
-        let state =
-            manual_tick_component(Duration::from_millis(3500), &mut tween, &mut world, entity);
+        let state = manual_tick_component(
+            TweenId::null(), // unused in this test
+            Duration::from_millis(3500),
+            &mut tween,
+            &mut world,
+            entity,
+        );
         assert_eq!(TweenState::Active, state);
         assert_eq!(4, tween.times_completed());
         assert_approx_eq!(tween.progress(), 0.8);
@@ -1946,8 +2061,13 @@ mod tests {
         assert!(transform.translation.abs_diff_eq(Vec3::splat(0.8), 1e-5));
 
         // 500% - done
-        let state =
-            manual_tick_component(Duration::from_millis(200), &mut tween, &mut world, entity);
+        let state = manual_tick_component(
+            TweenId::null(), // unused in this test
+            Duration::from_millis(200),
+            &mut tween,
+            &mut world,
+            entity,
+        );
         assert_eq!(TweenState::Completed, state);
         assert_eq!(5, tween.times_completed());
         assert_approx_eq!(tween.progress(), 1.0);
@@ -1966,8 +2086,13 @@ mod tests {
         let (mut world, entity, _system_id) = make_test_env();
 
         // 10%
-        let state =
-            manual_tick_component(Duration::from_millis(100), &mut tween, &mut world, entity);
+        let state = manual_tick_component(
+            TweenId::null(), // unused in this test
+            Duration::from_millis(100),
+            &mut tween,
+            &mut world,
+            entity,
+        );
         assert_eq!(TweenState::Active, state);
         assert_eq!(TweeningDirection::Forward, tween.direction());
         assert_eq!(0, tween.times_completed());
@@ -1984,8 +2109,13 @@ mod tests {
         assert!(transform.translation.abs_diff_eq(Vec3::splat(0.1), 1e-5)); // no-op, rewind doesn't apply Lens
 
         // 120% - mirror
-        let state =
-            manual_tick_component(Duration::from_millis(1200), &mut tween, &mut world, entity);
+        let state = manual_tick_component(
+            TweenId::null(), // unused in this test
+            Duration::from_millis(1200),
+            &mut tween,
+            &mut world,
+            entity,
+        );
         assert_eq!(TweeningDirection::Backward, tween.direction());
         assert_eq!(TweenState::Active, state);
         assert_eq!(1, tween.times_completed());
@@ -2002,8 +2132,13 @@ mod tests {
         assert!(transform.translation.abs_diff_eq(Vec3::splat(0.8), 1e-5)); // no-op, rewind doesn't apply Lens
 
         // 400% - done mirror (because Completed freezes the state)
-        let state =
-            manual_tick_component(Duration::from_millis(4000), &mut tween, &mut world, entity);
+        let state = manual_tick_component(
+            TweenId::null(), // unused in this test
+            Duration::from_millis(4000),
+            &mut tween,
+            &mut world,
+            entity,
+        );
         assert_eq!(TweenState::Completed, state);
         assert_eq!(TweeningDirection::Backward, tween.direction()); // frozen from last loop
         assert_eq!(4, tween.times_completed());

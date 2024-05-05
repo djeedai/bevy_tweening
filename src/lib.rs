@@ -303,24 +303,19 @@ impl Default for RepeatStrategy {
     }
 }
 
-/// Playback state of an animator.
+/// Playback state of a [`TweenAnim`].
 ///
 /// Default: `Playing`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AnimatorState {
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum PlaybackState {
     /// The animation is playing. This is the default state.
+    #[default]
     Playing,
     /// The animation is paused in its current state.
     Paused,
 }
 
-impl Default for AnimatorState {
-    fn default() -> Self {
-        Self::Playing
-    }
-}
-
-impl std::ops::Not for AnimatorState {
+impl std::ops::Not for PlaybackState {
     type Output = Self;
 
     fn not(self) -> Self::Output {
@@ -503,6 +498,15 @@ impl<'a> EntityCommandsTweeningExtensions<'a> for EntityCommands<'a> {
     }
 }
 
+/// Event raised when a [`TweenAnim`] completed.
+#[derive(Copy, Clone, Event)]
+pub struct AnimCompleted {
+    /// The ID of the tween animation which completed.
+    pub id: TweenId,
+    /// The [`Entity`] the animation which completed is attached to.
+    pub entity: Entity,
+}
+
 /// A [`Tweenable`]-based animation.
 pub struct TweenAnim {
     /// Target [`Entity`] containing the component to animate.
@@ -510,7 +514,7 @@ pub struct TweenAnim {
     /// Animation description.
     pub tweenable: BoxedTweenable,
     /// Control if the animation is played or not.
-    pub state: AnimatorState,
+    pub state: PlaybackState,
     /// Relative playback speed. Defaults to `1.` (normal speed).
     pub speed: f32,
 }
@@ -521,7 +525,7 @@ impl TweenAnim {
         Self {
             target,
             tweenable: Box::new(tweenable),
-            state: AnimatorState::Playing,
+            state: PlaybackState::Playing,
             speed: 1.,
         }
     }
@@ -531,7 +535,7 @@ impl TweenAnim {
     /// This changes the animator state to [`AnimatorState::Paused`] and  rewind
     /// its tweenable.
     pub fn stop(&mut self) {
-        self.state = AnimatorState::Paused;
+        self.state = PlaybackState::Paused;
         self.tweenable.rewind();
     }
 }
@@ -628,10 +632,11 @@ impl TweenAnimator {
         world: &mut World,
         delta_time: Duration,
         mut events: Mut<Events<TweenCompleted>>,
+        mut anim_events: Mut<Events<AnimCompleted>>,
     ) {
         // Loop over active animations, tick them, and retain those which are still
         // active after that
-        self.anims.retain(|id, anim| {
+        self.anims.retain(|tween_id, anim| {
             // Note: we use get_many_entities_mut() to get an EntityMut instead of an
             // EntityWorldMut, as the former is enough. This can allow
             // optimizing by parallelizing tweening of separate entities (which can't be
@@ -639,12 +644,14 @@ impl TweenAnimator {
             let ent_mut = &mut world.get_many_entities_mut([anim.target]).unwrap()[0];
 
             // Apply the animation tweenable
-            let (_ratio, state) = anim.tweenable.tick(delta_time, ent_mut.reborrow());
+            let (_progress, state) =
+                anim.tweenable
+                    .tick(tween_id, delta_time, ent_mut.reborrow(), events.reborrow());
 
             // Raise completed event
             if state == TweenState::Completed {
-                events.send(TweenCompleted {
-                    id,
+                anim_events.send(AnimCompleted {
+                    id: tween_id,
                     entity: anim.target,
                 });
             }
@@ -823,12 +830,12 @@ mod tests {
 
     #[test]
     fn animator_state() {
-        let mut state = AnimatorState::default();
-        assert_eq!(state, AnimatorState::Playing);
+        let mut state = PlaybackState::default();
+        assert_eq!(state, PlaybackState::Playing);
         state = !state;
-        assert_eq!(state, AnimatorState::Paused);
+        assert_eq!(state, PlaybackState::Paused);
         state = !state;
-        assert_eq!(state, AnimatorState::Playing);
+        assert_eq!(state, PlaybackState::Playing);
     }
 
     #[test]
