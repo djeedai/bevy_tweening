@@ -310,6 +310,10 @@ fn lerp_val(start: &Val, end: &Val, ratio: f32) -> Val {
             Val::Percent((end - start).mul_add(ratio, *start))
         }
         (Val::Px(start), Val::Px(end)) => Val::Px((end - start).mul_add(ratio, *start)),
+        (Val::Vw(start), Val::Vw(end)) => Val::Vw((end - start).mul_add(ratio, *start)),
+        (Val::Vh(start), Val::Vh(end)) => Val::Vh((end - start).mul_add(ratio, *start)),
+        (Val::VMin(start), Val::VMin(end)) => Val::VMin((end - start).mul_add(ratio, *start)),
+        (Val::VMax(start), Val::VMax(end)) => Val::VMax((end - start).mul_add(ratio, *start)),
         _ => *start,
     }
 }
