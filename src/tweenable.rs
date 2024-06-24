@@ -436,7 +436,7 @@ pub struct Tween<T> {
     lens: Box<dyn Lens<T> + Send + Sync + 'static>,
     on_completed: Option<Box<CompletedCallback<Tween<T>>>>,
     event_data: Option<u64>,
-    system_id: Option<SystemId>,
+    system_id: Option<SystemId<Entity>>,
 }
 
 impl<T: 'static> Tween<T> {
@@ -583,15 +583,17 @@ impl<T> Tween<T> {
 
     /// Enable running a one-shot system upon completion.
     ///
-    /// If enabled, the tween will run a system via a provided [`SystemId`] when the
-    /// animation completes. This is similar to the [`with_completed()`],
-    /// but uses a system registered by [`register_system()`] instead of a callback.
+    /// If enabled, the tween will run a system via a provided [`SystemId`] when
+    /// the animation completes. The system receives the [`Entity`] the animator
+    /// is attached to as its input. This is similar to [`with_completed()`],
+    /// but uses a system registered by [`register_system()`] instead of a
+    /// callback.
     ///
     /// # Example
     ///
     /// ```
     /// # use bevy_tweening::{lens::*, *};
-    /// # use bevy::{ecs::event::EventReader, math::Vec3, ecs::world::World, ecs::system::Query, ecs::entity::Entity, ecs::query::With};
+    /// # use bevy::{math::Vec3, ecs::world::World, ecs::system::Query, ecs::system::In, ecs::entity::Entity, transform::components::Transform};
     /// # use std::time::Duration;
     /// let mut world = World::new();  
     /// let test_system_system_id = world.register_system(test_system);
@@ -606,16 +608,17 @@ impl<T> Tween<T> {
     /// )
     /// .with_completed_system(test_system_system_id);
     ///
-    /// fn test_system(query: Query<Entity>) {
-    ///    for entity in query.iter() {
-    ///       println!("Found an entity!");
+    /// fn test_system(In(entity): In<Entity>, query: Query<&Transform>) {
+    ///    println!("Tween completed on entity {:?}", entity);
+    ///    if let Ok(transform) = query.get(entity) {
+    ///       println!("Its transform is {:?}", transform);
     ///    }
     /// }
     /// ```
     /// [`with_completed()`]: Tween::with_completed
     /// [`register_system()`]: bevy::ecs::world::World::register_system
     #[must_use]
-    pub fn with_completed_system(mut self, system_id: SystemId) -> Self {
+    pub fn with_completed_system(mut self, system_id: SystemId<Entity>) -> Self {
         self.system_id = Some(system_id);
         self
     }
@@ -716,13 +719,15 @@ impl<T> Tween<T> {
 
     /// Enable running a one-shot system upon completion.
     ///
-    /// If enabled, the tween will run a system via a provided [`SystemId`] when the
-    /// animation completes. This is similar to the [`with_completed()`],
-    /// but uses a system registered by [`register_system()`] instead of a callback.
+    /// If enabled, the tween will run a system via a provided [`SystemId`] when
+    /// the animation completes. The system receives the [`Entity`] the animator
+    /// is attached to as its input. This is similar to [`with_completed()`],
+    /// but uses a system registered by [`register_system()`] instead of a
+    /// callback.
     ///
     /// [`with_completed()`]: Tween::with_completed  
     /// [`register_system()`]: bevy::ecs::world::World::register_system
-    pub fn set_completed_system(&mut self, user_data: SystemId) {
+    pub fn set_completed_system(&mut self, user_data: SystemId<Entity>) {
         self.system_id = Some(user_data);
     }
 
@@ -798,7 +803,7 @@ impl<T> Tweenable<T> for Tween<T> {
                 cb(entity, self);
             }
             if let Some(system_id) = &self.system_id {
-                commands.run_system(*system_id);
+                commands.run_system_with_input(*system_id, entity);
             }
         }
 
@@ -1056,7 +1061,7 @@ pub struct Delay<T> {
     timer: Timer,
     on_completed: Option<Box<CompletedCallback<Delay<T>>>>,
     event_data: Option<u64>,
-    system_id: Option<SystemId>,
+    system_id: Option<SystemId<Entity>>,
 }
 
 impl<T: 'static> Delay<T> {
@@ -1156,15 +1161,17 @@ impl<T> Delay<T> {
 
     /// Enable running a one-shot system upon completion.
     ///
-    /// If enabled, the tween will run a system via a provided [`SystemId`] when the
-    /// animation completes. This is similar to the [`with_completed()`],
-    /// but uses a system registered by [`register_system()`] instead.
+    /// If enabled, the tween will run a system via a provided [`SystemId`] when
+    /// the animation completes. The system receives the [`Entity`] the animator
+    /// is attached to as its input. This is similar to [`with_completed()`],
+    /// but uses a system registered by [`register_system()`] instead of a
+    /// callback.
     ///
     /// # Example
     ///
     /// ```
     /// # use bevy_tweening::{lens::*, *};
-    /// # use bevy::{ecs::event::EventReader, math::Vec3, ecs::world::World, ecs::system::Query, ecs::entity::Entity};
+    /// # use bevy::{math::Vec3, ecs::world::World, ecs::system::Query, ecs::system::In, ecs::entity::Entity, transform::components::Transform};
     /// # use std::time::Duration;
     /// let mut world = World::new();
     /// let test_system_system_id = world.register_system(test_system);
@@ -1179,9 +1186,10 @@ impl<T> Delay<T> {
     /// )
     /// .with_completed_system(test_system_system_id);
     ///
-    /// fn test_system(query: Query<Entity>) {
-    ///    for entity in query.iter() {
-    ///       println!("Found an Entity!");
+    /// fn test_system(In(entity): In<Entity>, query: Query<&Transform>) {
+    ///    println!("Tween completed on entity {:?}", entity);
+    ///    if let Ok(transform) = query.get(entity) {
+    ///       println!("Its transform is {:?}", transform);
     ///    }
     /// }
     /// ```
@@ -1189,7 +1197,7 @@ impl<T> Delay<T> {
     /// [`with_completed()`]: Tween::with_completed
     /// [`register_system()`]: bevy::ecs::world::World::register_system
     #[must_use]
-    pub fn with_completed_system(mut self, system_id: SystemId) -> Self {
+    pub fn with_completed_system(mut self, system_id: SystemId<Entity>) -> Self {
         self.system_id = Some(system_id);
         self
     }
@@ -1256,15 +1264,17 @@ impl<T> Delay<T> {
 
     /// Enable running a one-shot system upon completion.
     ///
-    /// If enabled, the tween will run a system via a provided [`SystemId`] when the
-    /// animation completes. This is similar to the [`with_completed()`],
-    /// but uses a system registered by [`register_system()`] instead of a callback.
+    /// If enabled, the tween will run a system via a provided [`SystemId`] when
+    /// the animation completes. The system receives the [`Entity`] the animator
+    /// is attached to as its input. This is similar to [`with_completed()`],
+    /// but uses a system registered by [`register_system()`] instead of a
+    /// callback.
     ///
     /// See [`with_completed_system()`] for details.
     ///
     /// [`with_completed()`]: Tween::with_completed
     /// [`register_system()`]: bevy::ecs::world::World::register_system
-    pub fn set_completed_system(&mut self, system_id: SystemId) {
+    pub fn set_completed_system(&mut self, system_id: SystemId<Entity>) {
         self.system_id = Some(system_id);
     }
 
@@ -1325,7 +1335,7 @@ impl<T> Tweenable<T> for Delay<T> {
                 cb(entity, self);
             }
             if let Some(system_id) = &self.system_id {
-                commands.run_system(*system_id);
+                commands.run_system_with_input(*system_id, entity);
             }
         }
 
@@ -1369,7 +1379,7 @@ mod tests {
     }
 
     /// Utility to create a test environment to tick a tween.
-    fn make_test_env() -> (World, Entity, SystemId) {
+    fn make_test_env() -> (World, Entity, SystemId<Entity>) {
         let mut world = World::new();
         world.init_resource::<Events<TweenCompleted>>();
         let entity = world.spawn(Transform::default()).id();
@@ -1378,7 +1388,7 @@ mod tests {
     }
 
     /// one-shot system to be used for testing
-    fn oneshot_test() {}
+    fn oneshot_test(In(_entity): In<Entity>) {}
 
     /// Manually tick a test tweenable targeting a component.
     fn manual_tick_component<T: Component>(
