@@ -25,10 +25,10 @@ bevy_text = ["bevy/bevy_text", "bevy/bevy_render", "bevy/bevy_sprite"]
 
 [dependencies]
 interpolation = "0.3"
-bevy = { version = "0.13", default-features = false }
+bevy = { version = "0.14", default-features = false }
 
-[dev-dependencies]
-bevy-inspector-egui = "0.23"
+# [dev-dependencies]
+# bevy-inspector-egui = { git = "https://github.com/kristoff3r/bevy-inspector-egui", rev = "08181d8" }
 
 [[example]]
 name = "menu"

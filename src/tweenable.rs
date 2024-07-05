@@ -593,7 +593,7 @@ impl<T> Tween<T> {
     /// # use bevy_tweening::{lens::*, *};
     /// # use bevy::{ecs::event::EventReader, math::Vec3, ecs::world::World, ecs::system::Query, ecs::entity::Entity, ecs::query::With};
     /// # use std::time::Duration;
-    /// let mut world = World::new();  
+    /// let mut world = World::new();
     /// let test_system_system_id = world.register_system(test_system);
     /// let tween = Tween::new(
     ///     // [...]
@@ -720,7 +720,7 @@ impl<T> Tween<T> {
     /// animation completes. This is similar to the [`with_completed()`],
     /// but uses a system registered by [`register_system()`] instead of a callback.
     ///
-    /// [`with_completed()`]: Tween::with_completed  
+    /// [`with_completed()`]: Tween::with_completed
     /// [`register_system()`]: bevy::ecs::world::World::register_system
     pub fn set_completed_system(&mut self, user_data: SystemId) {
         self.system_id = Some(user_data);
@@ -1341,11 +1341,7 @@ impl<T> Tweenable<T> for Delay<T> {
 mod tests {
     use std::sync::{Arc, Mutex};
 
-    use bevy::ecs::{
-        component::Tick,
-        event::Events,
-        system::{CommandQueue, SystemState},
-    };
+    use bevy::ecs::{component::Tick, event::Events, system::SystemState, world::CommandQueue};
 
     use super::*;
     use crate::{lens::*, test_utils::*};

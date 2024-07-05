@@ -1,14 +1,18 @@
 #[macro_use]
 extern crate criterion;
 
-use bevy::{ecs::component::Tick, prelude::*};
+use bevy::{
+    color::palettes::css::{BLUE, RED},
+    ecs::component::Tick,
+    prelude::*,
+};
 use bevy_tweening::{lens::*, ComponentTarget};
 use criterion::{black_box, Criterion};
 
 fn text_color_lens(c: &mut Criterion) {
     let mut lens = TextColorLens {
-        start: Color::RED,
-        end: Color::BLUE,
+        start: RED.into(),
+        end: BLUE.into(),
         section: 0,
     };
     let mut text = Text::from_section(

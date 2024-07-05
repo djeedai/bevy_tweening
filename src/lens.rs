@@ -409,9 +409,11 @@ mod tests {
     #[cfg(feature = "bevy_text")]
     #[test]
     fn text_color() {
+        use bevy::color::palettes::css::{BLUE, RED};
+
         let mut lens = TextColorLens {
-            start: Color::RED,
-            end: Color::BLUE,
+            start: RED.into(),
+            end: BLUE.into(),
             section: 0,
         };
         let mut text = Text::from_section("", default());
@@ -429,7 +431,7 @@ mod tests {
 
             lens.lerp(&mut target, 0.);
         }
-        assert_eq!(text.sections[0].style.color, Color::RED);
+        assert_eq!(text.sections[0].style.color, RED.into());
 
         {
             let mut added = Tick::new(0);
@@ -444,7 +446,7 @@ mod tests {
 
             lens.lerp(&mut target, 1.);
         }
-        assert_eq!(text.sections[0].style.color, Color::BLUE);
+        assert_eq!(text.sections[0].style.color, BLUE.into());
 
         {
             let mut added = Tick::new(0);
@@ -459,11 +461,14 @@ mod tests {
 
             lens.lerp(&mut target, 0.3);
         }
-        assert_eq!(text.sections[0].style.color, Color::rgba(0.7, 0., 0.3, 1.0));
+        assert_eq!(
+            text.sections[0].style.color,
+            Color::srgba(0.7, 0., 0.3, 1.0)
+        );
 
         let mut lens_section1 = TextColorLens {
-            start: Color::RED,
-            end: Color::BLUE,
+            start: RED.into(),
+            end: BLUE.into(),
             section: 1,
         };
 
@@ -481,7 +486,10 @@ mod tests {
             lens_section1.lerp(&mut target, 1.);
         }
         // Should not have changed because the lens targets section 1
-        assert_eq!(text.sections[0].style.color, Color::rgba(0.7, 0., 0.3, 1.0));
+        assert_eq!(
+            text.sections[0].style.color,
+            Color::srgba(0.7, 0., 0.3, 1.0)
+        );
 
         text.sections.push(TextSection {
             value: "".to_string(),
@@ -501,7 +509,10 @@ mod tests {
 
             lens_section1.lerp(&mut target, 0.3);
         }
-        assert_eq!(text.sections[1].style.color, Color::rgba(0.7, 0., 0.3, 1.0));
+        assert_eq!(
+            text.sections[1].style.color,
+            Color::srgba(0.7, 0., 0.3, 1.0)
+        );
     }
 
     #[test]
@@ -995,9 +1006,11 @@ mod tests {
     #[cfg(all(feature = "bevy_sprite", feature = "bevy_asset"))]
     #[test]
     fn colormaterial_color() {
+        use bevy::color::palettes::css::{BLUE, RED};
+
         let mut lens = ColorMaterialColorLens {
-            start: Color::RED,
-            end: Color::BLUE,
+            start: RED.into(),
+            end: BLUE.into(),
         };
         let mut assets = Assets::default();
         let handle = assets.add(ColorMaterial {
@@ -1019,7 +1032,7 @@ mod tests {
 
             lens.lerp(&mut target, 0.);
         }
-        assert_eq!(assets.get(handle.clone()).unwrap().color, Color::RED);
+        assert_eq!(assets.get(handle.id()).unwrap().color, RED.into());
 
         {
             let mut added = Tick::new(0);
@@ -1035,7 +1048,7 @@ mod tests {
 
             lens.lerp(&mut target, 1.);
         }
-        assert_eq!(assets.get(handle.clone()).unwrap().color, Color::BLUE);
+        assert_eq!(assets.get(handle.id()).unwrap().color, BLUE.into());
 
         {
             let mut added = Tick::new(0);
@@ -1052,17 +1065,19 @@ mod tests {
             lens.lerp(&mut target, 0.3);
         }
         assert_eq!(
-            assets.get(handle).unwrap().color,
-            Color::rgba(0.7, 0., 0.3, 1.0)
+            assets.get(handle.id()).unwrap().color,
+            Color::srgba(0.7, 0., 0.3, 1.0)
         );
     }
 
     #[cfg(feature = "bevy_sprite")]
     #[test]
     fn sprite_color() {
+        use bevy::color::palettes::css::{BLUE, RED};
+
         let mut lens = SpriteColorLens {
-            start: Color::RED,
-            end: Color::BLUE,
+            start: RED.into(),
+            end: BLUE.into(),
         };
         let mut sprite = Sprite {
             color: Color::WHITE,
@@ -1082,7 +1097,7 @@ mod tests {
 
             lens.lerp(&mut target, 0.);
         }
-        assert_eq!(sprite.color, Color::RED);
+        assert_eq!(sprite.color, RED.into());
 
         {
             let mut added = Tick::new(0);
@@ -1097,7 +1112,7 @@ mod tests {
 
             lens.lerp(&mut target, 1.);
         }
-        assert_eq!(sprite.color, Color::BLUE);
+        assert_eq!(sprite.color, BLUE.into());
 
         {
             let mut added = Tick::new(0);
@@ -1112,6 +1127,6 @@ mod tests {
 
             lens.lerp(&mut target, 0.3);
         }
-        assert_eq!(sprite.color, Color::rgba(0.7, 0., 0.3, 1.0));
+        assert_eq!(sprite.color, Color::srgba(0.7, 0., 0.3, 1.0));
     }
 }

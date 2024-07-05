@@ -585,11 +585,13 @@ trait ColorLerper {
 #[cfg(any(feature = "bevy_sprite", feature = "bevy_ui", feature = "bevy_text"))]
 impl ColorLerper for Color {
     fn lerp(&self, target: &Color, ratio: f32) -> Color {
-        let r = self.r().lerp(target.r(), ratio);
-        let g = self.g().lerp(target.g(), ratio);
-        let b = self.b().lerp(target.b(), ratio);
-        let a = self.a().lerp(target.a(), ratio);
-        Color::rgba(r, g, b, a)
+        let linear = self.to_linear();
+        let target = target.to_linear();
+        let r = linear.red.lerp(target.red, ratio);
+        let g = linear.green.lerp(target.green, ratio);
+        let b = linear.blue.lerp(target.blue, ratio);
+        let a = linear.alpha.lerp(target.alpha, ratio);
+        Color::linear_rgba(r, g, b, a)
     }
 }
 
@@ -680,7 +682,7 @@ mod tests {
 
                 l.lerp(&mut target, r);
             }
-            assert_approx_eq!(assets.get(handle.clone()).unwrap().value, r);
+            assert_approx_eq!(assets.get(handle.id()).unwrap().value, r);
         }
     }
 
