@@ -1,8 +1,8 @@
+use bevy::{color::palettes::css::*, prelude::*};
+use bevy_tweening::{lens::*, *};
 use std::time::Duration;
 
-use bevy::prelude::*;
-
-use bevy_tweening::{lens::*, *};
+mod utils;
 
 fn main() {
     App::default()
@@ -15,7 +15,7 @@ fn main() {
             }),
             ..default()
         }))
-        .add_systems(Update, bevy::window::close_on_esc)
+        .add_systems(Update, utils::close_on_esc)
         .add_plugins(TweeningPlugin)
         .add_systems(Startup, setup)
         .add_systems(Update, update_text)
@@ -41,12 +41,12 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let text_style_red = TextStyle {
         font: font.clone(),
         font_size: 50.0,
-        color: Color::RED,
+        color: RED.into(),
     };
     let text_style_blue = TextStyle {
         font,
         font_size: 50.0,
-        color: Color::BLUE,
+        color: BLUE.into(),
     };
 
     let justify = JustifyText::Center;
@@ -142,7 +142,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((
         SpriteBundle {
             sprite: Sprite {
-                color: Color::RED,
+                color: RED.into(),
                 custom_size: Some(Vec2::new(size, size)),
                 ..default()
             },
@@ -189,7 +189,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((
         SpriteBundle {
             sprite: Sprite {
-                color: Color::BLUE,
+                color: BLUE.into(),
                 custom_size: Some(Vec2::new(size * 3., size)),
                 ..default()
             },

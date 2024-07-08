@@ -1,5 +1,7 @@
-use bevy::prelude::*;
+use bevy::{color::palettes::css::*, prelude::*};
 use bevy_tweening::{lens::*, *};
+
+mod utils;
 
 fn main() {
     App::default()
@@ -12,7 +14,7 @@ fn main() {
             }),
             ..default()
         }))
-        .add_systems(Update, bevy::window::close_on_esc)
+        .add_systems(Update, utils::close_on_esc)
         .add_plugins(TweeningPlugin)
         .add_systems(Startup, setup)
         .run();
@@ -65,8 +67,8 @@ fn setup(mut commands: Commands) {
             *ease_function,
             std::time::Duration::from_secs(1),
             SpriteColorLens {
-                start: Color::RED,
-                end: Color::BLUE,
+                start: RED.into(),
+                end: BLUE.into(),
             },
         )
         .with_repeat_count(RepeatCount::Infinite)
