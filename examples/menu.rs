@@ -1,12 +1,14 @@
-use bevy::prelude::*;
+use bevy::{color::palettes::css::*, prelude::*};
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_tweening::{lens::*, *};
 use std::time::Duration;
 
-const NORMAL_COLOR: Color = Color::rgba(162. / 255., 226. / 255., 95. / 255., 1.);
-const HOVER_COLOR: Color = Color::AZURE;
-const CLICK_COLOR: Color = Color::ALICE_BLUE;
-const TEXT_COLOR: Color = Color::rgba(83. / 255., 163. / 255., 130. / 255., 1.);
+mod utils;
+
+const NORMAL_COLOR: Color = Color::srgba(162. / 255., 226. / 255., 95. / 255., 1.);
+const HOVER_COLOR: Color = Color::Srgba(AZURE);
+const CLICK_COLOR: Color = Color::Srgba(ALICE_BLUE);
+const TEXT_COLOR: Color = Color::srgba(83. / 255., 163. / 255., 130. / 255., 1.);
 const INIT_TRANSITION_DONE: u64 = 1;
 
 /// The menu in this example has two set of animations:
@@ -31,7 +33,7 @@ fn main() {
             }),
             ..default()
         }))
-        .add_systems(Update, bevy::window::close_on_esc)
+        .add_systems(Update, utils::close_on_esc)
         .add_systems(Update, interaction)
         .add_systems(Update, enable_interaction_after_initial_animation)
         .add_plugins(TweeningPlugin)

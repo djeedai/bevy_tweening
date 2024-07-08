@@ -1,9 +1,12 @@
 use bevy::{
+    color::palettes::css::*,
     prelude::*,
     sprite::{MaterialMesh2dBundle, Mesh2dHandle},
 };
 use bevy_tweening::{lens::*, *};
 use std::time::Duration;
+
+mod utils;
 
 fn main() {
     App::default()
@@ -16,7 +19,7 @@ fn main() {
             }),
             ..default()
         }))
-        .add_systems(Update, bevy::window::close_on_esc)
+        .add_systems(Update, utils::close_on_esc)
         .add_plugins(TweeningPlugin)
         .add_systems(Startup, setup)
         .run();
@@ -81,8 +84,8 @@ fn setup(
             *ease_function,
             Duration::from_secs(1),
             ColorMaterialColorLens {
-                start: Color::RED,
-                end: Color::BLUE,
+                start: RED.into(),
+                end: BLUE.into(),
             },
         )
         .with_repeat_count(RepeatCount::Infinite)
