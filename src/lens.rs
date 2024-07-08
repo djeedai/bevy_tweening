@@ -379,11 +379,11 @@ impl Lens<Sprite> for SpriteColorLens {
 
 #[cfg(test)]
 mod tests {
-    use bevy::{
-        color::palettes::css::{BLUE, RED},
-        ecs::component::Tick,
-    };
+    use bevy::ecs::component::Tick;
     use std::f32::consts::TAU;
+
+    #[cfg(any(feature = "bevy_sprite", feature = "bevy_text"))]
+    use bevy::color::palettes::css::{BLUE, RED};
 
     use super::*;
 
