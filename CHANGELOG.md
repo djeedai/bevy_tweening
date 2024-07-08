@@ -3,10 +3,11 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.11.0] - 2024-07-08
 
 ### Changed
 
+- Compatible with Bevy 0.14
 - `Lens::lerp()` now takes a `&mut dyn Targetable<T>` instead of `&mut T`.
   This ensures the lens can skip change detection if needed.
   `Targetable<T>` conceptually acts like a `Mut<T>`, but allows encapsulating assets too.

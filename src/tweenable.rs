@@ -273,7 +273,7 @@ impl<'a, T: Asset> AssetTarget<'a, T> {
 
     /// Check if the current target is valid given the value of [`handle`].
     ///
-    /// [`handle`]: self::handle
+    /// [`handle`]: AssetTarget::handle
     pub fn is_valid(&self) -> bool {
         self.assets.contains(&self.handle)
     }
@@ -583,9 +583,10 @@ impl<T> Tween<T> {
 
     /// Enable running a one-shot system upon completion.
     ///
-    /// If enabled, the tween will run a system via a provided [`SystemId`] when the
-    /// animation completes. This is similar to the [`with_completed()`],
-    /// but uses a system registered by [`register_system()`] instead of a callback.
+    /// If enabled, the tween will run a system via a provided [`SystemId`] when
+    /// the animation completes. This is similar to the
+    /// [`with_completed()`], but uses a system registered by
+    /// [`register_system()`] instead of a callback.
     ///
     /// # Example
     ///
@@ -716,9 +717,10 @@ impl<T> Tween<T> {
 
     /// Enable running a one-shot system upon completion.
     ///
-    /// If enabled, the tween will run a system via a provided [`SystemId`] when the
-    /// animation completes. This is similar to the [`with_completed()`],
-    /// but uses a system registered by [`register_system()`] instead of a callback.
+    /// If enabled, the tween will run a system via a provided [`SystemId`] when
+    /// the animation completes. This is similar to the
+    /// [`with_completed()`], but uses a system registered by
+    /// [`register_system()`] instead of a callback.
     ///
     /// [`with_completed()`]: Tween::with_completed
     /// [`register_system()`]: bevy::ecs::world::World::register_system
@@ -1145,7 +1147,7 @@ impl<T> Delay<T> {
     /// });
     /// ```
     ///
-    /// [`with_completed_event()`]: Tween::with_completed_event
+    /// [`with_completed_event()`]: Delay::with_completed_event
     pub fn with_completed<C>(mut self, callback: C) -> Self
     where
         C: Fn(Entity, &Self) + Send + Sync + 'static,
@@ -1156,9 +1158,10 @@ impl<T> Delay<T> {
 
     /// Enable running a one-shot system upon completion.
     ///
-    /// If enabled, the tween will run a system via a provided [`SystemId`] when the
-    /// animation completes. This is similar to the [`with_completed()`],
-    /// but uses a system registered by [`register_system()`] instead.
+    /// If enabled, the tween will run a system via a provided [`SystemId`] when
+    /// the animation completes. This is similar to the
+    /// [`with_completed()`], but uses a system registered by
+    /// [`register_system()`] instead.
     ///
     /// # Example
     ///
@@ -1186,7 +1189,7 @@ impl<T> Delay<T> {
     /// }
     /// ```
     ///
-    /// [`with_completed()`]: Tween::with_completed
+    /// [`with_completed()`]: Delay::with_completed
     /// [`register_system()`]: bevy::ecs::world::World::register_system
     #[must_use]
     pub fn with_completed_system(mut self, system_id: SystemId) -> Self {
@@ -1226,7 +1229,7 @@ impl<T> Delay<T> {
     ///
     /// See also [`set_completed()`].
     ///
-    /// [`set_completed()`]: Tween::set_completed
+    /// [`set_completed()`]: Delay::set_completed
     pub fn clear_completed(&mut self) {
         self.on_completed = None;
     }
@@ -1239,8 +1242,8 @@ impl<T> Delay<T> {
     ///
     /// See [`with_completed_event()`] for details.
     ///
-    /// [`set_completed()`]: Tween::set_completed
-    /// [`with_completed_event()`]: Tween::with_completed_event
+    /// [`set_completed()`]: Delay::set_completed
+    /// [`with_completed_event()`]: Delay::with_completed_event
     pub fn set_completed_event(&mut self, user_data: u64) {
         self.event_data = Some(user_data);
     }
@@ -1249,20 +1252,22 @@ impl<T> Delay<T> {
     ///
     /// See also [`set_completed_event()`].
     ///
-    /// [`set_completed_event()`]: Tween::set_completed_event
+    /// [`set_completed_event()`]: Delay::set_completed_event
     pub fn clear_completed_event(&mut self) {
         self.event_data = None;
     }
 
     /// Enable running a one-shot system upon completion.
     ///
-    /// If enabled, the tween will run a system via a provided [`SystemId`] when the
-    /// animation completes. This is similar to the [`with_completed()`],
-    /// but uses a system registered by [`register_system()`] instead of a callback.
+    /// If enabled, the tween will run a system via a provided [`SystemId`] when
+    /// the animation completes. This is similar to the
+    /// [`with_completed()`], but uses a system registered by
+    /// [`register_system()`] instead of a callback.
     ///
     /// See [`with_completed_system()`] for details.
     ///
-    /// [`with_completed()`]: Tween::with_completed
+    /// [`with_completed()`]: Delay::with_completed
+    /// [`with_completed_system()`]: Delay::with_completed_system
     /// [`register_system()`]: bevy::ecs::world::World::register_system
     pub fn set_completed_system(&mut self, system_id: SystemId) {
         self.system_id = Some(system_id);
@@ -1272,7 +1277,7 @@ impl<T> Delay<T> {
     ///
     /// See also [`set_completed_system()`].
     ///
-    /// [`clear_completed_system()`]: Tween::clear_completed_system
+    /// [`set_completed_system()`]: Delay::set_completed_system
     pub fn clear_completed_system(&mut self) {
         self.system_id = None;
     }
