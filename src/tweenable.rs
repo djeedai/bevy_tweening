@@ -1,6 +1,9 @@
-use std::{ops::DerefMut, time::Duration};
+use std::{
+    ops::{Deref, DerefMut},
+    time::Duration,
+};
 
-use bevy::prelude::*;
+use bevy::{ecs::system::SystemId, prelude::*};
 
 #[cfg(feature = "bevy_asset")]
 use bevy::asset::{Asset, AssetId};
@@ -25,6 +28,7 @@ use crate::{EaseMethod, Lens, RepeatCount, RepeatStrategy, TweenSettings, Tweeni
 /// implement [`From`]:
 /// ```no_run
 /// # use std::time::Duration;
+/// # use bevy::ecs::system::Commands;
 /// # use bevy::prelude::{Entity, Events, Mut, Transform};
 /// # use bevy_tweening::{TweenSettings, BoxedTweenable, Sequence, Tweenable, TweenCompleted, TweenState, Targetable, TotalDuration};
 /// #
@@ -34,7 +38,7 @@ use crate::{EaseMethod, Lens, RepeatCount, RepeatStrategy, TweenSettings, Tweeni
 /// #     fn total_duration(&self) -> TotalDuration  { unimplemented!() }
 /// #     fn set_elapsed(&mut self, elapsed: Duration)  { unimplemented!() }
 /// #     fn elapsed(&self) -> Duration  { unimplemented!() }
-/// #     fn tick<'a>(&mut self, delta: Duration, target: &'a mut dyn Targetable<Transform>, entity: Entity, events: &mut Mut<Events<TweenCompleted>>, settings: &TweenSettings) -> TweenState  { unimplemented!() }
+/// #     fn tick<'a>(&mut self, delta: Duration, target: &'a mut dyn Targetable<Transform>, entity: Entity, events: &mut Mut<Events<TweenCompleted>>, commands: &mut Commands, settings: &TweenSettings) -> TweenState  { unimplemented!() }
 /// #     fn rewind(&mut self) { unimplemented!() }
 /// # }
 ///
@@ -202,42 +206,77 @@ fn compute_total_duration(duration: Duration, count: RepeatCount) -> TotalDurati
 /// Trait to workaround the discrepancies of the change detection mechanisms of
 /// assets and components.
 pub trait Targetable<T> {
+    /// Dereference the target and return a reference.
+    fn target(&self) -> &T;
+
     /// Dereference the target, triggering any change detection, and return a
     /// mutable reference.
     fn target_mut(&mut self) -> &mut T;
 }
 
+impl<'a, T: 'a> Deref for dyn Targetable<T> + 'a {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        self.target()
+    }
+}
+
+impl<'a, T: 'a> DerefMut for dyn Targetable<T> + 'a {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.target_mut()
+    }
+}
+
+/// Implementation of [`Targetable`] for a [`Component`].
 pub struct ComponentTarget<'a, T: Component> {
     target: Mut<'a, T>,
 }
 
 impl<'a, T: Component> ComponentTarget<'a, T> {
+    /// Create a new instance from a [`Component`].
     pub fn new(target: Mut<'a, T>) -> Self {
         Self { target }
+    }
+
+    /// Get a [`Mut`] for the current target.
+    #[allow(dead_code)] // used mainly in tests
+    pub fn to_mut(&mut self) -> Mut<'_, T> {
+        self.target.reborrow()
     }
 }
 
 impl<'a, T: Component> Targetable<T> for ComponentTarget<'a, T> {
+    fn target(&self) -> &T {
+        self.target.deref()
+    }
+
     fn target_mut(&mut self) -> &mut T {
         self.target.deref_mut()
     }
 }
 
+/// Implementation of [`Targetable`] for an [`Asset`].
 #[cfg(feature = "bevy_asset")]
 pub struct AssetTarget<'a, T: Asset> {
-    assets: ResMut<'a, Assets<T>>,
+    assets: Mut<'a, Assets<T>>,
+    /// Handle to the asset to mutate.
     pub handle: Handle<T>,
 }
 
 #[cfg(feature = "bevy_asset")]
 impl<'a, T: Asset> AssetTarget<'a, T> {
-    pub fn new(assets: ResMut<'a, Assets<T>>) -> Self {
+    /// Create a new instance from an [`Assets`].
+    pub fn new(assets: Mut<'a, Assets<T>>) -> Self {
         Self {
             assets,
             handle: Handle::Weak(AssetId::default()),
         }
     }
 
+    /// Check if the current target is valid given the value of [`handle`].
+    ///
+    /// [`handle`]: AssetTarget::handle
     pub fn is_valid(&self) -> bool {
         self.assets.contains(&self.handle)
     }
@@ -245,6 +284,10 @@ impl<'a, T: Asset> AssetTarget<'a, T> {
 
 #[cfg(feature = "bevy_asset")]
 impl<'a, T: Asset> Targetable<T> for AssetTarget<'a, T> {
+    fn target(&self) -> &T {
+        self.assets.get(&self.handle).unwrap()
+    }
+
     fn target_mut(&mut self) -> &mut T {
         self.assets.get_mut(&self.handle).unwrap()
     }
@@ -315,6 +358,7 @@ pub trait Tweenable<T>: Send + Sync {
         target: &mut dyn Targetable<T>,
         entity: Entity,
         events: &mut Mut<Events<TweenCompleted>>,
+        commands: &mut Commands,
         settings: &TweenSettings,
     ) -> TweenState;
 
@@ -396,6 +440,7 @@ pub struct Tween<T> {
     lens: Box<dyn Lens<T> + Send + Sync + 'static>,
     on_completed: Option<Box<CompletedCallback<Tween<T>>>>,
     event_data: Option<u64>,
+    system_id: Option<SystemId>,
 }
 
 impl<T: 'static> Tween<T> {
@@ -460,6 +505,7 @@ impl<T> Tween<T> {
             lens: Box::new(lens),
             on_completed: None,
             event_data: None,
+            system_id: None,
         }
     }
 
@@ -487,7 +533,7 @@ impl<T> Tween<T> {
     /// .with_completed_event(42);
     ///
     /// fn my_system(mut reader: EventReader<TweenCompleted>) {
-    ///   for ev in reader.iter() {
+    ///   for ev in reader.read() {
     ///     assert_eq!(ev.user_data, 42);
     ///     println!("Entity {:?} raised TweenCompleted!", ev.entity);
     ///   }
@@ -536,6 +582,46 @@ impl<T> Tween<T> {
         C: Fn(Entity, &Self) + Send + Sync + 'static,
     {
         self.on_completed = Some(Box::new(callback));
+        self
+    }
+
+    /// Enable running a one-shot system upon completion.
+    ///
+    /// If enabled, the tween will run a system via a provided [`SystemId`] when
+    /// the animation completes. This is similar to the
+    /// [`with_completed()`], but uses a system registered by
+    /// [`register_system()`] instead of a callback.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use bevy_tweening::{lens::*, *};
+    /// # use bevy::{ecs::event::EventReader, math::Vec3, ecs::world::World, ecs::system::Query, ecs::entity::Entity, ecs::query::With};
+    /// # use std::time::Duration;
+    /// let mut world = World::new();
+    /// let test_system_system_id = world.register_system(test_system);
+    /// let tween = Tween::new(
+    ///     // [...]
+    /// #    EaseFunction::QuadraticInOut,
+    /// #    Duration::from_secs(1),
+    /// #    TransformPositionLens {
+    /// #        start: Vec3::ZERO,
+    /// #        end: Vec3::new(3.5, 0., 0.),
+    /// #    },
+    /// )
+    /// .with_completed_system(test_system_system_id);
+    ///
+    /// fn test_system(query: Query<Entity>) {
+    ///    for entity in query.iter() {
+    ///       println!("Found an entity!");
+    ///    }
+    /// }
+    /// ```
+    /// [`with_completed()`]: Tween::with_completed
+    /// [`register_system()`]: bevy::ecs::world::World::register_system
+    #[must_use]
+    pub fn with_completed_system(mut self, system_id: SystemId) -> Self {
+        self.system_id = Some(system_id);
         self
     }
 
@@ -632,6 +718,28 @@ impl<T> Tween<T> {
     pub fn clear_completed_event(&mut self) {
         self.event_data = None;
     }
+
+    /// Enable running a one-shot system upon completion.
+    ///
+    /// If enabled, the tween will run a system via a provided [`SystemId`] when
+    /// the animation completes. This is similar to the
+    /// [`with_completed()`], but uses a system registered by
+    /// [`register_system()`] instead of a callback.
+    ///
+    /// [`with_completed()`]: Tween::with_completed
+    /// [`register_system()`]: bevy::ecs::world::World::register_system
+    pub fn set_completed_system(&mut self, user_data: SystemId) {
+        self.system_id = Some(user_data);
+    }
+
+    /// Clear the system that will execute when the animation completes.
+    ///
+    /// See also [`set_completed_system()`].
+    ///
+    /// [`set_completed_system()`]: Tween::set_completed_system
+    pub fn clear_completed_system(&mut self) {
+        self.system_id = None;
+    }
 }
 
 impl<T> Tweenable<T> for Tween<T> {
@@ -657,13 +765,13 @@ impl<T> Tweenable<T> for Tween<T> {
         target: &mut dyn Targetable<T>,
         entity: Entity,
         events: &mut Mut<Events<TweenCompleted>>,
+        commands: &mut Commands,
         settings: &TweenSettings,
     ) -> TweenState {
         if self.clock.state() == TweenState::Completed {
             return TweenState::Completed;
         }
 
-        let target = target.target_mut();
         let times_completed_before = self.times_completed();
 
         // Check for the start of the tween
@@ -708,6 +816,9 @@ impl<T> Tweenable<T> for Tween<T> {
             }
             if let Some(cb) = &self.on_completed {
                 cb(entity, self);
+            }
+            if let Some(system_id) = &self.system_id {
+                commands.run_system(*system_id);
             }
         }
 
@@ -850,13 +961,16 @@ impl<T> Tweenable<T> for Sequence<T> {
         target: &mut dyn Targetable<T>,
         entity: Entity,
         events: &mut Mut<Events<TweenCompleted>>,
+        commands: &mut Commands,
         settings: &TweenSettings,
     ) -> TweenState {
         self.elapsed = self.elapsed.saturating_add(delta).min(self.duration);
         while self.index < self.tweens.len() {
             let tween = &mut self.tweens[self.index];
             let tween_remaining = tween.duration() - tween.elapsed();
-            if let TweenState::Active = tween.tick(delta, target, entity, events, settings) {
+            if let TweenState::Active =
+                tween.tick(delta, target, entity, events, commands, settings)
+            {
                 return TweenState::Active;
             }
 
@@ -932,12 +1046,13 @@ impl<T> Tweenable<T> for Tracks<T> {
         target: &mut dyn Targetable<T>,
         entity: Entity,
         events: &mut Mut<Events<TweenCompleted>>,
+        commands: &mut Commands,
         settings: &TweenSettings,
     ) -> TweenState {
         self.elapsed = self.elapsed.saturating_add(delta).min(self.duration);
         let mut any_active = false;
         for tweenable in &mut self.tracks {
-            let state = tweenable.tick(delta, target, entity, events, settings);
+            let state = tweenable.tick(delta, target, entity, events, commands, settings);
             any_active = any_active || (state == TweenState::Active);
         }
         if any_active {
@@ -965,6 +1080,7 @@ pub struct Delay<T> {
     timer: Timer,
     on_completed: Option<Box<CompletedCallback<Delay<T>>>>,
     event_data: Option<u64>,
+    system_id: Option<SystemId>,
 }
 
 impl<T: 'static> Delay<T> {
@@ -989,6 +1105,7 @@ impl<T> Delay<T> {
             timer: Timer::new(duration, TimerMode::Once),
             on_completed: None,
             event_data: None,
+            system_id: None,
         }
     }
 
@@ -1008,7 +1125,7 @@ impl<T> Delay<T> {
     ///   .with_completed_event(42);
     ///
     /// fn my_system(mut reader: EventReader<TweenCompleted>) {
-    ///   for ev in reader.iter() {
+    ///   for ev in reader.read() {
     ///     assert_eq!(ev.user_data, 42);
     ///     println!("Entity {:?} raised TweenCompleted!", ev.entity);
     ///   }
@@ -1052,12 +1169,53 @@ impl<T> Delay<T> {
     /// });
     /// ```
     ///
-    /// [`with_completed_event()`]: Tween::with_completed_event
+    /// [`with_completed_event()`]: Delay::with_completed_event
     pub fn with_completed<C>(mut self, callback: C) -> Self
     where
         C: Fn(Entity, &Self) + Send + Sync + 'static,
     {
         self.on_completed = Some(Box::new(callback));
+        self
+    }
+
+    /// Enable running a one-shot system upon completion.
+    ///
+    /// If enabled, the tween will run a system via a provided [`SystemId`] when
+    /// the animation completes. This is similar to the
+    /// [`with_completed()`], but uses a system registered by
+    /// [`register_system()`] instead.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use bevy_tweening::{lens::*, *};
+    /// # use bevy::{ecs::event::EventReader, math::Vec3, ecs::world::World, ecs::system::Query, ecs::entity::Entity};
+    /// # use std::time::Duration;
+    /// let mut world = World::new();
+    /// let test_system_system_id = world.register_system(test_system);
+    /// let tween = Tween::new(
+    ///     // [...]
+    /// #    EaseFunction::QuadraticInOut,
+    /// #    Duration::from_secs(1),
+    /// #    TransformPositionLens {
+    /// #        start: Vec3::ZERO,
+    /// #        end: Vec3::new(3.5, 0., 0.),
+    /// #    },
+    /// )
+    /// .with_completed_system(test_system_system_id);
+    ///
+    /// fn test_system(query: Query<Entity>) {
+    ///    for entity in query.iter() {
+    ///       println!("Found an Entity!");
+    ///    }
+    /// }
+    /// ```
+    ///
+    /// [`with_completed()`]: Delay::with_completed
+    /// [`register_system()`]: bevy::ecs::world::World::register_system
+    #[must_use]
+    pub fn with_completed_system(mut self, system_id: SystemId) -> Self {
+        self.system_id = Some(system_id);
         self
     }
 
@@ -1093,7 +1251,7 @@ impl<T> Delay<T> {
     ///
     /// See also [`set_completed()`].
     ///
-    /// [`set_completed()`]: Tween::set_completed
+    /// [`set_completed()`]: Delay::set_completed
     pub fn clear_completed(&mut self) {
         self.on_completed = None;
     }
@@ -1106,8 +1264,8 @@ impl<T> Delay<T> {
     ///
     /// See [`with_completed_event()`] for details.
     ///
-    /// [`set_completed()`]: Tween::set_completed
-    /// [`with_completed_event()`]: Tween::with_completed_event
+    /// [`set_completed()`]: Delay::set_completed
+    /// [`with_completed_event()`]: Delay::with_completed_event
     pub fn set_completed_event(&mut self, user_data: u64) {
         self.event_data = Some(user_data);
     }
@@ -1116,9 +1274,34 @@ impl<T> Delay<T> {
     ///
     /// See also [`set_completed_event()`].
     ///
-    /// [`set_completed_event()`]: Tween::set_completed_event
+    /// [`set_completed_event()`]: Delay::set_completed_event
     pub fn clear_completed_event(&mut self) {
         self.event_data = None;
+    }
+
+    /// Enable running a one-shot system upon completion.
+    ///
+    /// If enabled, the tween will run a system via a provided [`SystemId`] when
+    /// the animation completes. This is similar to the
+    /// [`with_completed()`], but uses a system registered by
+    /// [`register_system()`] instead of a callback.
+    ///
+    /// See [`with_completed_system()`] for details.
+    ///
+    /// [`with_completed()`]: Delay::with_completed
+    /// [`with_completed_system()`]: Delay::with_completed_system
+    /// [`register_system()`]: bevy::ecs::world::World::register_system
+    pub fn set_completed_system(&mut self, system_id: SystemId) {
+        self.system_id = Some(system_id);
+    }
+
+    /// Clear the system that will execute when the animation completes.
+    ///
+    /// See also [`set_completed_system()`].
+    ///
+    /// [`set_completed_system()`]: Delay::set_completed_system
+    pub fn clear_completed_system(&mut self) {
+        self.system_id = None;
     }
 }
 
@@ -1149,6 +1332,7 @@ impl<T> Tweenable<T> for Delay<T> {
         _target: &mut dyn Targetable<T>,
         entity: Entity,
         events: &mut Mut<Events<TweenCompleted>>,
+        commands: &mut Commands,
         settings: &TweenSettings,
     ) -> TweenState {
         let was_completed = self.is_completed();
@@ -1168,6 +1352,9 @@ impl<T> Tweenable<T> for Delay<T> {
             if let Some(cb) = &self.on_completed {
                 cb(entity, self);
             }
+            if let Some(system_id) = &self.system_id {
+                commands.run_system(*system_id);
+            }
         }
 
         state
@@ -1180,12 +1367,9 @@ impl<T> Tweenable<T> for Delay<T> {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        sync::{Arc, Mutex},
-        time::Duration,
-    };
+    use std::sync::{Arc, Mutex};
 
-    use bevy::ecs::{event::Events, system::SystemState};
+    use bevy::ecs::{component::Tick, event::Events, system::SystemState, world::CommandQueue};
 
     use super::*;
     use crate::{lens::*, test_utils::*};
@@ -1209,12 +1393,16 @@ mod tests {
     }
 
     /// Utility to create a test environment to tick a tween.
-    fn make_test_env() -> (World, Entity) {
+    fn make_test_env() -> (World, Entity, SystemId) {
         let mut world = World::new();
         world.init_resource::<Events<TweenCompleted>>();
         let entity = world.spawn(Transform::default()).id();
-        (world, entity)
+        let system_id = world.register_system(oneshot_test);
+        (world, entity, system_id)
     }
+
+    /// one-shot system to be used for testing
+    fn oneshot_test() {}
 
     /// Manually tick a test tweenable targeting a component.
     fn manual_tick_component<T: Component>(
@@ -1228,9 +1416,51 @@ mod tests {
             |world: &mut World, mut events: Mut<Events<TweenCompleted>>| {
                 let transform = world.get_mut::<T>(entity).unwrap();
                 let mut target = ComponentTarget::new(transform);
-                tween.tick(duration, &mut target, entity, &mut events, &settings)
+                tween.tick(
+                    duration,
+                    &mut target,
+                    entity,
+                    &mut events,
+                    // passing dummy values to let things compile
+                    &mut Commands::new(&mut CommandQueue::default(), &World::default()),
+                    settings,
+                )
             },
         )
+    }
+
+    #[derive(Debug, Default, Clone, Copy, Component)]
+    struct DummyComponent {
+        _value: f32,
+    }
+
+    #[test]
+    fn targetable_change_detect() {
+        let mut c = DummyComponent::default();
+        let mut added = Tick::new(0);
+        let mut last_changed = Tick::new(0);
+        let mut target = ComponentTarget::new(Mut::new(
+            &mut c,
+            &mut added,
+            &mut last_changed,
+            Tick::new(0),
+            Tick::new(1),
+        ));
+        let mut target = target.to_mut();
+
+        // No-op at start
+        assert!(!target.is_added());
+        assert!(!target.is_changed());
+
+        // Immutable deref doesn't trigger change detection
+        let _ = target.deref();
+        assert!(!target.is_added());
+        assert!(!target.is_changed());
+
+        // Mutable deref triggers change detection
+        let _ = target.deref_mut();
+        assert!(!target.is_added());
+        assert!(target.is_changed());
     }
 
     #[test]
@@ -1319,7 +1549,7 @@ mod tests {
                 assert!(tween.on_completed.is_none());
                 assert!(tween.event_data.is_none());
 
-                let (mut world, entity) = make_test_env();
+                let (mut world, entity, system_id) = make_test_env();
                 let settings = TweenSettings::default();
                 let mut event_reader_system_state: SystemState<EventReader<TweenCompleted>> =
                     SystemState::new(&mut world);
@@ -1343,6 +1573,11 @@ mod tests {
                 tween.set_completed_event(USER_DATA);
                 assert!(tween.event_data.is_some());
                 assert_eq!(tween.event_data.unwrap(), USER_DATA);
+
+                // Activate oneshot system
+                tween.set_completed_system(system_id);
+                assert!(tween.system_id.is_some());
+                assert_eq!(tween.system_id.unwrap(), system_id);
 
                 // Loop over 2.2 seconds, so greater than one ping-pong loop
                 let tick_duration = Duration::from_millis(200);
@@ -1536,6 +1771,10 @@ mod tests {
                 // Clear event sending
                 tween.clear_completed_event();
                 assert!(tween.event_data.is_none());
+
+                // Clear oneshot system
+                tween.clear_completed_system();
+                assert!(tween.system_id.is_none());
             }
         }
     }
@@ -1568,7 +1807,7 @@ mod tests {
         // progress is independent of direction
         assert_approx_eq!(tween.progress(), 0.3);
 
-        let (mut world, entity) = make_test_env();
+        let (mut world, entity, _system_id) = make_test_env();
 
         // Progress always increases alongside the current direction
         tween.set_direction(TweeningDirection::Backward);
@@ -1629,7 +1868,7 @@ mod tests {
         );
         let mut seq = tween1.then(tween2);
 
-        let (mut world, entity) = make_test_env();
+        let (mut world, entity, _system_id) = make_test_env();
         let settings = TweenSettings::default();
 
         for i in 1..=16 {
@@ -1677,7 +1916,7 @@ mod tests {
             .with_repeat_count(RepeatCount::Finite(1))
         }));
 
-        let (mut world, entity) = make_test_env();
+        let (mut world, entity, _system_id) = make_test_env();
         let settings = TweenSettings::default();
 
         // Tick halfway through the first tween, then in one tick:
@@ -1791,7 +2030,7 @@ mod tests {
         let mut tracks = Tracks::new([tween1, tween2]);
         assert_eq!(tracks.duration(), Duration::from_secs(1)); // max(1., 0.8)
 
-        let (mut world, entity) = make_test_env();
+        let (mut world, entity, _system_id) = make_test_env();
         let settings = TweenSettings::default();
 
         for i in 1..=6 {
@@ -1869,12 +2108,19 @@ mod tests {
     #[test]
     fn delay_tick() {
         let duration = Duration::from_secs(1);
+        // Dummy world and registered oneshot system ID
+        let (mut world, entity, system_id) = make_test_env();
 
         const USER_DATA: u64 = 42;
-        let mut delay = Delay::new(duration).with_completed_event(USER_DATA);
+        let mut delay = Delay::new(duration)
+            .with_completed_event(USER_DATA)
+            .with_completed_system(system_id);
 
         assert!(delay.event_data.is_some());
         assert_eq!(delay.event_data.unwrap(), USER_DATA);
+
+        assert!(delay.system_id.is_some());
+        assert_eq!(delay.system_id.unwrap(), system_id);
 
         delay.clear_completed_event();
         assert!(delay.event_data.is_none());
@@ -1883,6 +2129,13 @@ mod tests {
         assert!(delay.event_data.is_some());
         assert_eq!(delay.event_data.unwrap(), USER_DATA);
 
+        delay.clear_completed_system();
+        assert!(delay.system_id.is_none());
+
+        delay.set_completed_system(system_id);
+        assert!(delay.system_id.is_some());
+        assert_eq!(delay.system_id.unwrap(), system_id);
+
         {
             let tweenable: &dyn Tweenable<Transform> = &delay;
             assert_eq!(tweenable.duration(), duration);
@@ -1890,8 +2143,7 @@ mod tests {
             assert_eq!(tweenable.elapsed(), Duration::ZERO);
         }
 
-        // Dummy world and event writer
-        let (mut world, entity) = make_test_env();
+        // Dummy event writer
         let settings = TweenSettings::default();
         let mut event_reader_system_state: SystemState<EventReader<TweenCompleted>> =
             SystemState::new(&mut world);
@@ -2029,7 +2281,7 @@ mod tests {
 
         assert_approx_eq!(tween.progress(), 0.);
 
-        let (mut world, entity) = make_test_env();
+        let (mut world, entity, _system_id) = make_test_env();
         let settings = TweenSettings::default();
 
         // 10%
@@ -2097,7 +2349,7 @@ mod tests {
 
         assert_approx_eq!(tween.progress(), 0.);
 
-        let (mut world, entity) = make_test_env();
+        let (mut world, entity, _system_id) = make_test_env();
         let settings = TweenSettings::default();
 
         // 10%
@@ -2178,7 +2430,7 @@ mod tests {
         let mut delay = Delay::new(duration);
 
         // Dummy world and event writer
-        let (mut world, entity) = make_test_env();
+        let (mut world, entity, _) = make_test_env();
         let settings = TweenSettings {
             default_completed_event_data: Some(42),
         };
@@ -2205,7 +2457,7 @@ mod tests {
             // Check event state
             {
                 let mut event_reader = event_reader_system_state.get_mut(&mut world);
-                let event = event_reader.iter().next();
+                let event = event_reader.read().next();
                 if i == 5 {
                     assert!(event.is_some());
                     let event = event.unwrap();

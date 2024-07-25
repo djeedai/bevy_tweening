@@ -3,6 +3,35 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0] - 2024-07-08
+
+### Changed
+
+- Compatible with Bevy 0.14
+- `Lens::lerp()` now takes a `&mut dyn Targetable<T>` instead of `&mut T`.
+  This ensures the lens can skip change detection if needed.
+  `Targetable<T>` conceptually acts like a `Mut<T>`, but allows encapsulating assets too.
+  There should be no other change than the function signature to upgrade custom lenses,
+  because `dyn Targetable<T>` now implements `Defer` and `DeferMut`, so can be used in place of `&mut T`.
+- `AssetTarget::new()` now takes a simple `Mut<Assets<T>>` instead of `ResMut<Assets<T>>`.
+
+### Fixed
+
+- Fixed change detection such that lenses which do not dereference their target
+  do not unconditionally mark that target (component or asset) as changed from the point of view of ECS. (#91)
+
+### Added
+
+- Added `Targetable::target(&self) -> &T`.
+- `dyn Targetable<T>` now implements `Defer` and `DeferMut`, so can be used in place of `&T` and `&mut T`.
+- Added `ComponentTarget::to_mut(&mut self) -> Mut<'_, T>` to "reborrow" the component target as a `Mut<T>`.
+
+## [0.10.0] - 2024-02-27
+
+### Changed
+
+- Compatible with Bevy 0.13
+
 ## [0.9.0] - 2023-11-07
 
 ### Changed

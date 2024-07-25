@@ -1,6 +1,4 @@
-#[cfg(feature = "bevy_asset")]
-use bevy::asset::Asset;
-use bevy::{ecs::component::Component, prelude::*};
+use bevy::prelude::*;
 
 #[cfg(feature = "bevy_asset")]
 use crate::{tweenable::AssetTarget, AssetAnimator};
@@ -91,6 +89,7 @@ pub fn component_animator_system<T: Component>(
     time: Res<Time>,
     mut query: Query<(Entity, &mut T, &mut Animator<T>)>,
     events: ResMut<Events<TweenCompleted>>,
+    mut commands: Commands,
     settings: Res<TweenSettings>,
 ) {
     let mut events: Mut<Events<TweenCompleted>> = events.into();
@@ -103,6 +102,7 @@ pub fn component_animator_system<T: Component>(
                 &mut target,
                 entity,
                 &mut events,
+                &mut commands,
                 &settings,
             );
         }
@@ -118,13 +118,14 @@ pub fn component_animator_system<T: Component>(
 #[cfg(feature = "bevy_asset")]
 pub fn asset_animator_system<T: Asset>(
     time: Res<Time>,
-    assets: ResMut<Assets<T>>,
+    mut assets: ResMut<Assets<T>>,
     mut query: Query<(Entity, &Handle<T>, &mut AssetAnimator<T>)>,
     events: ResMut<Events<TweenCompleted>>,
+    mut commands: Commands,
     settings: Res<TweenSettings>,
 ) {
     let mut events: Mut<Events<TweenCompleted>> = events.into();
-    let mut target = AssetTarget::new(assets);
+    let mut target = AssetTarget::new(assets.reborrow());
     for (entity, handle, mut animator) in query.iter_mut() {
         if animator.state != AnimatorState::Paused {
             target.handle = handle.clone();
@@ -137,6 +138,7 @@ pub fn asset_animator_system<T: Asset>(
                 &mut target,
                 entity,
                 &mut events,
+                &mut commands,
                 &settings,
             );
         }
@@ -145,30 +147,44 @@ pub fn asset_animator_system<T: Asset>(
 
 #[cfg(test)]
 mod tests {
-    use bevy::prelude::{Events, IntoSystem, System, Transform, World};
+    use std::{
+        marker::PhantomData,
+        ops::DerefMut,
+        sync::{
+            atomic::{AtomicBool, Ordering},
+            Arc,
+        },
+    };
 
     use crate::{lens::TransformPositionLens, *};
 
     /// A simple isolated test environment with a [`World`] and a single
     /// [`Entity`] in it.
-    struct TestEnv {
+    struct TestEnv<T: Component> {
         world: World,
         entity: Entity,
+        _phantom: PhantomData<T>,
     }
 
-    impl TestEnv {
+    impl<T: Component + Default> TestEnv<T> {
         /// Create a new test environment containing a single entity with a
         /// [`Transform`], and add the given animator on that same entity.
-        pub fn new<T: Component>(animator: T) -> Self {
+        pub fn new(animator: Animator<T>) -> Self {
             let mut world = World::new();
             world.init_resource::<Events<TweenCompleted>>();
             world.init_resource::<Time>();
 
-            let entity = world.spawn((Transform::default(), animator)).id();
+            let entity = world.spawn((T::default(), animator)).id();
 
-            Self { world, entity }
+            Self {
+                world,
+                entity,
+                _phantom: PhantomData,
+            }
         }
+    }
 
+    impl<T: Component> TestEnv<T> {
         /// Get the test world.
         pub fn world_mut(&mut self) -> &mut World {
             &mut self.world
@@ -185,7 +201,7 @@ mod tests {
 
             // Reset world-related change detection
             self.world.clear_trackers();
-            assert!(!self.transform().is_changed());
+            assert!(!self.component_mut().is_changed());
 
             // Tick system
             system.run((), &mut self.world);
@@ -195,17 +211,14 @@ mod tests {
             events.update();
         }
 
-        /// Get the animator for the transform.
-        pub fn animator(&self) -> &Animator<Transform> {
-            self.world
-                .entity(self.entity)
-                .get::<Animator<Transform>>()
-                .unwrap()
+        /// Get the animator for the component.
+        pub fn animator(&self) -> &Animator<T> {
+            self.world.entity(self.entity).get::<Animator<T>>().unwrap()
         }
 
-        /// Get the transform component.
-        pub fn transform(&mut self) -> Mut<Transform> {
-            self.world.get_mut::<Transform>(self.entity).unwrap()
+        /// Get the component.
+        pub fn component_mut(&mut self) -> Mut<T> {
+            self.world.get_mut::<T>(self.entity).unwrap()
         }
 
         /// Get the emitted event count since last tick.
@@ -231,7 +244,7 @@ mod tests {
         env.world_mut().init_resource::<TweenSettings>();
 
         // After being inserted, components are always considered changed
-        let transform = env.transform();
+        let transform = env.component_mut();
         assert!(transform.is_changed());
 
         // fn nit() {}
@@ -244,7 +257,7 @@ mod tests {
         let animator = env.animator();
         assert_eq!(animator.state, AnimatorState::Playing);
         assert_eq!(animator.tweenable().times_completed(), 0);
-        let transform = env.transform();
+        let transform = env.component_mut();
         assert!(transform.is_changed());
         assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
 
@@ -254,7 +267,7 @@ mod tests {
         let animator = env.animator();
         assert_eq!(animator.state, AnimatorState::Playing);
         assert_eq!(animator.tweenable().times_completed(), 0);
-        let transform = env.transform();
+        let transform = env.component_mut();
         assert!(transform.is_changed());
         assert!(transform.translation.abs_diff_eq(Vec3::splat(0.5), 1e-5));
 
@@ -264,7 +277,7 @@ mod tests {
         let animator = env.animator();
         assert_eq!(animator.state, AnimatorState::Playing);
         assert_eq!(animator.tweenable().times_completed(), 1);
-        let transform = env.transform();
+        let transform = env.component_mut();
         assert!(transform.is_changed());
         assert!(transform.translation.abs_diff_eq(Vec3::ONE, 1e-5));
 
@@ -274,8 +287,110 @@ mod tests {
         let animator = env.animator();
         assert_eq!(animator.state, AnimatorState::Playing);
         assert_eq!(animator.tweenable().times_completed(), 1);
-        let transform = env.transform();
+        let transform = env.component_mut();
         assert!(!transform.is_changed());
         assert!(transform.translation.abs_diff_eq(Vec3::ONE, 1e-5));
+    }
+
+    #[derive(Debug, Default, Clone, Copy, Component)]
+    struct DummyComponent {
+        value: f32,
+    }
+
+    /// Test [`Lens`] which only access mutably the target component if `defer`
+    /// is `true`.
+    struct ConditionalDeferLens {
+        pub defer: Arc<AtomicBool>,
+    }
+
+    impl Lens<DummyComponent> for ConditionalDeferLens {
+        fn lerp(&mut self, target: &mut dyn Targetable<DummyComponent>, ratio: f32) {
+            if self.defer.load(Ordering::SeqCst) {
+                target.deref_mut().value += ratio;
+            }
+        }
+    }
+
+    #[test]
+    fn change_detect_component_conditional() {
+        let defer = Arc::new(AtomicBool::new(false));
+        let tween = Tween::new(
+            EaseMethod::Linear,
+            Duration::from_secs(1),
+            ConditionalDeferLens {
+                defer: Arc::clone(&defer),
+            },
+        )
+        .with_completed_event(0);
+
+        let mut env = TestEnv::new(Animator::new(tween));
+        env.world.init_resource::<TweenSettings>();
+
+        // After being inserted, components are always considered changed
+        let component = env.component_mut();
+        assert!(component.is_changed());
+
+        let mut system = IntoSystem::into_system(component_animator_system::<DummyComponent>);
+        system.initialize(env.world_mut());
+
+        assert!(!defer.load(Ordering::SeqCst));
+
+        // Mutation disabled
+        env.tick(Duration::ZERO, &mut system);
+
+        let animator = env.animator();
+        assert_eq!(animator.state, AnimatorState::Playing);
+        assert_eq!(animator.tweenable().times_completed(), 0);
+        let component = env.component_mut();
+        assert!(!component.is_changed());
+        assert!((component.value - 0.).abs() <= 1e-5);
+
+        // Zero-length tick should not change the component
+        env.tick(Duration::from_millis(0), &mut system);
+
+        let animator = env.animator();
+        assert_eq!(animator.state, AnimatorState::Playing);
+        assert_eq!(animator.tweenable().times_completed(), 0);
+        let component = env.component_mut();
+        assert!(!component.is_changed());
+        assert!((component.value - 0.).abs() <= 1e-5);
+
+        // New tick, but lens mutation still disabled
+        env.tick(Duration::from_millis(200), &mut system);
+
+        let animator = env.animator();
+        assert_eq!(animator.state, AnimatorState::Playing);
+        assert_eq!(animator.tweenable().times_completed(), 0);
+        let component = env.component_mut();
+        assert!(!component.is_changed());
+        assert!((component.value - 0.).abs() <= 1e-5);
+
+        // Enable lens mutation
+        defer.store(true, Ordering::SeqCst);
+
+        // The current time is already at t=0.2s, so even if we don't increment it, for
+        // a tween duration of 1s the ratio is t=0.2, so the lens will actually
+        // increment the component's value.
+        env.tick(Duration::from_millis(0), &mut system);
+
+        let animator = env.animator();
+        assert_eq!(animator.state, AnimatorState::Playing);
+        assert_eq!(animator.tweenable().times_completed(), 0);
+        let component = env.component_mut();
+        assert!(component.is_changed());
+        assert!((component.value - 0.2).abs() <= 1e-5);
+
+        // 0.2s + 0.3s = 0.5s
+        // t = 0.5s / 1s = 0.5
+        // value += 0.5
+        // value == 0.7
+        env.tick(Duration::from_millis(300), &mut system);
+
+        let animator = env.animator();
+        assert_eq!(animator.state, AnimatorState::Playing);
+        assert_eq!(animator.tweenable().times_completed(), 0);
+        let component = env.component_mut();
+        assert!(component.is_changed());
+        assert!((component.value - 0.7).abs() <= 1e-5);
     }
 }

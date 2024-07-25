@@ -1,7 +1,9 @@
-use bevy::prelude::*;
+use bevy::{color::palettes::css::*, prelude::*};
 use bevy_inspector_egui::{prelude::*, quick::ResourceInspectorPlugin};
 
 use bevy_tweening::{lens::*, *};
+
+mod utils;
 
 fn main() {
     App::default()
@@ -15,7 +17,7 @@ fn main() {
             ..default()
         }))
         .init_resource::<Options>()
-        .add_systems(Update, bevy::window::close_on_esc)
+        .add_systems(Update, utils::close_on_esc)
         .add_plugins(TweeningPlugin)
         .add_plugins(ResourceInspectorPlugin::<Options>::new())
         .add_systems(Startup, setup)
@@ -114,7 +116,7 @@ fn setup(mut commands: Commands) {
                     justify_content: JustifyContent::Center,
                     ..default()
                 },
-                background_color: BackgroundColor(Color::RED),
+                background_color: BackgroundColor(RED.into()),
                 ..default()
             },
             Animator::new(tween),
