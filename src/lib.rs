@@ -210,7 +210,7 @@ use std::time::Duration;
 use bevy::asset::Asset;
 use bevy::prelude::*;
 use interpolation::Ease as IEase;
-pub use interpolation::{EaseFunction, Lerp};
+pub use interpolation::{Ease, EaseFunction, Lerp};
 
 pub use lens::Lens;
 #[cfg(feature = "bevy_asset")]
