@@ -37,6 +37,8 @@
 
 use bevy::prelude::*;
 
+use crate::Targetable;
+
 use crate::TweeningDirection;
 
 /// A lens over a subset of a component.
@@ -62,7 +64,7 @@ use crate::TweeningDirection;
 /// struct MyStruct(f32);
 ///
 /// impl Lens<MyStruct> for MyLens {
-///   fn lerp(&mut self, target: &mut MyStruct, ratio: f32) {
+///   fn lerp(&mut self, target: &mut dyn Targetable<MyStruct>, ratio: f32) {
 ///     target.0 = self.start + (self.end - self.start) * ratio;
 ///   }
 /// }
@@ -73,14 +75,14 @@ pub trait Lens<T> {
     /// `ratio`. The `target` component or asset is mutated in place. The
     /// implementation decides which fields are interpolated, and performs
     /// the animation in-place, overwriting the target.
-    fn lerp(&mut self, target: &mut T, ratio: f32);
+    fn lerp(&mut self, target: &mut dyn Targetable<T>, ratio: f32);
 
     /// Update lens on tween start
     /// Can be used for relative lenses
     #[allow(unused_variables)]
     fn update_on_tween_start(
         &mut self,
-        target: &T,
+        target: &mut dyn Targetable<T>,
         direction: TweeningDirection,
         times_completed: i32,
     ) {
@@ -105,15 +107,10 @@ pub struct TextColorLens {
 
 #[cfg(feature = "bevy_text")]
 impl Lens<Text> for TextColorLens {
-    fn lerp(&mut self, target: &mut Text, ratio: f32) {
-        // Note: Add<f32> for Color affects alpha, but not Mul<f32>. So use Vec4 for
-        // consistency.
-        let start: Vec4 = self.start.into();
-        let end: Vec4 = self.end.into();
-        let value = start.lerp(end, ratio);
-
+    fn lerp(&mut self, target: &mut dyn Targetable<Text>, ratio: f32) {
         if let Some(section) = target.sections.get_mut(self.section) {
-            section.style.color = value.into();
+            let value = self.start.mix(&self.end, ratio);
+            section.style.color = value;
         }
     }
 }
@@ -131,7 +128,7 @@ pub struct TransformPositionLens {
 }
 
 impl Lens<Transform> for TransformPositionLens {
-    fn lerp(&mut self, target: &mut Transform, ratio: f32) {
+    fn lerp(&mut self, target: &mut dyn Targetable<Transform>, ratio: f32) {
         let value = self.start + (self.end - self.start) * ratio;
         target.translation = value;
     }
@@ -163,7 +160,7 @@ pub struct TransformRotationLens {
 }
 
 impl Lens<Transform> for TransformRotationLens {
-    fn lerp(&mut self, target: &mut Transform, ratio: f32) {
+    fn lerp(&mut self, target: &mut dyn Targetable<Transform>, ratio: f32) {
         target.rotation = self.start.slerp(self.end, ratio);
     }
 }
@@ -189,7 +186,7 @@ pub struct TransformRotateXLens {
 }
 
 impl Lens<Transform> for TransformRotateXLens {
-    fn lerp(&mut self, target: &mut Transform, ratio: f32) {
+    fn lerp(&mut self, target: &mut dyn Targetable<Transform>, ratio: f32) {
         let angle = (self.end - self.start).mul_add(ratio, self.start);
         target.rotation = Quat::from_rotation_x(angle);
     }
@@ -216,7 +213,7 @@ pub struct TransformRotateYLens {
 }
 
 impl Lens<Transform> for TransformRotateYLens {
-    fn lerp(&mut self, target: &mut Transform, ratio: f32) {
+    fn lerp(&mut self, target: &mut dyn Targetable<Transform>, ratio: f32) {
         let angle = (self.end - self.start).mul_add(ratio, self.start);
         target.rotation = Quat::from_rotation_y(angle);
     }
@@ -243,7 +240,7 @@ pub struct TransformRotateZLens {
 }
 
 impl Lens<Transform> for TransformRotateZLens {
-    fn lerp(&mut self, target: &mut Transform, ratio: f32) {
+    fn lerp(&mut self, target: &mut dyn Targetable<Transform>, ratio: f32) {
         let angle = (self.end - self.start).mul_add(ratio, self.start);
         target.rotation = Quat::from_rotation_z(angle);
     }
@@ -276,7 +273,7 @@ pub struct TransformRotateAxisLens {
 }
 
 impl Lens<Transform> for TransformRotateAxisLens {
-    fn lerp(&mut self, target: &mut Transform, ratio: f32) {
+    fn lerp(&mut self, target: &mut dyn Targetable<Transform>, ratio: f32) {
         let angle = (self.end - self.start).mul_add(ratio, self.start);
         target.rotation = Quat::from_axis_angle(self.axis, angle);
     }
@@ -295,7 +292,7 @@ pub struct TransformScaleLens {
 }
 
 impl Lens<Transform> for TransformScaleLens {
-    fn lerp(&mut self, target: &mut Transform, ratio: f32) {
+    fn lerp(&mut self, target: &mut dyn Targetable<Transform>, ratio: f32) {
         let value = self.start + (self.end - self.start) * ratio;
         target.scale = value;
     }
@@ -327,7 +324,7 @@ fn lerp_val(start: &Val, end: &Val, ratio: f32) -> Val {
 
 #[cfg(feature = "bevy_ui")]
 impl Lens<Style> for UiPositionLens {
-    fn lerp(&mut self, target: &mut Style, ratio: f32) {
+    fn lerp(&mut self, target: &mut dyn Targetable<Style>, ratio: f32) {
         target.left = lerp_val(&self.start.left, &self.end.left, ratio);
         target.right = lerp_val(&self.start.right, &self.end.right, ratio);
         target.top = lerp_val(&self.start.top, &self.end.top, ratio);
@@ -347,11 +344,8 @@ pub struct UiBackgroundColorLens {
 
 #[cfg(feature = "bevy_ui")]
 impl Lens<BackgroundColor> for UiBackgroundColorLens {
-    fn lerp(&mut self, target: &mut BackgroundColor, ratio: f32) {
-        let start: Vec4 = self.start.into();
-        let end: Vec4 = self.end.into();
-        let value = start.lerp(end, ratio);
-        target.0 = value.into();
+    fn lerp(&mut self, target: &mut dyn Targetable<BackgroundColor>, ratio: f32) {
+        target.0 = self.start.mix(&self.end, ratio);
     }
 }
 
@@ -359,7 +353,7 @@ impl Lens<BackgroundColor> for UiBackgroundColorLens {
 ///
 /// [`color`]: https://docs.rs/bevy/0.12.0/bevy/sprite/struct.ColorMaterial.html#structfield.color
 /// [`ColorMaterial`]: https://docs.rs/bevy/0.12.0/bevy/sprite/struct.ColorMaterial.html
-#[cfg(feature = "bevy_sprite")]
+#[cfg(all(feature = "bevy_sprite", feature = "bevy_asset"))]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct ColorMaterialColorLens {
     /// Start color.
@@ -368,15 +362,10 @@ pub struct ColorMaterialColorLens {
     pub end: Color,
 }
 
-#[cfg(feature = "bevy_sprite")]
+#[cfg(all(feature = "bevy_sprite", feature = "bevy_asset"))]
 impl Lens<ColorMaterial> for ColorMaterialColorLens {
-    fn lerp(&mut self, target: &mut ColorMaterial, ratio: f32) {
-        // Note: Add<f32> for Color affects alpha, but not Mul<f32>. So use Vec4 for
-        // consistency.
-        let start: Vec4 = self.start.into();
-        let end: Vec4 = self.end.into();
-        let value = start.lerp(end, ratio);
-        target.color = value.into();
+    fn lerp(&mut self, target: &mut dyn Targetable<ColorMaterial>, ratio: f32) {
+        target.color = self.start.mix(&self.end, ratio);
     }
 }
 
@@ -395,58 +384,132 @@ pub struct SpriteColorLens {
 
 #[cfg(feature = "bevy_sprite")]
 impl Lens<Sprite> for SpriteColorLens {
-    fn lerp(&mut self, target: &mut Sprite, ratio: f32) {
-        // Note: Add<f32> for Color affects alpha, but not Mul<f32>. So use Vec4 for
-        // consistency.
-        let start: Vec4 = self.start.into();
-        let end: Vec4 = self.end.into();
-        let value = start.lerp(end, ratio);
-        target.color = value.into();
+    fn lerp(&mut self, target: &mut dyn Targetable<Sprite>, ratio: f32) {
+        let value = self.start.mix(&self.end, ratio);
+        target.color = value;
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use bevy::ecs::component::Tick;
     use std::f32::consts::TAU;
 
+    #[cfg(any(feature = "bevy_sprite", feature = "bevy_text"))]
+    use bevy::color::palettes::css::{BLUE, RED};
+
     use super::*;
+
+    use crate::tweenable::ComponentTarget;
+
+    #[cfg(all(feature = "bevy_sprite", feature = "bevy_asset"))]
+    use crate::tweenable::AssetTarget;
 
     #[cfg(feature = "bevy_text")]
     #[test]
     fn text_color() {
         let mut lens = TextColorLens {
-            start: Color::RED,
-            end: Color::BLUE,
+            start: RED.into(),
+            end: BLUE.into(),
             section: 0,
         };
         let mut text = Text::from_section("", default());
 
-        lens.lerp(&mut text, 0.);
-        assert_eq!(text.sections[0].style.color, Color::RED);
+        {
+            let mut added = Tick::new(0);
+            let mut last_changed = Tick::new(0);
+            let mut target = ComponentTarget::new(Mut::new(
+                &mut text,
+                &mut added,
+                &mut last_changed,
+                Tick::new(0),
+                Tick::new(0),
+            ));
 
-        lens.lerp(&mut text, 1.);
-        assert_eq!(text.sections[0].style.color, Color::BLUE);
+            lens.lerp(&mut target, 0.);
+        }
+        assert_eq!(text.sections[0].style.color, RED.into());
 
-        lens.lerp(&mut text, 0.3);
-        assert_eq!(text.sections[0].style.color, Color::rgba(0.7, 0., 0.3, 1.0));
+        {
+            let mut added = Tick::new(0);
+            let mut last_changed = Tick::new(0);
+            let mut target = ComponentTarget::new(Mut::new(
+                &mut text,
+                &mut added,
+                &mut last_changed,
+                Tick::new(0),
+                Tick::new(0),
+            ));
+
+            lens.lerp(&mut target, 1.);
+        }
+        assert_eq!(text.sections[0].style.color, BLUE.into());
+
+        {
+            let mut added = Tick::new(0);
+            let mut last_changed = Tick::new(0);
+            let mut target = ComponentTarget::new(Mut::new(
+                &mut text,
+                &mut added,
+                &mut last_changed,
+                Tick::new(0),
+                Tick::new(0),
+            ));
+
+            lens.lerp(&mut target, 0.3);
+        }
+        assert_eq!(
+            text.sections[0].style.color,
+            Color::srgba(0.7, 0., 0.3, 1.0)
+        );
 
         let mut lens_section1 = TextColorLens {
-            start: Color::RED,
-            end: Color::BLUE,
+            start: RED.into(),
+            end: BLUE.into(),
             section: 1,
         };
 
-        lens_section1.lerp(&mut text, 1.);
+        {
+            let mut added = Tick::new(0);
+            let mut last_changed = Tick::new(0);
+            let mut target = ComponentTarget::new(Mut::new(
+                &mut text,
+                &mut added,
+                &mut last_changed,
+                Tick::new(0),
+                Tick::new(0),
+            ));
+
+            lens_section1.lerp(&mut target, 1.);
+        }
         // Should not have changed because the lens targets section 1
-        assert_eq!(text.sections[0].style.color, Color::rgba(0.7, 0., 0.3, 1.0));
+        assert_eq!(
+            text.sections[0].style.color,
+            Color::srgba(0.7, 0., 0.3, 1.0)
+        );
 
         text.sections.push(TextSection {
             value: "".to_string(),
             style: Default::default(),
         });
 
-        lens_section1.lerp(&mut text, 0.3);
-        assert_eq!(text.sections[1].style.color, Color::rgba(0.7, 0., 0.3, 1.0));
+        {
+            let mut added = Tick::new(0);
+            let mut last_changed = Tick::new(0);
+            let mut target = ComponentTarget::new(Mut::new(
+                &mut text,
+                &mut added,
+                &mut last_changed,
+                Tick::new(0),
+                Tick::new(0),
+            ));
+
+            lens_section1.lerp(&mut target, 0.3);
+        }
+        assert_eq!(
+            text.sections[1].style.color,
+            Color::srgba(0.7, 0., 0.3, 1.0)
+        );
     }
 
     #[test]
@@ -457,19 +520,55 @@ mod tests {
         };
         let mut transform = Transform::default();
 
-        lens.lerp(&mut transform, 0.);
+        {
+            let mut added = Tick::new(0);
+            let mut last_changed = Tick::new(0);
+            let mut target = ComponentTarget::new(Mut::new(
+                &mut transform,
+                &mut added,
+                &mut last_changed,
+                Tick::new(0),
+                Tick::new(0),
+            ));
+
+            lens.lerp(&mut target, 0.);
+        }
         assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
         assert!(transform.rotation.abs_diff_eq(Quat::IDENTITY, 1e-5));
         assert!(transform.scale.abs_diff_eq(Vec3::ONE, 1e-5));
 
-        lens.lerp(&mut transform, 1.);
+        {
+            let mut added = Tick::new(0);
+            let mut last_changed = Tick::new(0);
+            let mut target = ComponentTarget::new(Mut::new(
+                &mut transform,
+                &mut added,
+                &mut last_changed,
+                Tick::new(0),
+                Tick::new(0),
+            ));
+
+            lens.lerp(&mut target, 1.);
+        }
         assert!(transform
             .translation
             .abs_diff_eq(Vec3::new(1., 2., -4.), 1e-5));
         assert!(transform.rotation.abs_diff_eq(Quat::IDENTITY, 1e-5));
         assert!(transform.scale.abs_diff_eq(Vec3::ONE, 1e-5));
 
-        lens.lerp(&mut transform, 0.3);
+        {
+            let mut added = Tick::new(0);
+            let mut last_changed = Tick::new(0);
+            let mut target = ComponentTarget::new(Mut::new(
+                &mut transform,
+                &mut added,
+                &mut last_changed,
+                Tick::new(0),
+                Tick::new(0),
+            ));
+
+            lens.lerp(&mut target, 0.3);
+        }
         assert!(transform
             .translation
             .abs_diff_eq(Vec3::new(0.3, 0.6, -1.2), 1e-5));
@@ -485,19 +584,55 @@ mod tests {
         };
         let mut transform = Transform::default();
 
-        lens.lerp(&mut transform, 0.);
+        {
+            let mut added = Tick::new(0);
+            let mut last_changed = Tick::new(0);
+            let mut target = ComponentTarget::new(Mut::new(
+                &mut transform,
+                &mut added,
+                &mut last_changed,
+                Tick::new(0),
+                Tick::new(0),
+            ));
+
+            lens.lerp(&mut target, 0.);
+        }
         assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
         assert!(transform.rotation.abs_diff_eq(Quat::IDENTITY, 1e-5));
         assert!(transform.scale.abs_diff_eq(Vec3::ONE, 1e-5));
 
-        lens.lerp(&mut transform, 1.);
+        {
+            let mut added = Tick::new(0);
+            let mut last_changed = Tick::new(0);
+            let mut target = ComponentTarget::new(Mut::new(
+                &mut transform,
+                &mut added,
+                &mut last_changed,
+                Tick::new(0),
+                Tick::new(0),
+            ));
+
+            lens.lerp(&mut target, 1.);
+        }
         assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
         assert!(transform
             .rotation
             .abs_diff_eq(Quat::from_rotation_z(100_f32.to_radians()), 1e-5));
         assert!(transform.scale.abs_diff_eq(Vec3::ONE, 1e-5));
 
-        lens.lerp(&mut transform, 0.3);
+        {
+            let mut added = Tick::new(0);
+            let mut last_changed = Tick::new(0);
+            let mut target = ComponentTarget::new(Mut::new(
+                &mut transform,
+                &mut added,
+                &mut last_changed,
+                Tick::new(0),
+                Tick::new(0),
+            ));
+
+            lens.lerp(&mut target, 0.3);
+        }
         assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
         assert!(transform
             .rotation
@@ -514,7 +649,19 @@ mod tests {
         let mut transform = Transform::default();
 
         for (index, ratio) in [0., 0.25, 0.5, 0.75, 1.].iter().enumerate() {
-            lens.lerp(&mut transform, *ratio);
+            {
+                let mut added = Tick::new(0);
+                let mut last_changed = Tick::new(0);
+                let mut target = ComponentTarget::new(Mut::new(
+                    &mut transform,
+                    &mut added,
+                    &mut last_changed,
+                    Tick::new(0),
+                    Tick::new(0),
+                ));
+
+                lens.lerp(&mut target, *ratio);
+            }
             assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
             if index == 1 || index == 3 {
                 // For odd-numbered turns, the opposite Quat is produced. This is equivalent in
@@ -529,7 +676,19 @@ mod tests {
             assert!(transform.scale.abs_diff_eq(Vec3::ONE, 1e-5));
         }
 
-        lens.lerp(&mut transform, 0.1);
+        {
+            let mut added = Tick::new(0);
+            let mut last_changed = Tick::new(0);
+            let mut target = ComponentTarget::new(Mut::new(
+                &mut transform,
+                &mut added,
+                &mut last_changed,
+                Tick::new(0),
+                Tick::new(0),
+            ));
+
+            lens.lerp(&mut target, 0.1);
+        }
         assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
         assert!(transform
             .rotation
@@ -546,7 +705,19 @@ mod tests {
         let mut transform = Transform::default();
 
         for (index, ratio) in [0., 0.25, 0.5, 0.75, 1.].iter().enumerate() {
-            lens.lerp(&mut transform, *ratio);
+            {
+                let mut added = Tick::new(0);
+                let mut last_changed = Tick::new(0);
+                let mut target = ComponentTarget::new(Mut::new(
+                    &mut transform,
+                    &mut added,
+                    &mut last_changed,
+                    Tick::new(0),
+                    Tick::new(0),
+                ));
+
+                lens.lerp(&mut target, *ratio);
+            }
             assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
             if index == 1 || index == 3 {
                 // For odd-numbered turns, the opposite Quat is produced. This is equivalent in
@@ -561,7 +732,19 @@ mod tests {
             assert!(transform.scale.abs_diff_eq(Vec3::ONE, 1e-5));
         }
 
-        lens.lerp(&mut transform, 0.1);
+        {
+            let mut added = Tick::new(0);
+            let mut last_changed = Tick::new(0);
+            let mut target = ComponentTarget::new(Mut::new(
+                &mut transform,
+                &mut added,
+                &mut last_changed,
+                Tick::new(0),
+                Tick::new(0),
+            ));
+
+            lens.lerp(&mut target, 0.1);
+        }
         assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
         assert!(transform
             .rotation
@@ -578,7 +761,19 @@ mod tests {
         let mut transform = Transform::default();
 
         for (index, ratio) in [0., 0.25, 0.5, 0.75, 1.].iter().enumerate() {
-            lens.lerp(&mut transform, *ratio);
+            {
+                let mut added = Tick::new(0);
+                let mut last_changed = Tick::new(0);
+                let mut target = ComponentTarget::new(Mut::new(
+                    &mut transform,
+                    &mut added,
+                    &mut last_changed,
+                    Tick::new(0),
+                    Tick::new(0),
+                ));
+
+                lens.lerp(&mut target, *ratio);
+            }
             assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
             if index == 1 || index == 3 {
                 // For odd-numbered turns, the opposite Quat is produced. This is equivalent in
@@ -593,7 +788,19 @@ mod tests {
             assert!(transform.scale.abs_diff_eq(Vec3::ONE, 1e-5));
         }
 
-        lens.lerp(&mut transform, 0.1);
+        {
+            let mut added = Tick::new(0);
+            let mut last_changed = Tick::new(0);
+            let mut target = ComponentTarget::new(Mut::new(
+                &mut transform,
+                &mut added,
+                &mut last_changed,
+                Tick::new(0),
+                Tick::new(0),
+            ));
+
+            lens.lerp(&mut target, 0.1);
+        }
         assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
         assert!(transform
             .rotation
@@ -612,7 +819,19 @@ mod tests {
         let mut transform = Transform::default();
 
         for (index, ratio) in [0., 0.25, 0.5, 0.75, 1.].iter().enumerate() {
-            lens.lerp(&mut transform, *ratio);
+            {
+                let mut added = Tick::new(0);
+                let mut last_changed = Tick::new(0);
+                let mut target = ComponentTarget::new(Mut::new(
+                    &mut transform,
+                    &mut added,
+                    &mut last_changed,
+                    Tick::new(0),
+                    Tick::new(0),
+                ));
+
+                lens.lerp(&mut target, *ratio);
+            }
             assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
             if index == 1 || index == 3 {
                 // For odd-numbered turns, the opposite Quat is produced. This is equivalent in
@@ -627,7 +846,19 @@ mod tests {
             assert!(transform.scale.abs_diff_eq(Vec3::ONE, 1e-5));
         }
 
-        lens.lerp(&mut transform, 0.1);
+        {
+            let mut added = Tick::new(0);
+            let mut last_changed = Tick::new(0);
+            let mut target = ComponentTarget::new(Mut::new(
+                &mut transform,
+                &mut added,
+                &mut last_changed,
+                Tick::new(0),
+                Tick::new(0),
+            ));
+
+            lens.lerp(&mut target, 0.1);
+        }
         assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
         assert!(transform
             .rotation
@@ -643,17 +874,53 @@ mod tests {
         };
         let mut transform = Transform::default();
 
-        lens.lerp(&mut transform, 0.);
+        {
+            let mut added = Tick::new(0);
+            let mut last_changed = Tick::new(0);
+            let mut target = ComponentTarget::new(Mut::new(
+                &mut transform,
+                &mut added,
+                &mut last_changed,
+                Tick::new(0),
+                Tick::new(0),
+            ));
+
+            lens.lerp(&mut target, 0.);
+        }
         assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
         assert!(transform.rotation.abs_diff_eq(Quat::IDENTITY, 1e-5));
         assert!(transform.scale.abs_diff_eq(Vec3::ZERO, 1e-5));
 
-        lens.lerp(&mut transform, 1.);
+        {
+            let mut added = Tick::new(0);
+            let mut last_changed = Tick::new(0);
+            let mut target = ComponentTarget::new(Mut::new(
+                &mut transform,
+                &mut added,
+                &mut last_changed,
+                Tick::new(0),
+                Tick::new(0),
+            ));
+
+            lens.lerp(&mut target, 1.);
+        }
         assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
         assert!(transform.rotation.abs_diff_eq(Quat::IDENTITY, 1e-5));
         assert!(transform.scale.abs_diff_eq(Vec3::new(1., 2., -4.), 1e-5));
 
-        lens.lerp(&mut transform, 0.3);
+        {
+            let mut added = Tick::new(0);
+            let mut last_changed = Tick::new(0);
+            let mut target = ComponentTarget::new(Mut::new(
+                &mut transform,
+                &mut added,
+                &mut last_changed,
+                Tick::new(0),
+                Tick::new(0),
+            ));
+
+            lens.lerp(&mut target, 0.3);
+        }
         assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
         assert!(transform.rotation.abs_diff_eq(Quat::IDENTITY, 1e-5));
         assert!(transform.scale.abs_diff_eq(Vec3::new(0.3, 0.6, -1.2), 1e-5));
@@ -678,66 +945,181 @@ mod tests {
         };
         let mut style = Style::default();
 
-        lens.lerp(&mut style, 0.);
+        {
+            let mut added = Tick::new(0);
+            let mut last_changed = Tick::new(0);
+            let mut target = ComponentTarget::new(Mut::new(
+                &mut style,
+                &mut added,
+                &mut last_changed,
+                Tick::new(0),
+                Tick::new(0),
+            ));
+
+            lens.lerp(&mut target, 0.);
+        }
         assert_eq!(style.left, Val::Px(0.));
         assert_eq!(style.top, Val::Px(0.));
         assert_eq!(style.right, Val::Auto);
         assert_eq!(style.bottom, Val::Percent(25.));
 
-        lens.lerp(&mut style, 1.);
+        {
+            let mut added = Tick::new(0);
+            let mut last_changed = Tick::new(0);
+            let mut target = ComponentTarget::new(Mut::new(
+                &mut style,
+                &mut added,
+                &mut last_changed,
+                Tick::new(0),
+                Tick::new(0),
+            ));
+
+            lens.lerp(&mut target, 1.);
+        }
         assert_eq!(style.left, Val::Px(1.));
         assert_eq!(style.top, Val::Px(5.));
         assert_eq!(style.right, Val::Auto);
         assert_eq!(style.bottom, Val::Percent(45.));
 
-        lens.lerp(&mut style, 0.3);
+        {
+            let mut added = Tick::new(0);
+            let mut last_changed = Tick::new(0);
+            let mut target = ComponentTarget::new(Mut::new(
+                &mut style,
+                &mut added,
+                &mut last_changed,
+                Tick::new(0),
+                Tick::new(0),
+            ));
+
+            lens.lerp(&mut target, 0.3);
+        }
         assert_eq!(style.left, Val::Px(0.3));
         assert_eq!(style.top, Val::Px(1.5));
         assert_eq!(style.right, Val::Auto);
         assert_eq!(style.bottom, Val::Percent(31.));
     }
 
-    #[cfg(feature = "bevy_sprite")]
+    #[cfg(all(feature = "bevy_sprite", feature = "bevy_asset"))]
     #[test]
     fn colormaterial_color() {
         let mut lens = ColorMaterialColorLens {
-            start: Color::RED,
-            end: Color::BLUE,
+            start: RED.into(),
+            end: BLUE.into(),
         };
-        let mut mat = ColorMaterial {
+        let mut assets = Assets::default();
+        let handle = assets.add(ColorMaterial {
             color: Color::WHITE,
             texture: None,
-        };
+        });
 
-        lens.lerp(&mut mat, 0.);
-        assert_eq!(mat.color, Color::RED);
+        {
+            let mut added = Tick::new(0);
+            let mut last_changed = Tick::new(0);
+            let mut target = AssetTarget::new(Mut::new(
+                &mut assets,
+                &mut added,
+                &mut last_changed,
+                Tick::new(0),
+                Tick::new(0),
+            ));
+            target.handle = handle.clone();
 
-        lens.lerp(&mut mat, 1.);
-        assert_eq!(mat.color, Color::BLUE);
+            lens.lerp(&mut target, 0.);
+        }
+        assert_eq!(assets.get(handle.id()).unwrap().color, RED.into());
 
-        lens.lerp(&mut mat, 0.3);
-        assert_eq!(mat.color, Color::rgba(0.7, 0., 0.3, 1.0));
+        {
+            let mut added = Tick::new(0);
+            let mut last_changed = Tick::new(0);
+            let mut target = AssetTarget::new(Mut::new(
+                &mut assets,
+                &mut added,
+                &mut last_changed,
+                Tick::new(0),
+                Tick::new(0),
+            ));
+            target.handle = handle.clone();
+
+            lens.lerp(&mut target, 1.);
+        }
+        assert_eq!(assets.get(handle.id()).unwrap().color, BLUE.into());
+
+        {
+            let mut added = Tick::new(0);
+            let mut last_changed = Tick::new(0);
+            let mut target = AssetTarget::new(Mut::new(
+                &mut assets,
+                &mut added,
+                &mut last_changed,
+                Tick::new(0),
+                Tick::new(0),
+            ));
+            target.handle = handle.clone();
+
+            lens.lerp(&mut target, 0.3);
+        }
+        assert_eq!(
+            assets.get(handle.id()).unwrap().color,
+            Color::srgba(0.7, 0., 0.3, 1.0)
+        );
     }
 
     #[cfg(feature = "bevy_sprite")]
     #[test]
     fn sprite_color() {
         let mut lens = SpriteColorLens {
-            start: Color::RED,
-            end: Color::BLUE,
+            start: RED.into(),
+            end: BLUE.into(),
         };
         let mut sprite = Sprite {
             color: Color::WHITE,
             ..default()
         };
 
-        lens.lerp(&mut sprite, 0.);
-        assert_eq!(sprite.color, Color::RED);
+        {
+            let mut added = Tick::new(0);
+            let mut last_changed = Tick::new(0);
+            let mut target = ComponentTarget::new(Mut::new(
+                &mut sprite,
+                &mut added,
+                &mut last_changed,
+                Tick::new(0),
+                Tick::new(0),
+            ));
 
-        lens.lerp(&mut sprite, 1.);
-        assert_eq!(sprite.color, Color::BLUE);
+            lens.lerp(&mut target, 0.);
+        }
+        assert_eq!(sprite.color, RED.into());
 
-        lens.lerp(&mut sprite, 0.3);
-        assert_eq!(sprite.color, Color::rgba(0.7, 0., 0.3, 1.0));
+        {
+            let mut added = Tick::new(0);
+            let mut last_changed = Tick::new(0);
+            let mut target = ComponentTarget::new(Mut::new(
+                &mut sprite,
+                &mut added,
+                &mut last_changed,
+                Tick::new(0),
+                Tick::new(0),
+            ));
+
+            lens.lerp(&mut target, 1.);
+        }
+        assert_eq!(sprite.color, BLUE.into());
+
+        {
+            let mut added = Tick::new(0);
+            let mut last_changed = Tick::new(0);
+            let mut target = ComponentTarget::new(Mut::new(
+                &mut sprite,
+                &mut added,
+                &mut last_changed,
+                Tick::new(0),
+                Tick::new(0),
+            ));
+
+            lens.lerp(&mut target, 0.3);
+        }
+        assert_eq!(sprite.color, Color::srgba(0.7, 0., 0.3, 1.0));
     }
 }

@@ -1,9 +1,12 @@
 use bevy::{
+    color::palettes::css::*,
     prelude::*,
     sprite::{MaterialMesh2dBundle, Mesh2dHandle},
 };
 use bevy_tweening::{lens::*, *};
 use std::time::Duration;
+
+mod utils;
 
 fn main() {
     App::default()
@@ -16,7 +19,7 @@ fn main() {
             }),
             ..default()
         }))
-        .add_systems(Update, bevy::window::close_on_esc)
+        .add_systems(Update, utils::close_on_esc)
         .add_plugins(TweeningPlugin)
         .add_systems(Startup, setup)
         .run();
@@ -37,7 +40,7 @@ fn setup(
     let mut x = -screen_x;
     let mut y = screen_y;
 
-    let quad_mesh: Mesh2dHandle = meshes.add(Mesh::from(shape::Quad::default())).into();
+    let quad_mesh: Mesh2dHandle = meshes.add(Rectangle::new(1., 1.)).into();
 
     for ease_function in &[
         EaseFunction::QuadraticIn,
@@ -75,14 +78,14 @@ fn setup(
         // without affecting the other entities. Note that we could share
         // that material among multiple entities, and animating the material
         // asset would change the color of all entities using that material.
-        let unique_material = materials.add(Color::BLACK.into());
+        let unique_material = materials.add(Color::BLACK);
 
         let tween = Tween::new(
             *ease_function,
             Duration::from_secs(1),
             ColorMaterialColorLens {
-                start: Color::RED,
-                end: Color::BLUE,
+                start: RED.into(),
+                end: BLUE.into(),
             },
         )
         .with_repeat_count(RepeatCount::Infinite)

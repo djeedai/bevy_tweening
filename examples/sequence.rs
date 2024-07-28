@@ -1,8 +1,8 @@
+use bevy::{color::palettes::css::*, prelude::*};
+use bevy_tweening::{lens::*, *};
 use std::time::Duration;
 
-use bevy::prelude::*;
-
-use bevy_tweening::{lens::*, *};
+mod utils;
 
 fn main() {
     App::default()
@@ -15,7 +15,7 @@ fn main() {
             }),
             ..default()
         }))
-        .add_systems(Update, bevy::window::close_on_esc)
+        .add_systems(Update, utils::close_on_esc)
         .add_plugins(TweeningPlugin)
         .add_systems(Startup, setup)
         .add_systems(Update, update_text)
@@ -41,15 +41,15 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let text_style_red = TextStyle {
         font: font.clone(),
         font_size: 50.0,
-        color: Color::RED,
+        color: RED.into(),
     };
     let text_style_blue = TextStyle {
         font,
         font_size: 50.0,
-        color: Color::BLUE,
+        color: BLUE.into(),
     };
 
-    let text_alignment = TextAlignment::Center;
+    let justify = JustifyText::Center;
 
     // Text with the index of the active tween in the sequence
     commands.spawn((
@@ -65,7 +65,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                         style: text_style_red,
                     },
                 ],
-                alignment: text_alignment,
+                justify,
                 ..default()
             },
             transform: Transform::from_translation(Vec3::new(0., 40., 0.)),
@@ -88,7 +88,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                         style: text_style_blue,
                     },
                 ],
-                alignment: text_alignment,
+                justify,
                 ..default()
             },
             transform: Transform::from_translation(Vec3::new(0., -40., 0.)),
@@ -142,7 +142,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((
         SpriteBundle {
             sprite: Sprite {
-                color: Color::RED,
+                color: RED.into(),
                 custom_size: Some(Vec2::new(size, size)),
                 ..default()
             },
@@ -189,7 +189,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((
         SpriteBundle {
             sprite: Sprite {
-                color: Color::BLUE,
+                color: BLUE.into(),
                 custom_size: Some(Vec2::new(size * 3., size)),
                 ..default()
             },
@@ -219,7 +219,7 @@ fn update_text(
     let mut blue_text = query_text_blue.single_mut();
     blue_text.sections[1].value = format!("{:5.1}%", progress_blue * 100.);
 
-    for ev in query_event.iter() {
+    for ev in query_event.read() {
         println!(
             "Event: TweenCompleted entity={:?} user_data={}",
             ev.entity, ev.user_data
