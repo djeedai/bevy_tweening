@@ -74,8 +74,8 @@ fn setup(mut commands: Commands) {
         .with_repeat_count(RepeatCount::Infinite)
         .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
-        commands.spawn((
-            SpriteBundle {
+        commands
+            .spawn((SpriteBundle {
                 transform: Transform::from_translation(Vec3::new(x, y, 0.)),
                 sprite: Sprite {
                     color: Color::BLACK,
@@ -83,9 +83,8 @@ fn setup(mut commands: Commands) {
                     ..default()
                 },
                 ..default()
-            },
-            TweenAnimator::new(tween),
-        ));
+            },))
+            .tween(tween);
 
         y -= size * spacing;
         if y < -screen_y {

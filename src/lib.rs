@@ -221,7 +221,7 @@ use slotmap::SlotMap;
 pub use tweenable::AssetTarget;
 pub use tweenable::{
     BoxedTweenable, ComponentTarget, Delay, Sequence, Targetable, TotalDuration, Tracks, Tween,
-    TweenCompleted, TweenState, Tweenable,
+    TweenAssetExtensions, TweenCompleted, TweenState, Tweenable,
 };
 
 pub mod lens;

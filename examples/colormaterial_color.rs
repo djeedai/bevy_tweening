@@ -80,7 +80,7 @@ fn setup(
         // asset would change the color of all entities using that material.
         let unique_material = materials.add(Color::BLACK);
 
-        let tween = Tween::new(
+        let tween = Tween::new_asset(
             *ease_function,
             Duration::from_secs(1),
             ColorMaterialColorLens {
