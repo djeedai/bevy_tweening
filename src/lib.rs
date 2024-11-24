@@ -511,7 +511,8 @@ macro_rules! animator_impl {
 pub struct Animator<T: Component> {
     /// Control if this animation is played or not.
     pub state: AnimatorState,
-    target: Option<Entity>,
+    /// When set, the animated component will be the one located on this entity.
+    pub target: Option<Entity>,
     tweenable: BoxedTweenable<T>,
     speed: f32,
 }
