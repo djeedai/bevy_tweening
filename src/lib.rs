@@ -510,6 +510,7 @@ macro_rules! animator_impl {
 pub struct Animator<T: Component> {
     /// Control if this animation is played or not.
     pub state: AnimatorState,
+    target: Option<Entity>,
     tweenable: BoxedTweenable<T>,
     speed: f32,
 }
@@ -529,8 +530,15 @@ impl<T: Component> Animator<T> {
         Self {
             state: default(),
             tweenable: Box::new(tween),
+            target: None,
             speed: 1.,
         }
+    }
+
+    /// Set a custom target entity for the animator.
+    pub fn with_target(mut self, entity: Entity) -> Self {
+        self.target = Some(entity);
+        self
     }
 
     animator_impl!();
