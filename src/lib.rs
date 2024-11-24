@@ -504,8 +504,9 @@ macro_rules! animator_impl {
 
 /// Component to control the animation of another component.
 ///
-/// The animated component is the component located on the same entity as the
-/// [`Animator<T>`] itself.
+/// By default, the animated component is the component located on the same
+/// entity as the [`Animator<T>`] itself. But if [`Animator::target`] is set,
+/// that entity will be used instead.
 #[derive(Component)]
 pub struct Animator<T: Component> {
     /// Control if this animation is played or not.
