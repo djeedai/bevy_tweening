@@ -537,7 +537,7 @@ impl<T: Component> Animator<T> {
         }
     }
 
-    /// Create a new version of this animator with the [target] set to the given entity.
+    /// Create a new version of this animator with the `target` set to the given entity.
     pub fn with_target(mut self, entity: Entity) -> Self {
         self.target = Some(entity);
         self
