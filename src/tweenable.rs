@@ -801,7 +801,7 @@ impl<T> Tweenable<T> for Tween<T> {
 
 
                 // trigger all entity-scoped observers
-                commands.trigger_targets(event, [entity]);
+                commands.trigger_targets(event, entity);
             }
             if let Some(cb) = &self.on_completed {
                 cb(entity, self);
