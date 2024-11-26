@@ -799,8 +799,6 @@ impl<T> Tweenable<T> for Tween<T> {
                 // send regular event
                 events.send(event);
 
-                // trigger all global observers
-                commands.trigger(event);
 
                 // trigger all entity-scoped observers
                 commands.trigger_targets(event, [entity]);
