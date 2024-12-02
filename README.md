@@ -60,8 +60,8 @@ By default, 🍃 Bevy Tweening adopts a minimalist approach, and the `TweeningPl
 | `Transform`          | Yes                           |
 | `Sprite`             | Only if `bevy_sprite` feature |
 | `ColorMaterial`      | Only if `bevy_sprite` feature |
-| `Node`              | Only if `bevy_ui` feature     |
-| `TextColor`               | Only if `bevy_text` feature   |
+| `Node`               | Only if `bevy_ui` feature     |
+| `TextColor`          | Only if `bevy_text` feature   |
 | All other components | No                            |
 
 To add a system for a component `C`, use:

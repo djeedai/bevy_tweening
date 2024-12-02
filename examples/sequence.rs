@@ -194,8 +194,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 }
 
 fn update_text(
-    query_text_red: Query<&Children, (With<RedProgress>, Without<BlueProgress>)>,
-    query_text_blue: Query<&Children, (With<BlueProgress>, Without<RedProgress>)>,
+    query_text_red: Query<&Children, With<RedProgress>>,
+    query_text_blue: Query<&Children, With<BlueProgress>>,
     mut text_spans: Query<&mut TextSpan, With<ProgressValue>>,
     query_anim_red: Query<&Animator<Transform>, With<RedSprite>>,
     query_anim_blue: Query<&Animator<Transform>, With<BlueSprite>>,

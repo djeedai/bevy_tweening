@@ -65,7 +65,6 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 justify_content: JustifyContent::Center,
                 ..default()
             },
-            BackgroundColor(Color::NONE),
         ))
         .with_children(|container| {
             let mut start_time_ms = 0;
@@ -96,6 +95,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 container
                     .spawn((
                         Name::new(format!("button:{}", text)),
+                        Button,
                         Node {
                             min_width: Val::Px(300.),
                             min_height: Val::Px(80.),
