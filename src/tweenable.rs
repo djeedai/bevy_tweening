@@ -1336,11 +1336,8 @@ impl<T> Tweenable<T> for Delay<T> {
                 // send regular event
                 events.send(event);
 
-                // trigger all global observers
-                commands.trigger(event);
-
                 // trigger all entity-scoped observers
-                commands.trigger_targets(event, [entity]);
+                commands.trigger_targets(event, entity);
             }
             if let Some(cb) = &self.on_completed {
                 cb(entity, self);
