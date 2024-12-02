@@ -243,7 +243,7 @@ impl<'a, T: Component> ComponentTarget<'a, T> {
     }
 }
 
-impl<'a, T: Component> Targetable<T> for ComponentTarget<'a, T> {
+impl<T: Component> Targetable<T> for ComponentTarget<'_, T> {
     fn target(&self) -> &T {
         self.target.deref()
     }
@@ -280,7 +280,7 @@ impl<'a, T: Asset> AssetTarget<'a, T> {
 }
 
 #[cfg(feature = "bevy_asset")]
-impl<'a, T: Asset> Targetable<T> for AssetTarget<'a, T> {
+impl<T: Asset> Targetable<T> for AssetTarget<'_, T> {
     fn target(&self) -> &T {
         self.assets.get(&self.handle).unwrap()
     }
@@ -446,7 +446,7 @@ impl<T: 'static> Tween<T> {
     /// # Example
     /// ```
     /// # use bevy_tweening::{lens::*, *};
-    /// # use bevy::math::*;
+    /// # use bevy::math::{*,curve::EaseFunction};
     /// # use std::time::Duration;
     /// let tween1 = Tween::new(
     ///     EaseFunction::QuadraticInOut,
@@ -478,7 +478,7 @@ impl<T> Tween<T> {
     /// # Example
     /// ```
     /// # use bevy_tweening::{lens::*, *};
-    /// # use bevy::math::Vec3;
+    /// # use bevy::math::{Vec3,curve::EaseFunction};
     /// # use std::time::Duration;
     /// let tween = Tween::new(
     ///     EaseFunction::QuadraticInOut,
@@ -515,7 +515,7 @@ impl<T> Tween<T> {
     ///
     /// ```
     /// # use bevy_tweening::{lens::*, *};
-    /// # use bevy::{ecs::event::EventReader, math::Vec3};
+    /// # use bevy::{ecs::event::EventReader, math::{Vec3,curve::EaseFunction}};
     /// # use std::time::Duration;
     /// let tween = Tween::new(
     ///     // [...]
@@ -556,7 +556,7 @@ impl<T> Tween<T> {
     ///
     /// ```
     /// # use bevy_tweening::{lens::*, *};
-    /// # use bevy::{ecs::event::EventReader, math::Vec3};
+    /// # use bevy::{ecs::event::EventReader, math::{Vec3,curve::EaseFunction}};
     /// # use std::time::Duration;
     /// let tween = Tween::new(
     ///     // [...]
@@ -592,7 +592,7 @@ impl<T> Tween<T> {
     ///
     /// ```
     /// # use bevy_tweening::{lens::*, *};
-    /// # use bevy::{ecs::event::EventReader, math::Vec3, ecs::world::World, ecs::system::Query, ecs::entity::Entity, ecs::query::With};
+    /// # use bevy::{ecs::event::EventReader, math::{Vec3,curve::EaseFunction}, ecs::world::World, ecs::system::Query, ecs::entity::Entity, ecs::query::With};
     /// # use std::time::Duration;
     /// let mut world = World::new();
     /// let test_system_system_id = world.register_system(test_system);
@@ -1130,7 +1130,7 @@ impl<T> Delay<T> {
     ///
     /// ```
     /// # use bevy_tweening::{lens::*, *};
-    /// # use bevy::{ecs::event::EventReader, math::Vec3};
+    /// # use bevy::{ecs::event::EventReader, math::{Vec3,curve::EaseFunction}};
     /// # use std::time::Duration;
     /// let tween = Tween::new(
     ///     // [...]
@@ -1167,7 +1167,7 @@ impl<T> Delay<T> {
     ///
     /// ```
     /// # use bevy_tweening::{lens::*, *};
-    /// # use bevy::{ecs::event::EventReader, math::Vec3, ecs::world::World, ecs::system::Query, ecs::entity::Entity};
+    /// # use bevy::{ecs::event::EventReader, math::{Vec3,curve::EaseFunction}, ecs::world::World, ecs::system::Query, ecs::entity::Entity};
     /// # use std::time::Duration;
     /// let mut world = World::new();
     /// let test_system_system_id = world.register_system(test_system);

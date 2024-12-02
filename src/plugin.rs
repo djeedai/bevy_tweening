@@ -11,8 +11,8 @@ use crate::{tweenable::ComponentTarget, Animator, AnimatorState, TweenCompleted}
 /// This plugin adds systems for a predefined set of components and assets, to
 /// allow their respective animators to be updated each frame:
 /// - [`Transform`]
-/// - [`Text`]
-/// - [`Style`]
+/// - [`TextColor`]
+/// - [`Node`]
 /// - [`Sprite`]
 /// - [`ColorMaterial`]
 ///
