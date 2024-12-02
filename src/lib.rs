@@ -207,8 +207,6 @@
 use std::time::Duration;
 
 use bevy::prelude::*;
-use interpolation::Ease as IEase;
-pub use interpolation::{EaseFunction, Lerp};
 
 pub use lens::Lens;
 #[cfg(feature = "bevy_asset")]
@@ -224,6 +222,13 @@ pub use tweenable::{
 pub mod lens;
 mod plugin;
 mod tweenable;
+
+#[doc(hidden)]
+pub mod prelude {
+    pub use super::lens::*;
+    pub use super::plugin::*;
+    pub use super::tweenable::*;
+}
 
 #[cfg(test)]
 mod test_utils;
@@ -344,8 +349,6 @@ impl std::ops::Not for AnimatorState {
 pub enum EaseMethod {
     /// Follow [`EaseFunction`].
     EaseFunction(EaseFunction),
-    /// Linear interpolation.
-    Linear,
     /// Discrete interpolation. The eased value will jump from start to end when
     /// stepping over the discrete limit, which must be value between 0 and 1.
     Discrete(f32),
@@ -357,8 +360,7 @@ impl EaseMethod {
     #[must_use]
     fn sample(self, x: f32) -> f32 {
         match self {
-            Self::EaseFunction(function) => x.calc(function),
-            Self::Linear => x,
+            Self::EaseFunction(function) => EasingCurve::new(0.0, 1.0, function).sample(x).unwrap(),
             Self::Discrete(limit) => {
                 if x > limit {
                     1.
@@ -373,7 +375,7 @@ impl EaseMethod {
 
 impl Default for EaseMethod {
     fn default() -> Self {
-        Self::Linear
+        Self::EaseFunction(EaseFunction::Linear)
     }
 }
 
@@ -695,14 +697,17 @@ mod tests {
     #[test]
     fn ease_method() {
         let ease = EaseMethod::default();
-        assert!(matches!(ease, EaseMethod::Linear));
+        assert!(matches!(
+            ease,
+            EaseMethod::EaseFunction(EaseFunction::Linear)
+        ));
 
         let ease = EaseMethod::EaseFunction(EaseFunction::QuadraticIn);
         assert_eq!(0., ease.sample(0.));
         assert_eq!(0.25, ease.sample(0.5));
         assert_eq!(1., ease.sample(1.));
 
-        let ease = EaseMethod::Linear;
+        let ease = EaseMethod::EaseFunction(EaseFunction::Linear);
         assert_eq!(0., ease.sample(0.));
         assert_eq!(0.5, ease.sample(0.5));
         assert_eq!(1., ease.sample(1.));

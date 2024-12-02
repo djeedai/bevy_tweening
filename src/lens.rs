@@ -88,17 +88,12 @@ pub struct TextColorLens {
     pub start: Color,
     /// End color.
     pub end: Color,
-    /// Index of the text section in the [`Text`] component.
-    pub section: usize,
 }
 
 #[cfg(feature = "bevy_text")]
-impl Lens<Text> for TextColorLens {
-    fn lerp(&mut self, target: &mut dyn Targetable<Text>, ratio: f32) {
-        if let Some(section) = target.sections.get_mut(self.section) {
-            let value = self.start.mix(&self.end, ratio);
-            section.style.color = value;
-        }
+impl Lens<TextColor> for TextColorLens {
+    fn lerp(&mut self, target: &mut dyn Targetable<TextColor>, ratio: f32) {
+        target.0 = self.start.mix(&self.end, ratio);
     }
 }
 
@@ -280,8 +275,7 @@ pub struct TransformScaleLens {
 
 impl Lens<Transform> for TransformScaleLens {
     fn lerp(&mut self, target: &mut dyn Targetable<Transform>, ratio: f32) {
-        let value = self.start + (self.end - self.start) * ratio;
-        target.scale = value;
+        target.scale = self.start + (self.end - self.start) * ratio;
     }
 }
 
@@ -310,8 +304,8 @@ fn lerp_val(start: &Val, end: &Val, ratio: f32) -> Val {
 }
 
 #[cfg(feature = "bevy_ui")]
-impl Lens<Style> for UiPositionLens {
-    fn lerp(&mut self, target: &mut dyn Targetable<Style>, ratio: f32) {
+impl Lens<Node> for UiPositionLens {
+    fn lerp(&mut self, target: &mut dyn Targetable<Node>, ratio: f32) {
         target.left = lerp_val(&self.start.left, &self.end.left, ratio);
         target.right = lerp_val(&self.start.right, &self.end.right, ratio);
         target.top = lerp_val(&self.start.top, &self.end.top, ratio);
@@ -398,15 +392,15 @@ mod tests {
         let mut lens = TextColorLens {
             start: RED.into(),
             end: BLUE.into(),
-            section: 0,
         };
-        let mut text = Text::from_section("", default());
+
+        let mut text_color = TextColor::default();
 
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
             let mut target = ComponentTarget::new(Mut::new(
-                &mut text,
+                &mut text_color,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
@@ -415,13 +409,13 @@ mod tests {
 
             lens.lerp(&mut target, 0.);
         }
-        assert_eq!(text.sections[0].style.color, RED.into());
+        assert_eq!(text_color.0, RED.into());
 
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
             let mut target = ComponentTarget::new(Mut::new(
-                &mut text,
+                &mut text_color,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
@@ -430,13 +424,13 @@ mod tests {
 
             lens.lerp(&mut target, 1.);
         }
-        assert_eq!(text.sections[0].style.color, BLUE.into());
+        assert_eq!(text_color.0, BLUE.into());
 
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
             let mut target = ComponentTarget::new(Mut::new(
-                &mut text,
+                &mut text_color,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
@@ -445,58 +439,7 @@ mod tests {
 
             lens.lerp(&mut target, 0.3);
         }
-        assert_eq!(
-            text.sections[0].style.color,
-            Color::srgba(0.7, 0., 0.3, 1.0)
-        );
-
-        let mut lens_section1 = TextColorLens {
-            start: RED.into(),
-            end: BLUE.into(),
-            section: 1,
-        };
-
-        {
-            let mut added = Tick::new(0);
-            let mut last_changed = Tick::new(0);
-            let mut target = ComponentTarget::new(Mut::new(
-                &mut text,
-                &mut added,
-                &mut last_changed,
-                Tick::new(0),
-                Tick::new(0),
-            ));
-
-            lens_section1.lerp(&mut target, 1.);
-        }
-        // Should not have changed because the lens targets section 1
-        assert_eq!(
-            text.sections[0].style.color,
-            Color::srgba(0.7, 0., 0.3, 1.0)
-        );
-
-        text.sections.push(TextSection {
-            value: "".to_string(),
-            style: Default::default(),
-        });
-
-        {
-            let mut added = Tick::new(0);
-            let mut last_changed = Tick::new(0);
-            let mut target = ComponentTarget::new(Mut::new(
-                &mut text,
-                &mut added,
-                &mut last_changed,
-                Tick::new(0),
-                Tick::new(0),
-            ));
-
-            lens_section1.lerp(&mut target, 0.3);
-        }
-        assert_eq!(
-            text.sections[1].style.color,
-            Color::srgba(0.7, 0., 0.3, 1.0)
-        );
+        assert_eq!(text_color.0, Color::srgba(0.7, 0., 0.3, 1.0));
     }
 
     #[test]
@@ -930,7 +873,7 @@ mod tests {
                 bottom: Val::Percent(45.),
             },
         };
-        let mut style = Style::default();
+        let mut style = Node::default();
 
         {
             let mut added = Tick::new(0);
@@ -998,6 +941,7 @@ mod tests {
         let handle = assets.add(ColorMaterial {
             color: Color::WHITE,
             texture: None,
+            ..default()
         });
 
         {

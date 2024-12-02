@@ -91,12 +91,9 @@ fn setup(mut commands: Commands) {
         .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
         commands.spawn((
-            SpriteBundle {
-                sprite: Sprite {
-                    color: RED.into(),
-                    custom_size: Some(Vec2::new(size, size)),
-                    ..default()
-                },
+            Sprite {
+                color: RED.into(),
+                custom_size: Some(Vec2::new(size, size)),
                 ..default()
             },
             Animator::new(tween),

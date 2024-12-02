@@ -24,7 +24,7 @@ fn main() {
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn(Camera2dBundle::default());
+    commands.spawn(Camera2d::default());
 
     let font = asset_server.load("fonts/FiraMono-Regular.ttf");
 
@@ -76,36 +76,31 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             TextColorLens {
                 start: RED.into(),
                 end: BLUE.into(),
-                section: 0,
             },
         )
         .with_repeat_count(RepeatCount::Infinite)
         .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
         commands.spawn((
-            TextBundle {
-                style: Style {
-                    width: Val::Px(size_x),
-                    height: Val::Px(size_y),
-                    left: Val::Px(x),
-                    top: Val::Px(y),
-                    right: Val::Auto,
-                    bottom: Val::Auto,
-                    position_type: PositionType::Absolute,
-                    align_content: AlignContent::Center,
-                    align_items: AlignItems::Center,
-                    align_self: AlignSelf::Center,
-                    justify_content: JustifyContent::Center,
-                    ..default()
-                },
-                text: Text::from_section(
-                    *ease_name,
-                    TextStyle {
-                        font: font.clone(),
-                        font_size: 24.0,
-                        color: Color::WHITE,
-                    },
-                ),
+            Text::new(*ease_name),
+            TextFont {
+                font: font.clone(),
+                font_size: 24.0,
+                ..default()
+            },
+            TextColor(Color::WHITE),
+            Node {
+                width: Val::Px(size_x),
+                height: Val::Px(size_y),
+                left: Val::Px(x),
+                top: Val::Px(y),
+                right: Val::Auto,
+                bottom: Val::Auto,
+                position_type: PositionType::Absolute,
+                align_content: AlignContent::Center,
+                align_items: AlignItems::Center,
+                align_self: AlignSelf::Center,
+                justify_content: JustifyContent::Center,
                 ..default()
             },
             Animator::new(tween),

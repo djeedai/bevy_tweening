@@ -38,7 +38,7 @@ impl Default for Options {
 }
 
 fn setup(mut commands: Commands) {
-    commands.spawn(Camera2dBundle::default());
+    commands.spawn(Camera2d::default());
 
     let size = 80.;
 
@@ -92,18 +92,15 @@ fn setup(mut commands: Commands) {
         .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
         commands
-            .spawn(SpatialBundle {
-                transform: Transform::from_translation(Vec3::new(x, y, 0.)),
-                ..default()
-            })
+            .spawn((
+                Transform::from_translation(Vec3::new(x, y, 0.)),
+                Visibility::default(),
+            ))
             .with_children(|parent| {
                 parent.spawn((
-                    SpriteBundle {
-                        sprite: Sprite {
-                            color: RED.into(),
-                            custom_size: Some(Vec2::new(size, size * 0.5)),
-                            ..default()
-                        },
+                    Sprite {
+                        color: RED.into(),
+                        custom_size: Some(Vec2::new(size, size * 0.5)),
                         ..default()
                     },
                     Animator::new(tween),

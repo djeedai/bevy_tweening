@@ -1360,7 +1360,7 @@ mod tests {
     /// Utility to create a tween for testing.
     fn make_test_tween() -> Tween<Transform> {
         Tween::new(
-            EaseMethod::Linear,
+            EaseMethod::default(),
             Duration::from_secs(1),
             TransformPositionLens {
                 start: Vec3::ZERO,
@@ -1474,7 +1474,7 @@ mod tests {
     #[test]
     fn into_repeat_count() {
         let tween = Tween::new(
-            EaseMethod::Linear,
+            EaseMethod::default(),
             Duration::from_secs(1),
             TransformPositionLens {
                 start: Vec3::ZERO,
@@ -1488,7 +1488,7 @@ mod tests {
         );
 
         let tween = Tween::new(
-            EaseMethod::Linear,
+            EaseMethod::default(),
             Duration::from_secs(1),
             TransformPositionLens {
                 start: Vec3::ZERO,
@@ -1810,7 +1810,7 @@ mod tests {
     #[test]
     fn seq_tick() {
         let tween1 = Tween::new(
-            EaseMethod::Linear,
+            EaseMethod::default(),
             Duration::from_secs(1),
             TransformPositionLens {
                 start: Vec3::ZERO,
@@ -1818,7 +1818,7 @@ mod tests {
             },
         );
         let tween2 = Tween::new(
-            EaseMethod::Linear,
+            EaseMethod::default(),
             Duration::from_secs(1),
             TransformRotationLens {
                 start: Quat::IDENTITY,
@@ -1859,7 +1859,7 @@ mod tests {
     fn seq_tick_boundaries() {
         let mut seq = Sequence::new((0..3).map(|i| {
             Tween::new(
-                EaseMethod::Linear,
+                EaseMethod::default(),
                 Duration::from_secs(1),
                 TransformPositionLens {
                     start: Vec3::splat(i as f32),
@@ -1893,7 +1893,7 @@ mod tests {
     fn seq_iter() {
         let mut seq = Sequence::new((1..5).map(|i| {
             Tween::new(
-                EaseMethod::Linear,
+                EaseMethod::default(),
                 Duration::from_millis(200 * i),
                 TransformPositionLens {
                     start: Vec3::ZERO,
@@ -1922,7 +1922,7 @@ mod tests {
     #[test]
     fn seq_from_single() {
         let tween = Tween::new(
-            EaseMethod::Linear,
+            EaseMethod::default(),
             Duration::from_secs(1),
             TransformPositionLens {
                 start: Vec3::ZERO,
@@ -1938,7 +1938,7 @@ mod tests {
     fn seq_elapsed() {
         let mut seq = Sequence::new((1..5).map(|i| {
             Tween::new(
-                EaseMethod::Linear,
+                EaseMethod::default(),
                 Duration::from_millis(200 * i),
                 TransformPositionLens {
                     start: Vec3::ZERO,
@@ -1963,7 +1963,7 @@ mod tests {
     #[test]
     fn tracks_tick() {
         let tween1 = Tween::new(
-            EaseMethod::Linear,
+            EaseMethod::default(),
             Duration::from_millis(1000),
             TransformPositionLens {
                 start: Vec3::ZERO,
@@ -1971,7 +1971,7 @@ mod tests {
             },
         );
         let tween2 = Tween::new(
-            EaseMethod::Linear,
+            EaseMethod::default(),
             Duration::from_millis(800), // shorter
             TransformRotationLens {
                 start: Quat::IDENTITY,
