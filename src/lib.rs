@@ -223,14 +223,6 @@ pub mod lens;
 mod plugin;
 mod tweenable;
 
-#[doc(hidden)]
-pub mod prelude {
-    pub use super::lens::*;
-    pub use super::plugin::*;
-    pub use super::tweenable::*;
-    pub use super::*;
-}
-
 #[cfg(test)]
 mod test_utils;
 
