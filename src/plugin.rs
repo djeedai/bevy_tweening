@@ -1,5 +1,3 @@
-use std::ops::Deref;
-
 use bevy::prelude::*;
 
 #[cfg(feature = "bevy_asset")]
@@ -108,6 +106,9 @@ pub fn component_animator_system<T: Component>(
         }
     }
 }
+
+#[cfg(feature = "bevy_asset")]
+use std::ops::Deref;
 
 /// Animator system for assets.
 ///
