@@ -151,13 +151,12 @@ The naming scheme for predefined lenses is `"<TargetName><FieldName>Lens"`, wher
 | [`Sprite`](https://docs.rs/bevy/0.15.0/bevy/sprite/struct.Sprite.html) | [`color`](https://docs.rs/bevy/0.15.0/bevy/sprite/struct.Sprite.html#structfield.color) | [`SpriteColorLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.SpriteColorLens.html) | `bevy_sprite` |
 | [`Node`](https://docs.rs/bevy/0.15.0/bevy/ui/struct.Node.html) | [`position`](https://docs.rs/bevy/0.15.0/bevy/ui/struct.Node.html) | [`UiPositionLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.UiPositionLens.html) | `bevy_ui` |
 | [`BackgroundColor`](https://docs.rs/bevy/0.15.0/bevy/ui/struct.BackgroundColor.html)| | [`UiBackgroundColorLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.UiBackgroundColorLens.html) | `bevy_ui` |
-| [`Text`](https://docs.rs/bevy/latest/bevy/text/index.html) | [`TextColor`](https://docs.rs/bevy/0.15.0/bevy/text/struct.TextColor.html) | [`TextColorLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.TextColorLens.html) | `bevy_text` |
+| [`TextColor`](https://docs.rs/bevy/0.15.0/bevy/text/struct.TextColor.html) | | [`TextColorLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.TextColorLens.html) | `bevy_text` |
 
-¹ Shortest-path interpolation between two rotations, using `Quat::slerp()`.
+There are two ways to interpolate rotations. See the [comparison of rotation lenses](https://docs.rs/bevy_tweening/0.7.0/bevy_tweening/lens/index.html#rotations) for details:
 
-² Angle-based interpolation, valid for rotations over ½ turn.
-
-See the [comparison of rotation lenses](https://docs.rs/bevy_tweening/0.7.0/bevy_tweening/lens/index.html#rotations) for details.
+- ¹ Shortest-path interpolation between two rotations, using `Quat::slerp()`.
+- ² Angle-based interpolation, valid for rotations over ½ turn.
 
 ### Bevy Assets
 
@@ -283,74 +282,74 @@ cargo run --example sequence --features="bevy/bevy_winit"
 
 ## Ease Functions
 
-Many [ease functions](https://docs.rs/bevy/latest/bevy/math/curve/enum.EaseFunction.html) are available:
+Many [ease functions](https://docs.rs/bevy/0.15.0/bevy/math/curve/enum.EaseFunction.html) are available from `bevy_math`:
 
 - Linear
-> `f(t) = t`
+  > `f(t) = t`
 - QuadraticIn
-> `f(t) = t²`
+  > `f(t) = t²`
 - QuadraticOut
-> `f(t) = -(t * (t - 2.0))`
+  > `f(t) = -(t * (t - 2.0))`
 - QuadraticInOut
-> Behaves as `EaseFunction::QuadraticIn` for t < 0.5 and as `EaseFunction::QuadraticOut` for t >= 0.5
+  > Behaves as `EaseFunction::QuadraticIn` for t < 0.5 and as `EaseFunction::QuadraticOut` for t >= 0.5
 - CubicIn
-> `f(t) = t³`
+  > `f(t) = t³`
 - CubicOut
-> `f(t) = (t - 1.0)³ + 1.0`
+  > `f(t) = (t - 1.0)³ + 1.0`
 - CubicInOut
-> Behaves as `EaseFunction::CubicIn` for t < 0.5 and as `EaseFunction::CubicOut` for t >= 0.5
+  > Behaves as `EaseFunction::CubicIn` for t < 0.5 and as `EaseFunction::CubicOut` for t >= 0.5
 - QuarticIn
-> `f(t) = t⁴`
+  > `f(t) = t⁴`
 - QuarticOut
-> `f(t) = (t - 1.0)³ * (1.0 - t) + 1.0`
+  > `f(t) = (t - 1.0)³ * (1.0 - t) + 1.0`
 - QuarticInOut
-> Behaves as `EaseFunction::QuarticIn` for t < 0.5 and as `EaseFunction::QuarticOut` for t >= 0.5
+  > Behaves as `EaseFunction::QuarticIn` for t < 0.5 and as `EaseFunction::QuarticOut` for t >= 0.5
 - QuinticIn
-> `f(t) = t⁵`
+  > `f(t) = t⁵`
 - QuinticOut
-> `f(t) = (t - 1.0)⁵ + 1.0`
+  > `f(t) = (t - 1.0)⁵ + 1.0`
 - QuinticInOut
-> Behaves as `EaseFunction::QuinticIn` for t < 0.5 and as `EaseFunction::QuinticOut` for t >= 0.5
+  > Behaves as `EaseFunction::QuinticIn` for t < 0.5 and as `EaseFunction::QuinticOut` for t >= 0.5
 - SineIn
-> `f(t) = 1.0 - cos(t * π / 2.0)`
+  > `f(t) = 1.0 - cos(t * π / 2.0)`
 - SineOut
-> `f(t) = sin(t * π / 2.0)`
+  > `f(t) = sin(t * π / 2.0)`
 - SineInOut
-> Behaves as `EaseFunction::SineIn` for t < 0.5 and as `EaseFunction::SineOut` for t >= 0.5
+  > Behaves as `EaseFunction::SineIn` for t < 0.5 and as `EaseFunction::SineOut` for t >= 0.5
 - CircularIn
-> `f(t) = 1.0 - sqrt(1.0 - t²)`
+  > `f(t) = 1.0 - sqrt(1.0 - t²)`
 - CircularOut
-> `f(t) = sqrt((2.0 - t) * t)`
+  > `f(t) = sqrt((2.0 - t) * t)`
 - CircularInOut
-> Behaves as `EaseFunction::CircularIn` for t < 0.5 and as `EaseFunction::CircularOut` for t >= 0.5
+  > Behaves as `EaseFunction::CircularIn` for t < 0.5 and as `EaseFunction::CircularOut` for t >= 0.5
 - ExponentialIn
-> `f(t) = 2.0^(10.0 * (t - 1.0))`
+  > `f(t) = 2.0^(10.0 * (t - 1.0))`
 - ExponentialOut
-> `f(t) = 1.0 - 2.0^(-10.0 * t)`
+  > `f(t) = 1.0 - 2.0^(-10.0 * t)`
 - ExponentialInOut
-> Behaves as `EaseFunction::ExponentialIn` for t < 0.5 and as `EaseFunction::ExponentialOut` for t >= 0.5
+  > Behaves as `EaseFunction::ExponentialIn` for t < 0.5 and as `EaseFunction::ExponentialOut` for t >= 0.5
 - ElasticIn
-> `f(t) = -2.0^(10.0 * t - 10.0) * sin((t * 10.0 - 10.75) * 2.0 * π / 3.0)`
+  > `f(t) = -2.0^(10.0 * t - 10.0) * sin((t * 10.0 - 10.75) * 2.0 * π / 3.0)`
 - ElasticOut
-> `f(t) = 2.0^(-10.0 * t) * sin((t * 10.0 - 0.75) * 2.0 * π / 3.0) + 1.0`
+  > `f(t) = 2.0^(-10.0 * t) * sin((t * 10.0 - 0.75) * 2.0 * π / 3.0) + 1.0`
 - ElasticInOut
-> Behaves as `EaseFunction::ElasticIn` for t < 0.5 and as `EaseFunction::ElasticOut` for t >= 0.5
+  > Behaves as `EaseFunction::ElasticIn` for t < 0.5 and as `EaseFunction::ElasticOut` for t >= 0.5
 - BackIn
-> `f(t) = 2.70158 * t³ - 1.70158 * t²`
+  > `f(t) = 2.70158 * t³ - 1.70158 * t²`
 - BackOut
-> `f(t) = 1.0 + 2.70158 * (t - 1.0)³ - 1.70158 * (t - 1.0)²`
+  > `f(t) = 1.0 + 2.70158 * (t - 1.0)³ - 1.70158 * (t - 1.0)²`
 - BackInOut
-> Behaves as `EaseFunction::BackIn` for t < 0.5 and as `EaseFunction::BackOut` for t >= 0.5
+  > Behaves as `EaseFunction::BackIn` for t < 0.5 and as `EaseFunction::BackOut` for t >= 0.5
 - BounceIn
-> bouncy at the start!
+  > bouncy at the start!
 - BounceOut
-> bouncy at the end!
+  > bouncy at the end!
 - BounceInOut
-> Behaves as `EaseFunction::BounceIn` for t < 0.5 and as `EaseFunction::BounceOut` for t >= 0.5
+  > Behaves as `EaseFunction::BounceIn` for t < 0.5 and as `EaseFunction::BounceOut` for t >= 0.5
 - Steps(usize)
-> `n` steps connecting the start and the end
+  > `n` steps connecting the start and the end
 - Elastic(f32)
-> `f(omega,t) = 1 - (1 - t)²(2sin(omega * t) / omega + cos(omega * t))`, parametrized by omega
+  > `f(omega,t) = 1 - (1 - t)²(2sin(omega * t) / omega + cos(omega * t))`, parametrized by omega
 
 ## Compatible Bevy versions
 
