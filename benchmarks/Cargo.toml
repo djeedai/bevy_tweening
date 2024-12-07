@@ -1,6 +1,6 @@
 [package]
 name = "bevy_tweening_bench"
-version = "0.11.0"
+version = "0.12.0"
 authors = ["Jerome Humbert <djeedai@gmail.com>"]
 edition = "2021"
 description = "Tweening plugin for Bevy -- Benchmarks"
