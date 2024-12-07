@@ -27,7 +27,7 @@ bevy_ui = ["bevy/bevy_ui", "bevy/bevy_render"]
 bevy_text = ["bevy/bevy_text", "bevy/bevy_render", "bevy/bevy_sprite"]
 
 [dependencies]
-bevy = { version = "0.15", default-features = false }
+bevy = { version = "0.15", default-features = false, features = ["x11"] }
 
 [dev-dependencies]
 bevy-inspector-egui = "0.28"
