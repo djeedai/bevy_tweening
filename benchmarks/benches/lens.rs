@@ -13,21 +13,12 @@ fn text_color_lens(c: &mut Criterion) {
     let mut lens = TextColorLens {
         start: RED.into(),
         end: BLUE.into(),
-        section: 0,
     };
-    let mut text = Text::from_section(
-        "test".to_string(),
-        TextStyle {
-            font: Default::default(),
-            font_size: 60.0,
-            color: Color::WHITE,
-        },
-    )
-    .with_justify(JustifyText::Center);
+    let mut text_color = TextColor::default();
     let mut added = Tick::new(0);
     let mut last_changed = Tick::new(0);
     let mut target = ComponentTarget::new(Mut::new(
-        &mut text,
+        &mut text_color,
         &mut added,
         &mut last_changed,
         Tick::new(0),

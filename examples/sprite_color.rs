@@ -21,7 +21,7 @@ fn main() {
 }
 
 fn setup(mut commands: Commands) {
-    commands.spawn(Camera2dBundle::default());
+    commands.spawn(Camera2d::default());
 
     let size = 80.;
 
@@ -75,15 +75,12 @@ fn setup(mut commands: Commands) {
         .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
         commands.spawn((
-            SpriteBundle {
-                transform: Transform::from_translation(Vec3::new(x, y, 0.)),
-                sprite: Sprite {
-                    color: Color::BLACK,
-                    custom_size: Some(Vec2::new(size, size)),
-                    ..default()
-                },
+            Sprite {
+                color: Color::BLACK,
+                custom_size: Some(Vec2::new(size, size)),
                 ..default()
             },
+            Transform::from_translation(Vec3::new(x, y, 0.)),
             Animator::new(tween),
         ));
 

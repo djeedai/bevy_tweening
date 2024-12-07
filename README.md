@@ -60,8 +60,8 @@ By default, 🍃 Bevy Tweening adopts a minimalist approach, and the `TweeningPl
 | `Transform`          | Yes                           |
 | `Sprite`             | Only if `bevy_sprite` feature |
 | `ColorMaterial`      | Only if `bevy_sprite` feature |
-| `Style`              | Only if `bevy_ui` feature     |
-| `Text`               | Only if `bevy_text` feature   |
+| `Node`               | Only if `bevy_ui` feature     |
+| `TextColor`          | Only if `bevy_text` feature   |
 | All other components | No                            |
 
 To add a system for a component `C`, use:
@@ -103,12 +103,9 @@ let tween = Tween::new(
 
 commands.spawn((
     // Spawn a Sprite entity to animate the position of.
-    SpriteBundle {
-        sprite: Sprite {
-            color: Color::RED,
-            custom_size: Some(Vec2::new(size, size)),
-            ..default()
-        },
+    Sprite {
+        color: Color::RED,
+        custom_size: Some(Vec2::new(size, size)),
         ..default()
     },
     // Add an Animator component to control and execute the animation.
@@ -144,17 +141,17 @@ The naming scheme for predefined lenses is `"<TargetName><FieldName>Lens"`, wher
 
 | Target Component | Animated Field | Lens | Feature |
 |---|---|---|---|
-| [`Transform`](https://docs.rs/bevy/0.14.0/bevy/transform/components/struct.Transform.html) | [`translation`](https://docs.rs/bevy/0.14.0/bevy/transform/components/struct.Transform.html#structfield.translation) | [`TransformPositionLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.TransformPositionLens.html) | |
-| | [`rotation`](https://docs.rs/bevy/0.14.0/bevy/transform/components/struct.Transform.html#structfield.rotation) (`Quat`)¹ | [`TransformRotationLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.TransformRotationLens.html) | |
-| | [`rotation`](https://docs.rs/bevy/0.14.0/bevy/transform/components/struct.Transform.html#structfield.rotation) (angle)² | [`TransformRotateXLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.TransformRotateXLens.html) | |
-| | [`rotation`](https://docs.rs/bevy/0.14.0/bevy/transform/components/struct.Transform.html#structfield.rotation) (angle)² | [`TransformRotateYLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.TransformRotateYLens.html) | |
-| | [`rotation`](https://docs.rs/bevy/0.14.0/bevy/transform/components/struct.Transform.html#structfield.rotation) (angle)² | [`TransformRotateZLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.TransformRotateZLens.html) | |
-| | [`rotation`](https://docs.rs/bevy/0.14.0/bevy/transform/components/struct.Transform.html#structfield.rotation) (angle)² | [`TransformRotateAxisLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.TransformRotateAxisLens.html) | |
-| | [`scale`](https://docs.rs/bevy/0.14.0/bevy/transform/components/struct.Transform.html#structfield.scale) | [`TransformScaleLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.TransformScaleLens.html) | |
-| [`Sprite`](https://docs.rs/bevy/0.14.0/bevy/sprite/struct.Sprite.html) | [`color`](https://docs.rs/bevy/0.14.0/bevy/sprite/struct.Sprite.html#structfield.color) | [`SpriteColorLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.SpriteColorLens.html) | `bevy_sprite` |
-| [`Style`](https://docs.rs/bevy/0.14.0/bevy/ui/struct.Style.html) | [`position`](https://docs.rs/bevy/0.14.0/bevy/ui/struct.Style.html#structfield.position) | [`UiPositionLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.UiPositionLens.html) | `bevy_ui` |
-| [`BackgroundColor`](https://docs.rs/bevy/0.14.0/bevy/ui/struct.BackgroundColor.html)| | [`UiBackgroundColorLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.UiBackgroundColorLens.html) | `bevy_ui` |
-| [`Text`](https://docs.rs/bevy/0.14.0/bevy/text/struct.Text.html) | [`TextStyle::color`](https://docs.rs/bevy/0.14.0/bevy/text/struct.TextStyle.html#structfield.color) | [`TextColorLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.TextColorLens.html) | `bevy_text` |
+| [`Transform`](https://docs.rs/bevy/0.15.0/bevy/transform/components/struct.Transform.html) | [`translation`](https://docs.rs/bevy/0.15.0/bevy/transform/components/struct.Transform.html#structfield.translation) | [`TransformPositionLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.TransformPositionLens.html) | |
+| | [`rotation`](https://docs.rs/bevy/0.15.0/bevy/transform/components/struct.Transform.html#structfield.rotation) (`Quat`)¹ | [`TransformRotationLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.TransformRotationLens.html) | |
+| | [`rotation`](https://docs.rs/bevy/0.15.0/bevy/transform/components/struct.Transform.html#structfield.rotation) (angle)² | [`TransformRotateXLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.TransformRotateXLens.html) | |
+| | [`rotation`](https://docs.rs/bevy/0.15.0/bevy/transform/components/struct.Transform.html#structfield.rotation) (angle)² | [`TransformRotateYLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.TransformRotateYLens.html) | |
+| | [`rotation`](https://docs.rs/bevy/0.15.0/bevy/transform/components/struct.Transform.html#structfield.rotation) (angle)² | [`TransformRotateZLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.TransformRotateZLens.html) | |
+| | [`rotation`](https://docs.rs/bevy/0.15.0/bevy/transform/components/struct.Transform.html#structfield.rotation) (angle)² | [`TransformRotateAxisLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.TransformRotateAxisLens.html) | |
+| | [`scale`](https://docs.rs/bevy/0.15.0/bevy/transform/components/struct.Transform.html#structfield.scale) | [`TransformScaleLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.TransformScaleLens.html) | |
+| [`Sprite`](https://docs.rs/bevy/0.15.0/bevy/sprite/struct.Sprite.html) | [`color`](https://docs.rs/bevy/0.15.0/bevy/sprite/struct.Sprite.html#structfield.color) | [`SpriteColorLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.SpriteColorLens.html) | `bevy_sprite` |
+| [`Node`](https://docs.rs/bevy/0.15.0/bevy/ui/struct.Node.html) | [`position`](https://docs.rs/bevy/0.15.0/bevy/ui/struct.Node.html) | [`UiPositionLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.UiPositionLens.html) | `bevy_ui` |
+| [`BackgroundColor`](https://docs.rs/bevy/0.15.0/bevy/ui/struct.BackgroundColor.html)| | [`UiBackgroundColorLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.UiBackgroundColorLens.html) | `bevy_ui` |
+| [`Text`](https://docs.rs/bevy/latest/bevy/text/index.html) | [`TextColor`](https://docs.rs/bevy/0.15.0/bevy/text/struct.TextColor.html) | [`TextColorLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.TextColorLens.html) | `bevy_text` |
 
 ¹ Shortest-path interpolation between two rotations, using `Quat::slerp()`.
 
@@ -168,7 +165,7 @@ Asset animation always requires the `bevy_asset` feature.
 
 | Target Asset | Animated Field | Lens | Feature |
 |---|---|---|---|
-| [`ColorMaterial`](https://docs.rs/bevy/0.14.0/bevy/sprite/struct.ColorMaterial.html) | [`color`](https://docs.rs/bevy/0.14.0/bevy/sprite/struct.ColorMaterial.html#structfield.color) | [`ColorMaterialColorLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.ColorMaterialColorLens.html) | `bevy_asset` + `bevy_sprite` |
+| [`ColorMaterial`](https://docs.rs/bevy/0.15.0/bevy/sprite/struct.ColorMaterial.html) | [`color`](https://docs.rs/bevy/0.14.0/bevy/sprite/struct.ColorMaterial.html#structfield.color) | [`ColorMaterialColorLens`](https://docs.rs/bevy_tweening/latest/bevy_tweening/lens/struct.ColorMaterialColorLens.html) | `bevy_asset` + `bevy_sprite` |
 
 ## Custom lens
 
@@ -286,38 +283,74 @@ cargo run --example sequence --features="bevy/bevy_winit"
 
 ## Ease Functions
 
-Many [ease functions](https://docs.rs/interpolation/0.2.0/interpolation/enum.EaseFunction.html) are available:
+Many [ease functions](https://docs.rs/bevy/latest/bevy/math/curve/enum.EaseFunction.html) are available:
 
+- Linear
+> `f(t) = t`
 - QuadraticIn
+> `f(t) = t²`
 - QuadraticOut
+> `f(t) = -(t * (t - 2.0))`
 - QuadraticInOut
+> Behaves as `EaseFunction::QuadraticIn` for t < 0.5 and as `EaseFunction::QuadraticOut` for t >= 0.5
 - CubicIn
+> `f(t) = t³`
 - CubicOut
+> `f(t) = (t - 1.0)³ + 1.0`
 - CubicInOut
+> Behaves as `EaseFunction::CubicIn` for t < 0.5 and as `EaseFunction::CubicOut` for t >= 0.5
 - QuarticIn
+> `f(t) = t⁴`
 - QuarticOut
+> `f(t) = (t - 1.0)³ * (1.0 - t) + 1.0`
 - QuarticInOut
+> Behaves as `EaseFunction::QuarticIn` for t < 0.5 and as `EaseFunction::QuarticOut` for t >= 0.5
 - QuinticIn
+> `f(t) = t⁵`
 - QuinticOut
+> `f(t) = (t - 1.0)⁵ + 1.0`
 - QuinticInOut
+> Behaves as `EaseFunction::QuinticIn` for t < 0.5 and as `EaseFunction::QuinticOut` for t >= 0.5
 - SineIn
+> `f(t) = 1.0 - cos(t * π / 2.0)`
 - SineOut
+> `f(t) = sin(t * π / 2.0)`
 - SineInOut
+> Behaves as `EaseFunction::SineIn` for t < 0.5 and as `EaseFunction::SineOut` for t >= 0.5
 - CircularIn
+> `f(t) = 1.0 - sqrt(1.0 - t²)`
 - CircularOut
+> `f(t) = sqrt((2.0 - t) * t)`
 - CircularInOut
+> Behaves as `EaseFunction::CircularIn` for t < 0.5 and as `EaseFunction::CircularOut` for t >= 0.5
 - ExponentialIn
+> `f(t) = 2.0^(10.0 * (t - 1.0))`
 - ExponentialOut
+> `f(t) = 1.0 - 2.0^(-10.0 * t)`
 - ExponentialInOut
+> Behaves as `EaseFunction::ExponentialIn` for t < 0.5 and as `EaseFunction::ExponentialOut` for t >= 0.5
 - ElasticIn
+> `f(t) = -2.0^(10.0 * t - 10.0) * sin((t * 10.0 - 10.75) * 2.0 * π / 3.0)`
 - ElasticOut
+> `f(t) = 2.0^(-10.0 * t) * sin((t * 10.0 - 0.75) * 2.0 * π / 3.0) + 1.0`
 - ElasticInOut
+> Behaves as `EaseFunction::ElasticIn` for t < 0.5 and as `EaseFunction::ElasticOut` for t >= 0.5
 - BackIn
+> `f(t) = 2.70158 * t³ - 1.70158 * t²`
 - BackOut
+> `f(t) = 1.0 + 2.70158 * (t - 1.0)³ - 1.70158 * (t - 1.0)²`
 - BackInOut
+> Behaves as `EaseFunction::BackIn` for t < 0.5 and as `EaseFunction::BackOut` for t >= 0.5
 - BounceIn
+> bouncy at the start!
 - BounceOut
+> bouncy at the end!
 - BounceInOut
+> Behaves as `EaseFunction::BounceIn` for t < 0.5 and as `EaseFunction::BounceOut` for t >= 0.5
+- Steps(usize)
+> `n` steps connecting the start and the end
+- Elastic(f32)
+> `f(omega,t) = 1 - (1 - t)²(2sin(omega * t) / omega + cos(omega * t))`, parametrized by omega
 
 ## Compatible Bevy versions
 
