@@ -499,12 +499,15 @@ macro_rules! animator_impl {
 
 /// Component to control the animation of another component.
 ///
-/// The animated component is the component located on the same entity as the
-/// [`Animator<T>`] itself.
+/// By default, the animated component is the component located on the same
+/// entity as the [`Animator<T>`] itself. But if [`Animator::target`] is set,
+/// that entity will be used instead.
 #[derive(Component)]
 pub struct Animator<T: Component> {
     /// Control if this animation is played or not.
     pub state: AnimatorState,
+    /// When set, the animated component will be the one located on this entity.
+    pub target: Option<Entity>,
     tweenable: BoxedTweenable<T>,
     speed: f32,
 }
@@ -524,8 +527,15 @@ impl<T: Component> Animator<T> {
         Self {
             state: default(),
             tweenable: Box::new(tween),
+            target: None,
             speed: 1.,
         }
+    }
+
+    /// Create a new version of this animator with the `target` set to the given entity.
+    pub fn with_target(mut self, entity: Entity) -> Self {
+        self.target = Some(entity);
+        self
     }
 
     animator_impl!();
