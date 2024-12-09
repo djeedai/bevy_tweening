@@ -791,10 +791,16 @@ impl<T> Tweenable<T> for Tween<T> {
         // If completed at least once this frame, notify the user
         if times_completed > 0 {
             if let Some(user_data) = &self.event_data {
-                events.send(TweenCompleted {
+                let event = TweenCompleted {
                     entity,
                     user_data: *user_data,
-                });
+                };
+
+                // send regular event
+                events.send(event);
+
+                // trigger all entity-scoped observers
+                commands.trigger_targets(event, entity);
             }
             if let Some(cb) = &self.on_completed {
                 cb(entity, self);
@@ -1321,10 +1327,16 @@ impl<T> Tweenable<T> for Delay<T> {
         // If completed this frame, notify the user
         if (state == TweenState::Completed) && !was_completed {
             if let Some(user_data) = &self.event_data {
-                events.send(TweenCompleted {
+                let event = TweenCompleted {
                     entity,
                     user_data: *user_data,
-                });
+                };
+
+                // send regular event
+                events.send(event);
+
+                // trigger all entity-scoped observers
+                commands.trigger_targets(event, entity);
             }
             if let Some(cb) = &self.on_completed {
                 cb(entity, self);
