@@ -16,7 +16,9 @@ readme = "README.md"
 exclude = ["examples/*.gif", ".github", "release.md", "run_examples.bat"]
 
 [features]
-default = ["bevy_sprite", "bevy_ui", "bevy_asset", "bevy_text"]
+default = ["bevy_sprite", "bevy_ui", "bevy_asset", "bevy_text", "x11"]
+# Enable the X11 display server for Linux builds
+x11 = ["bevy/x11"]
 # Enable support for Asset animation
 bevy_asset = ["bevy/bevy_asset"]
 # Enable built-in lenses for Bevy sprites
@@ -29,7 +31,7 @@ bevy_text = ["bevy/bevy_text", "bevy/bevy_render", "bevy/bevy_sprite"]
 [dependencies]
 # Note: need 'x11' or 'wayland' on Linux for winit to build
 # Note: abuse 'bevy_color' to force 'bevy_math/curve' feature, which defines EaseFunction
-bevy = { version = "0.15", default-features = false, features = ["x11", "bevy_color"] }
+bevy = { version = "0.15", default-features = false, features = ["bevy_color"] }
 
 [dev-dependencies]
 bevy-inspector-egui = "0.28"
