@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{ecs::component::Mutable, prelude::*};
 
 #[cfg(feature = "bevy_asset")]
 use crate::{tweenable::AssetTarget, AssetAnimator};
@@ -85,7 +85,7 @@ pub enum AnimationSystem {
 ///
 /// This system extracts all components of type `T` with an [`Animator<T>`]
 /// attached to the same entity, and tick the animator to animate the component.
-pub fn component_animator_system<T: Component>(
+pub fn component_animator_system<T: Component<Mutability = Mutable>>(
     time: Res<Time>,
     mut animator_query: Query<(Entity, &mut Animator<T>)>,
     mut target_query: Query<&mut T>,
@@ -163,6 +163,8 @@ mod tests {
         },
     };
 
+    use bevy::ecs::component::Mutable;
+
     use crate::{lens::TransformPositionLens, *};
 
     /// A simple isolated test environment with a [`World`] and a single
@@ -210,7 +212,7 @@ mod tests {
         }
     }
 
-    impl<T: Component> TestEnv<T> {
+    impl<T: Component<Mutability = Mutable>> TestEnv<T> {
         /// Get the test world.
         pub fn world_mut(&mut self) -> &mut World {
             &mut self.world
@@ -262,7 +264,7 @@ mod tests {
     #[test]
     fn custom_target_entity() {
         let tween = Tween::new(
-            EaseMethod::Linear,
+            EaseMethod::EaseFunction(EaseFunction::Linear),
             Duration::from_secs(1),
             TransformPositionLens {
                 start: Vec3::ZERO,

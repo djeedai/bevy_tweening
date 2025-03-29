@@ -57,7 +57,7 @@
 //!
 //! commands.spawn((
 //!     // Spawn an entity to animate the position of.
-//!     TransformBundle::default(),
+//!     Transform::default(),
 //!     // Add an Animator component to control and execute the animation.
 //!     Animator::new(tween),
 //! ));
@@ -580,7 +580,7 @@ impl<T: Asset> AssetAnimator<T> {
 
 #[cfg(test)]
 mod tests {
-    use bevy::ecs::component::Tick;
+    use bevy::ecs::{change_detection::MaybeLocation, component::Tick};
 
     use self::tweenable::ComponentTarget;
 
@@ -617,12 +617,14 @@ mod tests {
             {
                 let mut added = Tick::new(0);
                 let mut last_changed = Tick::new(0);
+                let mut caller = MaybeLocation::caller();
                 let mut target = ComponentTarget::new(Mut::new(
                     &mut c,
                     &mut added,
                     &mut last_changed,
                     Tick::new(0),
                     Tick::new(1),
+                    caller.as_mut(),
                 ));
 
                 l.lerp(&mut target, r);
@@ -654,12 +656,14 @@ mod tests {
             {
                 let mut added = Tick::new(0);
                 let mut last_changed = Tick::new(0);
+                let mut caller = MaybeLocation::caller();
                 let mut target = AssetTarget::new(Mut::new(
                     &mut assets,
                     &mut added,
                     &mut last_changed,
                     Tick::new(0),
                     Tick::new(0),
+                    caller.as_mut(),
                 ));
                 target.handle = handle.clone();
 

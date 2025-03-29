@@ -376,7 +376,7 @@ impl Lens<Sprite> for SpriteColorLens {
 
 #[cfg(test)]
 mod tests {
-    use bevy::ecs::component::Tick;
+    use bevy::ecs::{change_detection::MaybeLocation, component::Tick};
     use std::f32::consts::TAU;
 
     #[cfg(any(feature = "bevy_sprite", feature = "bevy_text"))]
@@ -402,12 +402,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut text_color,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 0.);
@@ -417,12 +419,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut text_color,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 1.);
@@ -432,12 +436,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut text_color,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 0.3);
@@ -456,12 +462,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut transform,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 0.);
@@ -473,12 +481,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut transform,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 1.);
@@ -492,12 +502,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut transform,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 0.3);
@@ -520,12 +532,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut transform,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 0.);
@@ -537,12 +551,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut transform,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 1.);
@@ -556,12 +572,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut transform,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 0.3);
@@ -585,12 +603,14 @@ mod tests {
             {
                 let mut added = Tick::new(0);
                 let mut last_changed = Tick::new(0);
+                let mut caller = MaybeLocation::caller();
                 let mut target = ComponentTarget::new(Mut::new(
                     &mut transform,
                     &mut added,
                     &mut last_changed,
                     Tick::new(0),
                     Tick::new(0),
+                    caller.as_mut(),
                 ));
 
                 lens.lerp(&mut target, *ratio);
@@ -612,12 +632,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut transform,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 0.1);
@@ -641,12 +663,14 @@ mod tests {
             {
                 let mut added = Tick::new(0);
                 let mut last_changed = Tick::new(0);
+                let mut caller = MaybeLocation::caller();
                 let mut target = ComponentTarget::new(Mut::new(
                     &mut transform,
                     &mut added,
                     &mut last_changed,
                     Tick::new(0),
                     Tick::new(0),
+                    caller.as_mut(),
                 ));
 
                 lens.lerp(&mut target, *ratio);
@@ -668,12 +692,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut transform,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 0.1);
@@ -697,12 +723,14 @@ mod tests {
             {
                 let mut added = Tick::new(0);
                 let mut last_changed = Tick::new(0);
+                let mut caller = MaybeLocation::caller();
                 let mut target = ComponentTarget::new(Mut::new(
                     &mut transform,
                     &mut added,
                     &mut last_changed,
                     Tick::new(0),
                     Tick::new(0),
+                    caller.as_mut(),
                 ));
 
                 lens.lerp(&mut target, *ratio);
@@ -724,12 +752,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut transform,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 0.1);
@@ -755,12 +785,14 @@ mod tests {
             {
                 let mut added = Tick::new(0);
                 let mut last_changed = Tick::new(0);
+                let mut caller = MaybeLocation::caller();
                 let mut target = ComponentTarget::new(Mut::new(
                     &mut transform,
                     &mut added,
                     &mut last_changed,
                     Tick::new(0),
                     Tick::new(0),
+                    caller.as_mut(),
                 ));
 
                 lens.lerp(&mut target, *ratio);
@@ -782,12 +814,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut transform,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 0.1);
@@ -810,12 +844,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut transform,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 0.);
@@ -827,12 +863,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut transform,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 1.);
@@ -844,12 +882,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut transform,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 0.3);
@@ -881,12 +921,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut node,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 0.);
@@ -899,12 +941,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut node,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 1.);
@@ -917,12 +961,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut node,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 0.3);
@@ -950,12 +996,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = AssetTarget::new(Mut::new(
                 &mut assets,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
             target.handle = handle.clone();
 
@@ -966,12 +1014,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = AssetTarget::new(Mut::new(
                 &mut assets,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
             target.handle = handle.clone();
 
@@ -982,12 +1032,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = AssetTarget::new(Mut::new(
                 &mut assets,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
             target.handle = handle.clone();
 
@@ -1014,12 +1066,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut sprite,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 0.);
@@ -1029,12 +1083,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut sprite,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 1.);
@@ -1044,12 +1100,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut sprite,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 0.3);

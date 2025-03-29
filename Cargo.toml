@@ -27,44 +27,49 @@ bevy_ui = ["bevy/bevy_ui", "bevy/bevy_render"]
 bevy_text = ["bevy/bevy_text", "bevy/bevy_render", "bevy/bevy_sprite"]
 
 [dependencies]
+
 # Note: need 'x11' or 'wayland' on Linux for winit to build
 # Note: abuse 'bevy_color' to force 'bevy_math/curve' feature, which defines EaseFunction
-bevy = { version = "0.15", default-features = false, features = ["x11", "bevy_color"] }
+# TODO: need 'std' or libm' for math library and transform, but it needs to be options too, feature?
+bevy = { version = "0.16.0-rc", default-features = false, features = ["std", "x11", "bevy_color",]}
+#
 
 [dev-dependencies]
-bevy-inspector-egui = "0.28"
+# TODO: replace with released version
+bevy-inspector-egui = { git = "https://github.com/slyedoc/bevy-inspector-egui", branch = "bevy_0.16" }
+
 
 [[example]]
 name = "menu"
-required-features = ["bevy_ui", "bevy_text", "bevy/bevy_winit"]
+required-features = ["bevy_ui", "bevy_text", "bevy/bevy_winit", "bevy/bevy_picking"]
 
 [[example]]
 name = "colormaterial_color"
-required-features = ["bevy_asset", "bevy_sprite", "bevy/bevy_winit"]
+required-features = ["bevy_asset", "bevy_sprite", "bevy/bevy_winit", "bevy/bevy_picking"]
 
 [[example]]
 name = "sprite_color"
-required-features = ["bevy_sprite", "bevy/bevy_winit"]
+required-features = ["bevy_sprite", "bevy/bevy_winit", "bevy/bevy_picking"]
 
 [[example]]
 name = "transform_translation"
-required-features = ["bevy_sprite", "bevy/bevy_winit"]
+required-features = ["bevy_sprite", "bevy/bevy_winit", "bevy/bevy_picking"]
 
 [[example]]
 name = "transform_rotation"
-required-features = ["bevy_sprite", "bevy/bevy_winit"]
+required-features = ["bevy_sprite", "bevy/bevy_winit", "bevy/bevy_picking"]
 
 [[example]]
 name = "ui_position"
-required-features = ["bevy_sprite", "bevy_ui", "bevy/bevy_winit"]
+required-features = ["bevy_sprite", "bevy_ui", "bevy/bevy_winit", "bevy/bevy_picking"]
 
 [[example]]
 name = "text_color"
-required-features = ["bevy_ui", "bevy_text", "bevy/bevy_winit"]
+required-features = ["bevy_ui", "bevy_text", "bevy/bevy_winit", "bevy/bevy_picking"]
 
 [[example]]
 name = "sequence"
-required-features = ["bevy_sprite", "bevy_text", "bevy/bevy_winit"]
+required-features = ["bevy_sprite", "bevy_text", "bevy/bevy_winit", "bevy/bevy_picking"]
 
 [workspace]
 resolver = "2"
