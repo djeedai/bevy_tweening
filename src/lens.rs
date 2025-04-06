@@ -376,7 +376,10 @@ impl Lens<Sprite> for SpriteColorLens {
 
 #[cfg(test)]
 mod tests {
-    use bevy::ecs::component::Tick;
+    use bevy::ecs::{
+        change_detection::MaybeLocation,
+        component::{Mutable, Tick},
+    };
     use std::f32::consts::TAU;
 
     #[cfg(any(feature = "bevy_sprite", feature = "bevy_text"))]
@@ -389,6 +392,26 @@ mod tests {
     #[cfg(all(feature = "bevy_sprite", feature = "bevy_asset"))]
     use crate::tweenable::AssetTarget;
 
+    fn apply_lerp<T: Component<Mutability = Mutable>, L: Lens<T>>(
+        target: &mut T,
+        lens: &mut L,
+        ratio: f32,
+    ) {
+        let mut added = Tick::new(0);
+        let mut last_changed = Tick::new(0);
+        let mut caller = MaybeLocation::caller();
+        let mut target = ComponentTarget::new(Mut::new(
+            target,
+            &mut added,
+            &mut last_changed,
+            Tick::new(0),
+            Tick::new(0),
+            caller.as_mut(),
+        ));
+
+        lens.lerp(&mut target, ratio);
+    }
+
     #[cfg(feature = "bevy_text")]
     #[test]
     fn text_color() {
@@ -399,49 +422,13 @@ mod tests {
 
         let mut text_color = TextColor::default();
 
-        {
-            let mut added = Tick::new(0);
-            let mut last_changed = Tick::new(0);
-            let mut target = ComponentTarget::new(Mut::new(
-                &mut text_color,
-                &mut added,
-                &mut last_changed,
-                Tick::new(0),
-                Tick::new(0),
-            ));
-
-            lens.lerp(&mut target, 0.);
-        }
+        apply_lerp(&mut text_color, &mut lens, 0.);
         assert_eq!(text_color.0, RED.into());
 
-        {
-            let mut added = Tick::new(0);
-            let mut last_changed = Tick::new(0);
-            let mut target = ComponentTarget::new(Mut::new(
-                &mut text_color,
-                &mut added,
-                &mut last_changed,
-                Tick::new(0),
-                Tick::new(0),
-            ));
-
-            lens.lerp(&mut target, 1.);
-        }
+        apply_lerp(&mut text_color, &mut lens, 1.);
         assert_eq!(text_color.0, BLUE.into());
 
-        {
-            let mut added = Tick::new(0);
-            let mut last_changed = Tick::new(0);
-            let mut target = ComponentTarget::new(Mut::new(
-                &mut text_color,
-                &mut added,
-                &mut last_changed,
-                Tick::new(0),
-                Tick::new(0),
-            ));
-
-            lens.lerp(&mut target, 0.3);
-        }
+        apply_lerp(&mut text_color, &mut lens, 0.3);
         assert_eq!(text_color.0, Color::srgba(0.7, 0., 0.3, 1.0));
     }
 
@@ -453,55 +440,19 @@ mod tests {
         };
         let mut transform = Transform::default();
 
-        {
-            let mut added = Tick::new(0);
-            let mut last_changed = Tick::new(0);
-            let mut target = ComponentTarget::new(Mut::new(
-                &mut transform,
-                &mut added,
-                &mut last_changed,
-                Tick::new(0),
-                Tick::new(0),
-            ));
-
-            lens.lerp(&mut target, 0.);
-        }
+        apply_lerp(&mut transform, &mut lens, 0.);
         assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
         assert!(transform.rotation.abs_diff_eq(Quat::IDENTITY, 1e-5));
         assert!(transform.scale.abs_diff_eq(Vec3::ONE, 1e-5));
 
-        {
-            let mut added = Tick::new(0);
-            let mut last_changed = Tick::new(0);
-            let mut target = ComponentTarget::new(Mut::new(
-                &mut transform,
-                &mut added,
-                &mut last_changed,
-                Tick::new(0),
-                Tick::new(0),
-            ));
-
-            lens.lerp(&mut target, 1.);
-        }
+        apply_lerp(&mut transform, &mut lens, 1.);
         assert!(transform
             .translation
             .abs_diff_eq(Vec3::new(1., 2., -4.), 1e-5));
         assert!(transform.rotation.abs_diff_eq(Quat::IDENTITY, 1e-5));
         assert!(transform.scale.abs_diff_eq(Vec3::ONE, 1e-5));
 
-        {
-            let mut added = Tick::new(0);
-            let mut last_changed = Tick::new(0);
-            let mut target = ComponentTarget::new(Mut::new(
-                &mut transform,
-                &mut added,
-                &mut last_changed,
-                Tick::new(0),
-                Tick::new(0),
-            ));
-
-            lens.lerp(&mut target, 0.3);
-        }
+        apply_lerp(&mut transform, &mut lens, 0.3);
         assert!(transform
             .translation
             .abs_diff_eq(Vec3::new(0.3, 0.6, -1.2), 1e-5));
@@ -517,55 +468,19 @@ mod tests {
         };
         let mut transform = Transform::default();
 
-        {
-            let mut added = Tick::new(0);
-            let mut last_changed = Tick::new(0);
-            let mut target = ComponentTarget::new(Mut::new(
-                &mut transform,
-                &mut added,
-                &mut last_changed,
-                Tick::new(0),
-                Tick::new(0),
-            ));
-
-            lens.lerp(&mut target, 0.);
-        }
+        apply_lerp(&mut transform, &mut lens, 0.);
         assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
         assert!(transform.rotation.abs_diff_eq(Quat::IDENTITY, 1e-5));
         assert!(transform.scale.abs_diff_eq(Vec3::ONE, 1e-5));
 
-        {
-            let mut added = Tick::new(0);
-            let mut last_changed = Tick::new(0);
-            let mut target = ComponentTarget::new(Mut::new(
-                &mut transform,
-                &mut added,
-                &mut last_changed,
-                Tick::new(0),
-                Tick::new(0),
-            ));
-
-            lens.lerp(&mut target, 1.);
-        }
+        apply_lerp(&mut transform, &mut lens, 1.);
         assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
         assert!(transform
             .rotation
             .abs_diff_eq(Quat::from_rotation_z(100_f32.to_radians()), 1e-5));
         assert!(transform.scale.abs_diff_eq(Vec3::ONE, 1e-5));
 
-        {
-            let mut added = Tick::new(0);
-            let mut last_changed = Tick::new(0);
-            let mut target = ComponentTarget::new(Mut::new(
-                &mut transform,
-                &mut added,
-                &mut last_changed,
-                Tick::new(0),
-                Tick::new(0),
-            ));
-
-            lens.lerp(&mut target, 0.3);
-        }
+        apply_lerp(&mut transform, &mut lens, 0.3);
         assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
         assert!(transform
             .rotation
@@ -582,19 +497,7 @@ mod tests {
         let mut transform = Transform::default();
 
         for (index, ratio) in [0., 0.25, 0.5, 0.75, 1.].iter().enumerate() {
-            {
-                let mut added = Tick::new(0);
-                let mut last_changed = Tick::new(0);
-                let mut target = ComponentTarget::new(Mut::new(
-                    &mut transform,
-                    &mut added,
-                    &mut last_changed,
-                    Tick::new(0),
-                    Tick::new(0),
-                ));
-
-                lens.lerp(&mut target, *ratio);
-            }
+            apply_lerp(&mut transform, &mut lens, *ratio);
             assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
             if index == 1 || index == 3 {
                 // For odd-numbered turns, the opposite Quat is produced. This is equivalent in
@@ -609,19 +512,7 @@ mod tests {
             assert!(transform.scale.abs_diff_eq(Vec3::ONE, 1e-5));
         }
 
-        {
-            let mut added = Tick::new(0);
-            let mut last_changed = Tick::new(0);
-            let mut target = ComponentTarget::new(Mut::new(
-                &mut transform,
-                &mut added,
-                &mut last_changed,
-                Tick::new(0),
-                Tick::new(0),
-            ));
-
-            lens.lerp(&mut target, 0.1);
-        }
+        apply_lerp(&mut transform, &mut lens, 0.1);
         assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
         assert!(transform
             .rotation
@@ -638,19 +529,7 @@ mod tests {
         let mut transform = Transform::default();
 
         for (index, ratio) in [0., 0.25, 0.5, 0.75, 1.].iter().enumerate() {
-            {
-                let mut added = Tick::new(0);
-                let mut last_changed = Tick::new(0);
-                let mut target = ComponentTarget::new(Mut::new(
-                    &mut transform,
-                    &mut added,
-                    &mut last_changed,
-                    Tick::new(0),
-                    Tick::new(0),
-                ));
-
-                lens.lerp(&mut target, *ratio);
-            }
+            apply_lerp(&mut transform, &mut lens, *ratio);
             assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
             if index == 1 || index == 3 {
                 // For odd-numbered turns, the opposite Quat is produced. This is equivalent in
@@ -665,19 +544,7 @@ mod tests {
             assert!(transform.scale.abs_diff_eq(Vec3::ONE, 1e-5));
         }
 
-        {
-            let mut added = Tick::new(0);
-            let mut last_changed = Tick::new(0);
-            let mut target = ComponentTarget::new(Mut::new(
-                &mut transform,
-                &mut added,
-                &mut last_changed,
-                Tick::new(0),
-                Tick::new(0),
-            ));
-
-            lens.lerp(&mut target, 0.1);
-        }
+        apply_lerp(&mut transform, &mut lens, 0.1);
         assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
         assert!(transform
             .rotation
@@ -694,19 +561,7 @@ mod tests {
         let mut transform = Transform::default();
 
         for (index, ratio) in [0., 0.25, 0.5, 0.75, 1.].iter().enumerate() {
-            {
-                let mut added = Tick::new(0);
-                let mut last_changed = Tick::new(0);
-                let mut target = ComponentTarget::new(Mut::new(
-                    &mut transform,
-                    &mut added,
-                    &mut last_changed,
-                    Tick::new(0),
-                    Tick::new(0),
-                ));
-
-                lens.lerp(&mut target, *ratio);
-            }
+            apply_lerp(&mut transform, &mut lens, *ratio);
             assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
             if index == 1 || index == 3 {
                 // For odd-numbered turns, the opposite Quat is produced. This is equivalent in
@@ -721,19 +576,7 @@ mod tests {
             assert!(transform.scale.abs_diff_eq(Vec3::ONE, 1e-5));
         }
 
-        {
-            let mut added = Tick::new(0);
-            let mut last_changed = Tick::new(0);
-            let mut target = ComponentTarget::new(Mut::new(
-                &mut transform,
-                &mut added,
-                &mut last_changed,
-                Tick::new(0),
-                Tick::new(0),
-            ));
-
-            lens.lerp(&mut target, 0.1);
-        }
+        apply_lerp(&mut transform, &mut lens, 0.1);
         assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
         assert!(transform
             .rotation
@@ -752,19 +595,7 @@ mod tests {
         let mut transform = Transform::default();
 
         for (index, ratio) in [0., 0.25, 0.5, 0.75, 1.].iter().enumerate() {
-            {
-                let mut added = Tick::new(0);
-                let mut last_changed = Tick::new(0);
-                let mut target = ComponentTarget::new(Mut::new(
-                    &mut transform,
-                    &mut added,
-                    &mut last_changed,
-                    Tick::new(0),
-                    Tick::new(0),
-                ));
-
-                lens.lerp(&mut target, *ratio);
-            }
+            apply_lerp(&mut transform, &mut lens, *ratio);
             assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
             if index == 1 || index == 3 {
                 // For odd-numbered turns, the opposite Quat is produced. This is equivalent in
@@ -779,19 +610,7 @@ mod tests {
             assert!(transform.scale.abs_diff_eq(Vec3::ONE, 1e-5));
         }
 
-        {
-            let mut added = Tick::new(0);
-            let mut last_changed = Tick::new(0);
-            let mut target = ComponentTarget::new(Mut::new(
-                &mut transform,
-                &mut added,
-                &mut last_changed,
-                Tick::new(0),
-                Tick::new(0),
-            ));
-
-            lens.lerp(&mut target, 0.1);
-        }
+        apply_lerp(&mut transform, &mut lens, 0.1);
         assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
         assert!(transform
             .rotation
@@ -807,53 +626,17 @@ mod tests {
         };
         let mut transform = Transform::default();
 
-        {
-            let mut added = Tick::new(0);
-            let mut last_changed = Tick::new(0);
-            let mut target = ComponentTarget::new(Mut::new(
-                &mut transform,
-                &mut added,
-                &mut last_changed,
-                Tick::new(0),
-                Tick::new(0),
-            ));
-
-            lens.lerp(&mut target, 0.);
-        }
+        apply_lerp(&mut transform, &mut lens, 0.);
         assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
         assert!(transform.rotation.abs_diff_eq(Quat::IDENTITY, 1e-5));
         assert!(transform.scale.abs_diff_eq(Vec3::ZERO, 1e-5));
 
-        {
-            let mut added = Tick::new(0);
-            let mut last_changed = Tick::new(0);
-            let mut target = ComponentTarget::new(Mut::new(
-                &mut transform,
-                &mut added,
-                &mut last_changed,
-                Tick::new(0),
-                Tick::new(0),
-            ));
-
-            lens.lerp(&mut target, 1.);
-        }
+        apply_lerp(&mut transform, &mut lens, 1.);
         assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
         assert!(transform.rotation.abs_diff_eq(Quat::IDENTITY, 1e-5));
         assert!(transform.scale.abs_diff_eq(Vec3::new(1., 2., -4.), 1e-5));
 
-        {
-            let mut added = Tick::new(0);
-            let mut last_changed = Tick::new(0);
-            let mut target = ComponentTarget::new(Mut::new(
-                &mut transform,
-                &mut added,
-                &mut last_changed,
-                Tick::new(0),
-                Tick::new(0),
-            ));
-
-            lens.lerp(&mut target, 0.3);
-        }
+        apply_lerp(&mut transform, &mut lens, 0.3);
         assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
         assert!(transform.rotation.abs_diff_eq(Quat::IDENTITY, 1e-5));
         assert!(transform.scale.abs_diff_eq(Vec3::new(0.3, 0.6, -1.2), 1e-5));
@@ -878,55 +661,19 @@ mod tests {
         };
         let mut node = Node::default();
 
-        {
-            let mut added = Tick::new(0);
-            let mut last_changed = Tick::new(0);
-            let mut target = ComponentTarget::new(Mut::new(
-                &mut node,
-                &mut added,
-                &mut last_changed,
-                Tick::new(0),
-                Tick::new(0),
-            ));
-
-            lens.lerp(&mut target, 0.);
-        }
+        apply_lerp(&mut node, &mut lens, 0.);
         assert_eq!(node.left, Val::Px(0.));
         assert_eq!(node.top, Val::Px(0.));
         assert_eq!(node.right, Val::Auto);
         assert_eq!(node.bottom, Val::Percent(25.));
 
-        {
-            let mut added = Tick::new(0);
-            let mut last_changed = Tick::new(0);
-            let mut target = ComponentTarget::new(Mut::new(
-                &mut node,
-                &mut added,
-                &mut last_changed,
-                Tick::new(0),
-                Tick::new(0),
-            ));
-
-            lens.lerp(&mut target, 1.);
-        }
+        apply_lerp(&mut node, &mut lens, 1.);
         assert_eq!(node.left, Val::Px(1.));
         assert_eq!(node.top, Val::Px(5.));
         assert_eq!(node.right, Val::Auto);
         assert_eq!(node.bottom, Val::Percent(45.));
 
-        {
-            let mut added = Tick::new(0);
-            let mut last_changed = Tick::new(0);
-            let mut target = ComponentTarget::new(Mut::new(
-                &mut node,
-                &mut added,
-                &mut last_changed,
-                Tick::new(0),
-                Tick::new(0),
-            ));
-
-            lens.lerp(&mut target, 0.3);
-        }
+        apply_lerp(&mut node, &mut lens, 0.3);
         assert_eq!(node.left, Val::Px(0.3));
         assert_eq!(node.top, Val::Px(1.5));
         assert_eq!(node.right, Val::Auto);
@@ -950,12 +697,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = AssetTarget::new(Mut::new(
                 &mut assets,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
             target.handle = handle.clone();
 
@@ -966,12 +715,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = AssetTarget::new(Mut::new(
                 &mut assets,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
             target.handle = handle.clone();
 
@@ -982,12 +733,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = AssetTarget::new(Mut::new(
                 &mut assets,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
             target.handle = handle.clone();
 
@@ -1011,49 +764,13 @@ mod tests {
             ..default()
         };
 
-        {
-            let mut added = Tick::new(0);
-            let mut last_changed = Tick::new(0);
-            let mut target = ComponentTarget::new(Mut::new(
-                &mut sprite,
-                &mut added,
-                &mut last_changed,
-                Tick::new(0),
-                Tick::new(0),
-            ));
-
-            lens.lerp(&mut target, 0.);
-        }
+        apply_lerp(&mut sprite, &mut lens, 0.);
         assert_eq!(sprite.color, RED.into());
 
-        {
-            let mut added = Tick::new(0);
-            let mut last_changed = Tick::new(0);
-            let mut target = ComponentTarget::new(Mut::new(
-                &mut sprite,
-                &mut added,
-                &mut last_changed,
-                Tick::new(0),
-                Tick::new(0),
-            ));
-
-            lens.lerp(&mut target, 1.);
-        }
+        apply_lerp(&mut sprite, &mut lens, 1.);
         assert_eq!(sprite.color, BLUE.into());
 
-        {
-            let mut added = Tick::new(0);
-            let mut last_changed = Tick::new(0);
-            let mut target = ComponentTarget::new(Mut::new(
-                &mut sprite,
-                &mut added,
-                &mut last_changed,
-                Tick::new(0),
-                Tick::new(0),
-            ));
-
-            lens.lerp(&mut target, 0.3);
-        }
+        apply_lerp(&mut sprite, &mut lens, 0.3);
         assert_eq!(sprite.color, Color::srgba(0.7, 0., 0.3, 1.0));
     }
 }
