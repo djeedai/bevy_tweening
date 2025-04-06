@@ -1,4 +1,5 @@
 use bevy::{color::palettes::css::*, prelude::*};
+#[cfg(feature = "examples_world_inspector")]
 use bevy_inspector_egui::{prelude::*, quick::ResourceInspectorPlugin};
 
 use bevy_tweening::{lens::*, *};
@@ -6,28 +7,35 @@ use bevy_tweening::{lens::*, *};
 mod utils;
 
 fn main() {
-    App::default()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "TransformPositionLens".to_string(),
-                resolution: (1400., 600.).into(),
-                present_mode: bevy::window::PresentMode::Fifo, // vsync
-                ..default()
-            }),
+    let mut app = App::default();
+    app.add_plugins(DefaultPlugins.set(WindowPlugin {
+        primary_window: Some(Window {
+            title: "TransformPositionLens".to_string(),
+            resolution: (1400., 600.).into(),
+            present_mode: bevy::window::PresentMode::Fifo, // vsync
             ..default()
-        }))
-        .init_resource::<Options>()
-        .add_systems(Update, utils::close_on_esc)
-        .add_plugins(TweeningPlugin)
-        .add_plugins(ResourceInspectorPlugin::<Options>::default())
-        .add_systems(Startup, setup)
-        .add_systems(Update, update_animation_speed)
-        .run();
+        }),
+        ..default()
+    }))
+    .init_resource::<Options>()
+    .add_systems(Update, utils::close_on_esc)
+    .add_plugins(TweeningPlugin)
+    .add_systems(Startup, setup);
+
+    #[cfg(feature = "examples_world_inspector")]
+    app.add_plugins(ResourceInspectorPlugin::<Options>::default())
+        .add_systems(Update, update_animation_speed);
+
+    app.run();
 }
 
-#[derive(Copy, Clone, PartialEq, Resource, Reflect, InspectorOptions)]
+#[derive(Copy, Clone, PartialEq, Resource, Reflect)]
+#[cfg_attr(feature = "examples_world_inspector", derive(InspectorOptions))]
 struct Options {
-    #[inspector(min = 0.01, max = 100.)]
+    #[cfg_attr(
+        feature = "examples_world_inspector",
+        inspector(min = 0.01, max = 100.)
+    )]
     speed: f32,
 }
 
@@ -103,6 +111,7 @@ fn setup(mut commands: Commands) {
     }
 }
 
+#[cfg(feature = "examples_world_inspector")]
 fn update_animation_speed(options: Res<Options>, mut animators: Query<&mut Animator<Transform>>) {
     if !options.is_changed() {
         return;

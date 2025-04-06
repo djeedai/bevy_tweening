@@ -201,17 +201,17 @@ fn update_text(
     query_anim_blue: Query<&Animator<Transform>, With<BlueSprite>>,
     mut query_event: EventReader<TweenCompleted>,
 ) {
-    let anim_red = query_anim_red.single();
+    let anim_red = query_anim_red.single().unwrap();
     let progress_red = anim_red.tweenable().progress();
 
-    let anim_blue = query_anim_blue.single();
+    let anim_blue = query_anim_blue.single().unwrap();
     let progress_blue = anim_blue.tweenable().progress();
 
-    let red_text_children = query_text_red.single();
+    let red_text_children = query_text_red.single().unwrap();
     let mut red_text = text_spans.get_mut(red_text_children[1]).unwrap();
     red_text.0 = format!("{:5.1}%", progress_red * 100.);
 
-    let blue_text_children = query_text_blue.single();
+    let blue_text_children = query_text_blue.single().unwrap();
     let mut blue_text = text_spans.get_mut(blue_text_children[1]).unwrap();
     blue_text.0 = format!("{:5.1}%", progress_blue * 100.);
 

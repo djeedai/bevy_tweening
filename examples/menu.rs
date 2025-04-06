@@ -1,4 +1,5 @@
 use bevy::{color::palettes::css::*, prelude::*};
+#[cfg(feature = "examples_world_inspector")]
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_tweening::{lens::*, *};
 use std::time::Duration;
@@ -23,23 +24,25 @@ const INIT_TRANSITION_DONE: u64 = 1;
 /// 3. The `interaction` system only queries buttons with a `InitTransitionDone`
 /// marker.
 fn main() {
-    App::default()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "Menu".to_string(),
-                resolution: (800., 400.).into(),
-                present_mode: bevy::window::PresentMode::Fifo, // vsync
-                ..default()
-            }),
+    let mut app = App::default();
+    app.add_plugins(DefaultPlugins.set(WindowPlugin {
+        primary_window: Some(Window {
+            title: "Menu".to_string(),
+            resolution: (800., 400.).into(),
+            present_mode: bevy::window::PresentMode::Fifo, // vsync
             ..default()
-        }))
-        .add_systems(Update, utils::close_on_esc)
-        .add_systems(Update, interaction)
-        .add_systems(Update, enable_interaction_after_initial_animation)
-        .add_plugins(TweeningPlugin)
-        .add_plugins(WorldInspectorPlugin::new())
-        .add_systems(Startup, setup)
-        .run();
+        }),
+        ..default()
+    }))
+    .add_systems(Update, utils::close_on_esc)
+    .add_systems(Update, interaction)
+    .add_systems(Update, enable_interaction_after_initial_animation)
+    .add_plugins(TweeningPlugin);
+
+    #[cfg(feature = "examples_world_inspector")]
+    app.add_plugins(WorldInspectorPlugin::new());
+
+    app.add_systems(Startup, setup).run();
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {

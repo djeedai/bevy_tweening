@@ -16,7 +16,7 @@ readme = "README.md"
 exclude = ["examples/*.gif", ".github", "release.md", "run_examples.bat"]
 
 [features]
-default = ["bevy_sprite", "bevy_ui", "bevy_asset", "bevy_text"]
+default = ["bevy_sprite", "bevy_ui", "bevy_asset", "bevy_text", "examples_world_inspector"]
 # Enable support for Asset animation
 bevy_asset = ["bevy/bevy_asset"]
 # Enable built-in lenses for Bevy sprites
@@ -25,6 +25,14 @@ bevy_sprite = ["bevy/bevy_sprite", "bevy/bevy_render"]
 bevy_ui = ["bevy/bevy_ui", "bevy/bevy_render"]
 # Enable built-in lenses for Bevy Text
 bevy_text = ["bevy/bevy_text", "bevy/bevy_render", "bevy/bevy_sprite"]
+
+# Enable world inspector in examples, via bevy-inspector-egui.
+# This has no effect on the crate itself, only affects examples.
+# Unfortunately cargo doesn't allow example-only features.
+# We don't force a dependency on the bevy-inspector-egui crate because:
+# 1. dev-dependencies cannot be optional
+# 2. there's a bunch of duplicate deps and dodgy licenses pulled
+examples_world_inspector = []
 
 [dependencies]
 # Note: need 'x11' or 'wayland' on Linux for winit to build
