@@ -578,14 +578,6 @@ impl<T: Asset> AssetAnimator<T> {
     animator_impl!();
 }
 
-/// Default tweening settings
-#[derive(Resource, Default, Clone, Copy)]
-pub struct TweenSettings {
-    /// Default completed event user data
-    /// setting this value will always fire the completed event without having to set it explicitly
-    pub default_completed_event_data: Option<u64>,
-}
-
 #[cfg(test)]
 mod tests {
     use bevy::ecs::component::Tick;
