@@ -9,8 +9,8 @@ use crate::{tweenable::ComponentTarget, Animator, AnimatorState, TweenCompleted,
 /// This plugin adds systems for a predefined set of components and assets, to
 /// allow their respective animators to be updated each frame:
 /// - [`Transform`]
-/// - [`Text`]
-/// - [`Style`]
+/// - [`TextColor`]
+/// - [`Node`]
 /// - [`Sprite`]
 /// - [`ColorMaterial`]
 ///
@@ -27,11 +27,11 @@ use crate::{tweenable::ComponentTarget, Animator, AnimatorState, TweenCompleted,
 /// add manually the relevant systems for the exact set of components and assets
 /// actually animated.
 ///
-/// [`Transform`]: https://docs.rs/bevy/0.12.0/bevy/transform/components/struct.Transform.html
-/// [`Text`]: https://docs.rs/bevy/0.12.0/bevy/text/struct.Text.html
-/// [`Style`]: https://docs.rs/bevy/0.12.0/bevy/ui/struct.Style.html
-/// [`Sprite`]: https://docs.rs/bevy/0.12.0/bevy/sprite/struct.Sprite.html
-/// [`ColorMaterial`]: https://docs.rs/bevy/0.12.0/bevy/sprite/struct.ColorMaterial.html
+/// [`Transform`]: https://docs.rs/bevy/0.15.0/bevy/transform/components/struct.Transform.html
+/// [`TextColor`]: https://docs.rs/bevy/0.15.0/bevy/text/struct.TextColor.html
+/// [`Node`]: https://docs.rs/bevy/0.15.0/bevy/ui/struct.Node.html
+/// [`Sprite`]: https://docs.rs/bevy/0.15.0/bevy/sprite/struct.Sprite.html
+/// [`ColorMaterial`]: https://docs.rs/bevy/0.15.0/bevy/sprite/struct.ColorMaterial.html
 #[derive(Debug, Clone, Copy)]
 pub struct TweeningPlugin;
 
@@ -46,7 +46,7 @@ impl Plugin for TweeningPlugin {
         #[cfg(feature = "bevy_ui")]
         app.add_systems(
             Update,
-            component_animator_system::<Style>.in_set(AnimationSystem::AnimationUpdate),
+            component_animator_system::<Node>.in_set(AnimationSystem::AnimationUpdate),
         );
         #[cfg(feature = "bevy_ui")]
         app.add_systems(
@@ -63,13 +63,14 @@ impl Plugin for TweeningPlugin {
         #[cfg(all(feature = "bevy_sprite", feature = "bevy_asset"))]
         app.add_systems(
             Update,
-            asset_animator_system::<ColorMaterial>.in_set(AnimationSystem::AnimationUpdate),
+            asset_animator_system::<ColorMaterial, MeshMaterial2d<ColorMaterial>>
+                .in_set(AnimationSystem::AnimationUpdate),
         );
 
         #[cfg(feature = "bevy_text")]
         app.add_systems(
             Update,
-            component_animator_system::<Text>.in_set(AnimationSystem::AnimationUpdate),
+            component_animator_system::<TextColor>.in_set(AnimationSystem::AnimationUpdate),
         );
     }
 }
@@ -87,15 +88,20 @@ pub enum AnimationSystem {
 /// attached to the same entity, and tick the animator to animate the component.
 pub fn component_animator_system<T: Component>(
     time: Res<Time>,
-    mut query: Query<(Entity, &mut T, &mut Animator<T>)>,
+    mut animator_query: Query<(Entity, &mut Animator<T>)>,
+    mut target_query: Query<&mut T>,
     events: ResMut<Events<TweenCompleted>>,
     mut commands: Commands,
     settings: Res<TweenSettings>,
 ) {
     let mut events: Mut<Events<TweenCompleted>> = events.into();
-    for (entity, target, mut animator) in query.iter_mut() {
+    for (animator_entity, mut animator) in animator_query.iter_mut() {
         if animator.state != AnimatorState::Paused {
             let speed = animator.speed();
+            let entity = animator.target.unwrap_or(animator_entity);
+            let Ok(target) = target_query.get_mut(entity) else {
+                continue;
+            };
             let mut target = ComponentTarget::new(target);
             animator.tweenable_mut().tick(
                 time.delta().mul_f32(speed),
@@ -109,6 +115,9 @@ pub fn component_animator_system<T: Component>(
     }
 }
 
+#[cfg(feature = "bevy_asset")]
+use std::ops::Deref;
+
 /// Animator system for assets.
 ///
 /// This system ticks all [`AssetAnimator<T>`] components to animate their
@@ -116,19 +125,22 @@ pub fn component_animator_system<T: Component>(
 ///
 /// This requires the `bevy_asset` feature (enabled by default).
 #[cfg(feature = "bevy_asset")]
-pub fn asset_animator_system<T: Asset>(
+pub fn asset_animator_system<T, M>(
     time: Res<Time>,
     mut assets: ResMut<Assets<T>>,
-    mut query: Query<(Entity, &Handle<T>, &mut AssetAnimator<T>)>,
+    mut query: Query<(Entity, &M, &mut AssetAnimator<T>)>,
     events: ResMut<Events<TweenCompleted>>,
     mut commands: Commands,
     settings: Res<TweenSettings>,
-) {
+) where
+    T: Asset,
+    M: Component + Deref<Target = Handle<T>>,
+{
     let mut events: Mut<Events<TweenCompleted>> = events.into();
     let mut target = AssetTarget::new(assets.reborrow());
     for (entity, handle, mut animator) in query.iter_mut() {
         if animator.state != AnimatorState::Paused {
-            target.handle = handle.clone();
+            target.handle = handle.clone_weak();
             if !target.is_valid() {
                 continue;
             }
@@ -162,7 +174,8 @@ mod tests {
     /// [`Entity`] in it.
     struct TestEnv<T: Component> {
         world: World,
-        entity: Entity,
+        animator_entity: Entity,
+        target_entity: Option<Entity>,
         _phantom: PhantomData<T>,
     }
 
@@ -178,7 +191,25 @@ mod tests {
 
             Self {
                 world,
-                entity,
+                animator_entity: entity,
+                target_entity: None,
+                _phantom: PhantomData,
+            }
+        }
+
+        /// Like [`TestEnv::new`], but the component is placed on a separate entity.
+        pub fn new_separated(animator: Animator<T>) -> Self {
+            let mut world = World::new();
+            world.init_resource::<Events<TweenCompleted>>();
+            world.init_resource::<Time>();
+
+            let target = world.spawn(T::default()).id();
+            let entity = world.spawn(animator.with_target(target)).id();
+
+            Self {
+                world,
+                animator_entity: entity,
+                target_entity: Some(target),
                 _phantom: PhantomData,
             }
         }
@@ -213,25 +244,55 @@ mod tests {
 
         /// Get the animator for the component.
         pub fn animator(&self) -> &Animator<T> {
-            self.world.entity(self.entity).get::<Animator<T>>().unwrap()
+            self.world
+                .entity(self.animator_entity)
+                .get::<Animator<T>>()
+                .unwrap()
         }
 
         /// Get the component.
         pub fn component_mut(&mut self) -> Mut<T> {
-            self.world.get_mut::<T>(self.entity).unwrap()
+            self.world
+                .get_mut::<T>(self.target_entity.unwrap_or(self.animator_entity))
+                .unwrap()
         }
 
         /// Get the emitted event count since last tick.
         pub fn event_count(&self) -> usize {
             let events = self.world.resource::<Events<TweenCompleted>>();
-            events.get_reader().len(events)
+            events.get_cursor().len(events)
         }
+    }
+
+    #[test]
+    fn custom_target_entity() {
+        let tween = Tween::new(
+            EaseMethod::EaseFunction(EaseFunction::Linear),
+            Duration::from_secs(1),
+            TransformPositionLens {
+                start: Vec3::ZERO,
+                end: Vec3::ONE,
+            },
+        )
+        .with_completed_event(0);
+        let mut env = TestEnv::new_separated(Animator::new(tween));
+        env.world_mut().init_resource::<TweenSettings>();
+        let mut system = IntoSystem::into_system(component_animator_system::<Transform>);
+        system.initialize(env.world_mut());
+
+        env.tick(Duration::ZERO, &mut system);
+        let transform = env.component_mut();
+        assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
+
+        env.tick(Duration::from_millis(500), &mut system);
+        let transform = env.component_mut();
+        assert!(transform.translation.abs_diff_eq(Vec3::splat(0.5), 1e-5));
     }
 
     #[test]
     fn change_detect_component() {
         let tween = Tween::new(
-            EaseMethod::Linear,
+            EaseMethod::default(),
             Duration::from_secs(1),
             TransformPositionLens {
                 start: Vec3::ZERO,
@@ -315,7 +376,7 @@ mod tests {
     fn change_detect_component_conditional() {
         let defer = Arc::new(AtomicBool::new(false));
         let tween = Tween::new(
-            EaseMethod::Linear,
+            EaseMethod::default(),
             Duration::from_secs(1),
             ConditionalDeferLens {
                 defer: Arc::clone(&defer),

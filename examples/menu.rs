@@ -43,32 +43,28 @@ fn main() {
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn(Camera2dBundle::default());
+    commands.spawn(Camera2d::default());
 
     let font = asset_server.load("fonts/FiraMono-Regular.ttf");
 
     commands
         .spawn((
-            NodeBundle {
-                style: Style {
-                    position_type: PositionType::Absolute,
-                    left: Val::Px(0.),
-                    right: Val::Px(0.),
-                    top: Val::Px(0.),
-                    bottom: Val::Px(0.),
-                    margin: UiRect::all(Val::Px(16.)),
-                    padding: UiRect::all(Val::Px(16.)),
-                    flex_direction: FlexDirection::Column,
-                    align_content: AlignContent::Center,
-                    align_items: AlignItems::Center,
-                    align_self: AlignSelf::Center,
-                    justify_content: JustifyContent::Center,
-                    ..default()
-                },
-                background_color: BackgroundColor(Color::NONE),
+            Name::new("menu"),
+            Node {
+                position_type: PositionType::Absolute,
+                left: Val::Px(0.),
+                right: Val::Px(0.),
+                top: Val::Px(0.),
+                bottom: Val::Px(0.),
+                margin: UiRect::all(Val::Px(16.)),
+                padding: UiRect::all(Val::Px(16.)),
+                flex_direction: FlexDirection::Column,
+                align_content: AlignContent::Center,
+                align_items: AlignItems::Center,
+                align_self: AlignSelf::Center,
+                justify_content: JustifyContent::Center,
                 ..default()
             },
-            Name::new("menu"),
         ))
         .with_children(|container| {
             let mut start_time_ms = 0;
@@ -98,39 +94,35 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 start_time_ms += 500;
                 container
                     .spawn((
-                        ButtonBundle {
-                            style: Style {
-                                min_width: Val::Px(300.),
-                                min_height: Val::Px(80.),
-                                margin: UiRect::all(Val::Px(8.)),
-                                padding: UiRect::all(Val::Px(8.)),
-                                align_content: AlignContent::Center,
-                                align_items: AlignItems::Center,
-                                align_self: AlignSelf::Center,
-                                justify_content: JustifyContent::Center,
-                                ..default()
-                            },
-                            background_color: BackgroundColor(NORMAL_COLOR),
-                            transform: Transform::from_scale(Vec3::splat(0.01)),
+                        Name::new(format!("button:{}", text)),
+                        Button,
+                        Node {
+                            min_width: Val::Px(300.),
+                            min_height: Val::Px(80.),
+                            margin: UiRect::all(Val::Px(8.)),
+                            padding: UiRect::all(Val::Px(8.)),
+                            align_content: AlignContent::Center,
+                            align_items: AlignItems::Center,
+                            align_self: AlignSelf::Center,
+                            justify_content: JustifyContent::Center,
                             ..default()
                         },
-                        Name::new(format!("button:{}", text)),
+                        BackgroundColor(NORMAL_COLOR),
+                        Transform::from_scale(Vec3::splat(0.01)),
                         animator,
                         label,
                     ))
                     .with_children(|parent| {
-                        parent.spawn(TextBundle {
-                            text: Text::from_section(
-                                text.to_string(),
-                                TextStyle {
-                                    font: font.clone(),
-                                    font_size: 48.0,
-                                    color: TEXT_COLOR,
-                                },
-                            )
-                            .with_justify(JustifyText::Center),
-                            ..default()
-                        });
+                        parent.spawn((
+                            Text::new(text.to_string()),
+                            TextFont {
+                                font: font.clone(),
+                                font_size: 48.0,
+                                ..default()
+                            },
+                            TextColor(TEXT_COLOR),
+                            TextLayout::new_with_justify(JustifyText::Center),
+                        ));
                     });
             }
         });

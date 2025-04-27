@@ -38,7 +38,7 @@ impl Default for Options {
 }
 
 fn setup(mut commands: Commands) {
-    commands.spawn(Camera2dBundle::default());
+    commands.spawn(Camera2d::default());
 
     let size = 25.;
 
@@ -101,24 +101,21 @@ fn setup(mut commands: Commands) {
         .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
         commands.spawn((
-            NodeBundle {
-                style: Style {
-                    width: Val::Px(size),
-                    height: Val::Px(size),
-                    left: Val::Px(x),
-                    top: Val::Px(10.),
-                    right: Val::Auto,
-                    bottom: Val::Auto,
-                    position_type: PositionType::Absolute,
-                    align_content: AlignContent::Center,
-                    align_items: AlignItems::Center,
-                    align_self: AlignSelf::Center,
-                    justify_content: JustifyContent::Center,
-                    ..default()
-                },
-                background_color: BackgroundColor(RED.into()),
+            Node {
+                width: Val::Px(size),
+                height: Val::Px(size),
+                left: Val::Px(x),
+                top: Val::Px(10.),
+                right: Val::Auto,
+                bottom: Val::Auto,
+                position_type: PositionType::Absolute,
+                align_content: AlignContent::Center,
+                align_items: AlignItems::Center,
+                align_self: AlignSelf::Center,
+                justify_content: JustifyContent::Center,
                 ..default()
             },
+            BackgroundColor(RED.into()),
             Animator::new(tween),
         ));
 
@@ -126,7 +123,7 @@ fn setup(mut commands: Commands) {
     }
 }
 
-fn update_animation_speed(options: Res<Options>, mut animators: Query<&mut Animator<Style>>) {
+fn update_animation_speed(mut animators: Query<&mut Animator<Node>>, options: Res<Options>) {
     if !options.is_changed() {
         return;
     }
