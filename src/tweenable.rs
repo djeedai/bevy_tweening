@@ -848,11 +848,17 @@ impl<T> Sequence<T> {
     pub fn new(items: impl IntoIterator<Item = impl Into<BoxedTweenable<T>>>) -> Self {
         let tweens: Vec<_> = items.into_iter().map(Into::into).collect();
         assert!(!tweens.is_empty());
+
         let duration = tweens
             .iter()
-            .map(AsRef::as_ref)
-            .map(Tweenable::duration)
+            .map(|tween| match tween.total_duration() {
+                TotalDuration::Finite(duration) => duration,
+                TotalDuration::Infinite => {
+                    unimplemented!("Infinite durations are not supported in Sequence")
+                }
+            })
             .sum();
+
         Self {
             tweens,
             index: 0,
@@ -954,10 +960,12 @@ impl<T> Tweenable<T> for Sequence<T> {
         self.elapsed = self.elapsed.saturating_add(delta).min(self.duration);
         while self.index < self.tweens.len() {
             let tween = &mut self.tweens[self.index];
-            let tween_remaining = tween.duration() - tween.elapsed();
+
             if let TweenState::Active = tween.tick(delta, target, entity, events, commands) {
                 return TweenState::Active;
             }
+
+            let tween_remaining = tween.duration().saturating_sub(tween.elapsed());
 
             tween.rewind();
             delta -= tween_remaining;
