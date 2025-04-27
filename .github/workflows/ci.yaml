@@ -30,8 +30,8 @@ jobs:
         os: [windows-latest, ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/cache@v2
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/.crates.toml
@@ -48,49 +48,48 @@ jobs:
           components: rustfmt, clippy
           override: true
       - name: Install Bevy dependencies
-        run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libxcb-shape0-dev libxcb-xfixes0-dev
-        if: runner.os == 'linux'
-      - name: Install graphic drivers
-        run: |
-          sudo apt-get update -y -qq
-          sudo add-apt-repository ppa:oibaf/graphics-drivers -y
-          sudo apt-get update
-          sudo apt install -y xvfb libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
+        run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev
         if: runner.os == 'linux'
       - name: Build & run tests (slim)
         run: cargo test --no-default-features
         env:
           CARGO_INCREMENTAL: 0
+          RUSTFLAGS: "-C debuginfo=0 -D warnings"
       - name: Build & run tests (ui)
         run: cargo test --no-default-features --features="bevy_ui"
         env:
           CARGO_INCREMENTAL: 1
+          RUSTFLAGS: "-C debuginfo=0 -D warnings"
       - name: Build & run tests (sprite)
         run: cargo test --no-default-features --features="bevy_sprite"
         env:
           CARGO_INCREMENTAL: 1
+          RUSTFLAGS: "-C debuginfo=0 -D warnings"
       - name: Build & run tests (text)
         run: cargo test --no-default-features --features="bevy_text"
         env:
           CARGO_INCREMENTAL: 1
+          RUSTFLAGS: "-C debuginfo=0 -D warnings"
       - name: Build & run tests (asset)
         run: cargo test --no-default-features --features="bevy_asset"
         env:
           CARGO_INCREMENTAL: 1
+          RUSTFLAGS: "-C debuginfo=0 -D warnings"
       - name: Build & run tests (all)
         run: cargo test --all-features
         env:
           CARGO_INCREMENTAL: 1
+          RUSTFLAGS: "-C debuginfo=0 -D warnings"
 
   coverage:
     name: Coverage
-    runs-on: ubuntu-latest
+    runs-on: macos-14
     permissions:
       actions: read
       checks: write
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/cache@v2
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/.crates.toml
@@ -101,26 +100,15 @@ jobs:
             ~/.cargo/git/db/
             target/
           key: ${{ runner.os }}-cargo-build-stable-${{ hashFiles('**/Cargo.toml') }}
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          override: true
-      - name: Install Bevy dependencies
-        run: sudo apt-get update; sudo apt-get install --no-install-recommends libasound2-dev libudev-dev libxcb-shape0-dev libxcb-xfixes0-dev
-        if: runner.os == 'linux'
-      - name: Install graphic drivers
-        run: |
-          sudo apt-get update -y -qq
-          sudo add-apt-repository ppa:oibaf/graphics-drivers -y
-          sudo apt-get update
-          sudo apt install -y xvfb libegl1-mesa libgl1-mesa-dri libxcb-xfixes0-dev mesa-vulkan-drivers
-        if: runner.os == 'linux'
+          components: rustfmt, clippy
       - name: Install cargo-tarpaulin
         run: |
-          RUST_BACKTRACE=1 cargo install --version 0.21.0 cargo-tarpaulin
+          RUST_BACKTRACE=1 cargo install --version 0.31.2 cargo-tarpaulin
       - name: Generate code coverage
         run: |
-          RUST_BACKTRACE=1 cargo tarpaulin --all-features --verbose --timeout 120 --out Lcov --workspace
+          RUST_BACKTRACE=1 cargo tarpaulin --engine llvm --verbose --timeout 120 --out Lcov --workspace --all-features
           ls -la
       - name: Upload code coverage
         uses: coverallsapp/github-action@master
