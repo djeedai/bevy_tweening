@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 #[cfg(feature = "bevy_asset")]
 use crate::{tweenable::AssetTarget, AssetAnimator};
-use crate::{tweenable::ComponentTarget, Animator, AnimatorState, TweenCompleted, TweenSettings};
+use crate::{tweenable::ComponentTarget, Animator, AnimatorState, TweenCompleted};
 
 /// Plugin to add systems related to tweening of common components and assets.
 ///
@@ -37,7 +37,6 @@ pub struct TweeningPlugin;
 
 impl Plugin for TweeningPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<TweenSettings>();
         app.add_event::<TweenCompleted>().add_systems(
             Update,
             component_animator_system::<Transform>.in_set(AnimationSystem::AnimationUpdate),
@@ -92,7 +91,6 @@ pub fn component_animator_system<T: Component>(
     mut target_query: Query<&mut T>,
     events: ResMut<Events<TweenCompleted>>,
     mut commands: Commands,
-    settings: Res<TweenSettings>,
 ) {
     let mut events: Mut<Events<TweenCompleted>> = events.into();
     for (animator_entity, mut animator) in animator_query.iter_mut() {
@@ -109,7 +107,6 @@ pub fn component_animator_system<T: Component>(
                 entity,
                 &mut events,
                 &mut commands,
-                &settings,
             );
         }
     }
@@ -131,7 +128,6 @@ pub fn asset_animator_system<T, M>(
     mut query: Query<(Entity, &M, &mut AssetAnimator<T>)>,
     events: ResMut<Events<TweenCompleted>>,
     mut commands: Commands,
-    settings: Res<TweenSettings>,
 ) where
     T: Asset,
     M: Component + Deref<Target = Handle<T>>,
@@ -151,7 +147,6 @@ pub fn asset_animator_system<T, M>(
                 entity,
                 &mut events,
                 &mut commands,
-                &settings,
             );
         }
     }
@@ -276,7 +271,6 @@ mod tests {
         )
         .with_completed_event(0);
         let mut env = TestEnv::new_separated(Animator::new(tween));
-        env.world_mut().init_resource::<TweenSettings>();
         let mut system = IntoSystem::into_system(component_animator_system::<Transform>);
         system.initialize(env.world_mut());
 
@@ -302,7 +296,6 @@ mod tests {
         .with_completed_event(0);
 
         let mut env = TestEnv::new(Animator::new(tween));
-        env.world_mut().init_resource::<TweenSettings>();
 
         // After being inserted, components are always considered changed
         let transform = env.component_mut();
@@ -385,7 +378,6 @@ mod tests {
         .with_completed_event(0);
 
         let mut env = TestEnv::new(Animator::new(tween));
-        env.world.init_resource::<TweenSettings>();
 
         // After being inserted, components are always considered changed
         let component = env.component_mut();
