@@ -83,7 +83,7 @@ jobs:
 
   coverage:
     name: Coverage
-    runs-on: macos-latest
+    runs-on: macos-14
     permissions:
       actions: read
       checks: write
@@ -100,16 +100,15 @@ jobs:
             ~/.cargo/git/db/
             target/
           key: ${{ runner.os }}-cargo-build-stable-${{ hashFiles('**/Cargo.toml') }}
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          override: true
+          components: rustfmt, clippy
       - name: Install cargo-tarpaulin
         run: |
-          RUST_BACKTRACE=1 cargo install --version 0.21.0 cargo-tarpaulin
+          RUST_BACKTRACE=1 cargo install --version 0.31.2 cargo-tarpaulin
       - name: Generate code coverage
         run: |
-          RUST_BACKTRACE=1 cargo tarpaulin --all-features --verbose --timeout 120 --out Lcov --workspace
+          RUST_BACKTRACE=1 cargo tarpaulin --engine llvm --verbose --timeout 120 --out Lcov --workspace --all-features
           ls -la
       - name: Upload code coverage
         uses: coverallsapp/github-action@master
