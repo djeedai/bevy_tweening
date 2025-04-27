@@ -1,9 +1,8 @@
-use bevy::{
-    prelude::*,
-    sprite::{MaterialMesh2dBundle, Mesh2dHandle},
-};
+use bevy::{color::palettes::css::*, prelude::*};
 use bevy_tweening::{lens::*, *};
 use std::time::Duration;
+
+mod utils;
 
 fn main() {
     App::default()
@@ -16,7 +15,7 @@ fn main() {
             }),
             ..default()
         }))
-        .add_systems(Update, bevy::window::close_on_esc)
+        .add_systems(Update, utils::close_on_esc)
         .add_plugins(TweeningPlugin)
         .add_systems(Startup, setup)
         .run();
@@ -27,7 +26,7 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    commands.spawn(Camera2dBundle::default());
+    commands.spawn(Camera2d::default());
 
     let size = 80.;
 
@@ -37,7 +36,7 @@ fn setup(
     let mut x = -screen_x;
     let mut y = screen_y;
 
-    let quad_mesh: Mesh2dHandle = meshes.add(Rectangle::new(1., 1.)).into();
+    let quad_mesh = meshes.add(Rectangle::new(1., 1.));
 
     for ease_function in &[
         EaseFunction::QuadraticIn,
@@ -81,21 +80,17 @@ fn setup(
             *ease_function,
             Duration::from_secs(1),
             ColorMaterialColorLens {
-                start: Color::RED,
-                end: Color::BLUE,
+                start: RED.into(),
+                end: BLUE.into(),
             },
         )
         .with_repeat_count(RepeatCount::Infinite)
         .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
         commands.spawn((
-            MaterialMesh2dBundle {
-                mesh: quad_mesh.clone(),
-                transform: Transform::from_translation(Vec3::new(x, y, 0.))
-                    .with_scale(Vec3::splat(size)),
-                material: unique_material,
-                ..default()
-            },
+            Mesh2d(quad_mesh.clone()),
+            MeshMaterial2d(unique_material),
+            Transform::from_translation(Vec3::new(x, y, 0.)).with_scale(Vec3::splat(size)),
             AssetAnimator::new(tween),
         ));
         y -= size * spacing;

@@ -1,8 +1,8 @@
+use bevy::{color::palettes::css::*, prelude::*};
+use bevy_tweening::{lens::*, *};
 use std::time::Duration;
 
-use bevy::prelude::*;
-
-use bevy_tweening::{lens::*, *};
+mod utils;
 
 fn main() {
     App::default()
@@ -15,7 +15,7 @@ fn main() {
             }),
             ..default()
         }))
-        .add_systems(Update, bevy::window::close_on_esc)
+        .add_systems(Update, utils::close_on_esc)
         .add_plugins(TweeningPlugin)
         .add_systems(Startup, setup)
         .add_systems(Update, update_text)
@@ -34,68 +34,67 @@ struct RedSprite;
 #[derive(Component)]
 struct BlueSprite;
 
+#[derive(Component)]
+struct ProgressValue;
+
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn(Camera2dBundle::default());
+    commands.spawn(Camera2d::default());
 
     let font = asset_server.load("fonts/FiraMono-Regular.ttf");
-    let text_style_red = TextStyle {
-        font: font.clone(),
-        font_size: 50.0,
-        color: Color::RED,
-    };
-    let text_style_blue = TextStyle {
+    let text_font = TextFont {
         font,
         font_size: 50.0,
-        color: Color::BLUE,
+        ..default()
     };
+
+    let text_color_red = TextColor(RED.into());
+    let text_color_blue = TextColor(BLUE.into());
 
     let justify = JustifyText::Center;
 
     // Text with the index of the active tween in the sequence
-    commands.spawn((
-        Text2dBundle {
-            text: Text {
-                sections: vec![
-                    TextSection {
-                        value: "progress: ".to_owned(),
-                        style: text_style_red.clone(),
-                    },
-                    TextSection {
-                        value: "0%".to_owned(),
-                        style: text_style_red,
-                    },
-                ],
-                justify,
-                ..default()
-            },
-            transform: Transform::from_translation(Vec3::new(0., 40., 0.)),
-            ..default()
-        },
-        RedProgress,
-    ));
+    commands
+        .spawn((
+            Text2d::default(),
+            TextLayout::new_with_justify(justify),
+            Transform::from_translation(Vec3::new(0., 40., 0.)),
+            RedProgress,
+        ))
+        .with_children(|children| {
+            children.spawn((
+                TextSpan::new("progress: "),
+                text_font.clone(),
+                text_color_red.clone(),
+            ));
+            children.spawn((
+                TextSpan::new("0%"),
+                text_font.clone(),
+                text_color_red.clone(),
+                ProgressValue,
+            ));
+        });
 
     // Text with progress of the active tween in the sequence
-    commands.spawn((
-        Text2dBundle {
-            text: Text {
-                sections: vec![
-                    TextSection {
-                        value: "progress: ".to_owned(),
-                        style: text_style_blue.clone(),
-                    },
-                    TextSection {
-                        value: "0%".to_owned(),
-                        style: text_style_blue,
-                    },
-                ],
-                justify,
-                ..default()
-            },
-            transform: Transform::from_translation(Vec3::new(0., -40., 0.)),
-            ..default()
-        },
-        BlueProgress,
-    ));
+    commands
+        .spawn((
+            Text2d::default(),
+            TextLayout::new_with_justify(justify),
+            Transform::from_translation(Vec3::new(0., -40., 0.)),
+            BlueProgress,
+        ))
+        .with_children(|children| {
+            children.spawn((
+                TextSpan::new("progress: "),
+                text_font.clone(),
+                text_color_blue.clone(),
+            ));
+            children.spawn((
+                TextSpan::new("0%"),
+                text_font.clone(),
+                text_color_blue.clone(),
+                ProgressValue,
+            ));
+        });
 
     let size = 25.;
 
@@ -140,12 +139,9 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     }));
 
     commands.spawn((
-        SpriteBundle {
-            sprite: Sprite {
-                color: Color::RED,
-                custom_size: Some(Vec2::new(size, size)),
-                ..default()
-            },
+        Sprite {
+            color: RED.into(),
+            custom_size: Some(Vec2::new(size, size)),
             ..default()
         },
         RedSprite,
@@ -187,13 +183,10 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let seq2 = Sequence::new([Box::new(tween_move) as BoxedTweenable<_>, tracks.into()]);
 
     commands.spawn((
-        SpriteBundle {
-            sprite: Sprite {
-                color: Color::BLUE,
-                custom_size: Some(Vec2::new(size * 3., size)),
-                ..default()
-            },
-            ..Default::default()
+        Sprite {
+            color: BLUE.into(),
+            custom_size: Some(Vec2::new(size * 3., size)),
+            ..default()
         },
         BlueSprite,
         Animator::new(seq2),
@@ -201,23 +194,22 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 }
 
 fn update_text(
-    mut query_text_red: Query<&mut Text, (With<RedProgress>, Without<BlueProgress>)>,
-    mut query_text_blue: Query<&mut Text, (With<BlueProgress>, Without<RedProgress>)>,
-    query_anim_red: Query<&Animator<Transform>, With<RedSprite>>,
-    query_anim_blue: Query<&Animator<Transform>, With<BlueSprite>>,
+    red_text_children: Single<&Children, With<RedProgress>>,
+    blue_text_children: Single<&Children, With<BlueProgress>>,
+    mut text_spans: Query<&mut TextSpan, With<ProgressValue>>,
+    anim_red: Single<&Animator<Transform>, With<RedSprite>>,
+    anim_blue: Single<&Animator<Transform>, With<BlueSprite>>,
     mut query_event: EventReader<TweenCompleted>,
 ) {
-    let anim_red = query_anim_red.single();
     let progress_red = anim_red.tweenable().progress();
 
-    let anim_blue = query_anim_blue.single();
     let progress_blue = anim_blue.tweenable().progress();
 
-    let mut red_text = query_text_red.single_mut();
-    red_text.sections[1].value = format!("{:5.1}%", progress_red * 100.);
+    let mut red_text = text_spans.get_mut(red_text_children[1]).unwrap();
+    red_text.0 = format!("{:5.1}%", progress_red * 100.);
 
-    let mut blue_text = query_text_blue.single_mut();
-    blue_text.sections[1].value = format!("{:5.1}%", progress_blue * 100.);
+    let mut blue_text = text_spans.get_mut(blue_text_children[1]).unwrap();
+    blue_text.0 = format!("{:5.1}%", progress_blue * 100.);
 
     for ev in query_event.read() {
         println!(

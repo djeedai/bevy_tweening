@@ -243,7 +243,7 @@ impl<'a, T: Component> ComponentTarget<'a, T> {
     }
 }
 
-impl<'a, T: Component> Targetable<T> for ComponentTarget<'a, T> {
+impl<T: Component> Targetable<T> for ComponentTarget<'_, T> {
     fn target(&self) -> &T {
         self.target.deref()
     }
@@ -273,14 +273,14 @@ impl<'a, T: Asset> AssetTarget<'a, T> {
 
     /// Check if the current target is valid given the value of [`handle`].
     ///
-    /// [`handle`]: self::handle
+    /// [`handle`]: AssetTarget::handle
     pub fn is_valid(&self) -> bool {
         self.assets.contains(&self.handle)
     }
 }
 
 #[cfg(feature = "bevy_asset")]
-impl<'a, T: Asset> Targetable<T> for AssetTarget<'a, T> {
+impl<T: Asset> Targetable<T> for AssetTarget<'_, T> {
     fn target(&self) -> &T {
         self.assets.get(&self.handle).unwrap()
     }
@@ -446,7 +446,7 @@ impl<T: 'static> Tween<T> {
     /// # Example
     /// ```
     /// # use bevy_tweening::{lens::*, *};
-    /// # use bevy::math::*;
+    /// # use bevy::math::{*,curve::EaseFunction};
     /// # use std::time::Duration;
     /// let tween1 = Tween::new(
     ///     EaseFunction::QuadraticInOut,
@@ -478,7 +478,7 @@ impl<T> Tween<T> {
     /// # Example
     /// ```
     /// # use bevy_tweening::{lens::*, *};
-    /// # use bevy::math::Vec3;
+    /// # use bevy::math::{Vec3, curve::EaseFunction};
     /// # use std::time::Duration;
     /// let tween = Tween::new(
     ///     EaseFunction::QuadraticInOut,
@@ -515,7 +515,7 @@ impl<T> Tween<T> {
     ///
     /// ```
     /// # use bevy_tweening::{lens::*, *};
-    /// # use bevy::{ecs::event::EventReader, math::Vec3};
+    /// # use bevy::{ecs::event::EventReader, math::{Vec3, curve::EaseFunction}};
     /// # use std::time::Duration;
     /// let tween = Tween::new(
     ///     // [...]
@@ -556,7 +556,7 @@ impl<T> Tween<T> {
     ///
     /// ```
     /// # use bevy_tweening::{lens::*, *};
-    /// # use bevy::{ecs::event::EventReader, math::Vec3};
+    /// # use bevy::{ecs::event::EventReader, math::{Vec3, curve::EaseFunction}};
     /// # use std::time::Duration;
     /// let tween = Tween::new(
     ///     // [...]
@@ -593,9 +593,9 @@ impl<T> Tween<T> {
     ///
     /// ```
     /// # use bevy_tweening::{lens::*, *};
-    /// # use bevy::{math::Vec3, ecs::world::World, ecs::system::Query, ecs::system::In, ecs::entity::Entity, transform::components::Transform};
+    /// # use bevy::{ecs::event::EventReader, math::{Vec3, curve::EaseFunction}, ecs::world::World, ecs::system::{In, Query}, ecs::entity::Entity, ecs::query::With};
     /// # use std::time::Duration;
-    /// let mut world = World::new();  
+    /// let mut world = World::new();
     /// let test_system_system_id = world.register_system(test_system);
     /// let tween = Tween::new(
     ///     // [...]
@@ -725,7 +725,7 @@ impl<T> Tween<T> {
     /// but uses a system registered by [`register_system()`] instead of a
     /// callback.
     ///
-    /// [`with_completed()`]: Tween::with_completed  
+    /// [`with_completed()`]: Tween::with_completed
     /// [`register_system()`]: bevy::ecs::world::World::register_system
     pub fn set_completed_system(&mut self, user_data: SystemId<Entity>) {
         self.system_id = Some(user_data);
@@ -794,10 +794,16 @@ impl<T> Tweenable<T> for Tween<T> {
         // If completed at least once this frame, notify the user
         if times_completed > 0 {
             if let Some(user_data) = &self.event_data {
-                events.send(TweenCompleted {
+                let event = TweenCompleted {
                     entity,
                     user_data: *user_data,
-                });
+                };
+
+                // send regular event
+                events.send(event);
+
+                // trigger all entity-scoped observers
+                commands.trigger_targets(event, entity);
             }
             if let Some(cb) = &self.on_completed {
                 cb(entity, self);
@@ -845,11 +851,17 @@ impl<T> Sequence<T> {
     pub fn new(items: impl IntoIterator<Item = impl Into<BoxedTweenable<T>>>) -> Self {
         let tweens: Vec<_> = items.into_iter().map(Into::into).collect();
         assert!(!tweens.is_empty());
+
         let duration = tweens
             .iter()
-            .map(AsRef::as_ref)
-            .map(Tweenable::duration)
+            .map(|tween| match tween.total_duration() {
+                TotalDuration::Finite(duration) => duration,
+                TotalDuration::Infinite => {
+                    unimplemented!("Infinite durations are not supported in Sequence")
+                }
+            })
             .sum();
+
         Self {
             tweens,
             index: 0,
@@ -951,10 +963,12 @@ impl<T> Tweenable<T> for Sequence<T> {
         self.elapsed = self.elapsed.saturating_add(delta).min(self.duration);
         while self.index < self.tweens.len() {
             let tween = &mut self.tweens[self.index];
-            let tween_remaining = tween.duration() - tween.elapsed();
+
             if let TweenState::Active = tween.tick(delta, target, entity, events, commands) {
                 return TweenState::Active;
             }
+
+            let tween_remaining = tween.duration().saturating_sub(tween.elapsed());
 
             tween.rewind();
             delta -= tween_remaining;
@@ -1133,7 +1147,7 @@ impl<T> Delay<T> {
     ///
     /// ```
     /// # use bevy_tweening::{lens::*, *};
-    /// # use bevy::{ecs::event::EventReader, math::Vec3};
+    /// # use bevy::{ecs::event::EventReader, math::{Vec3, curve::EaseFunction}};
     /// # use std::time::Duration;
     /// let tween = Tween::new(
     ///     // [...]
@@ -1150,10 +1164,10 @@ impl<T> Delay<T> {
     /// });
     /// ```
     ///
-    /// [`with_completed_event()`]: Tween::with_completed_event
+    /// [`with_completed_event()`]: Delay::with_completed_event
     pub fn with_completed<C>(mut self, callback: C) -> Self
     where
-        C: Fn(Entity, &Self) + Send + Sync + 'static,
+        C: Fn(Entity, &Self) + Send .+ Sync + 'static,
     {
         self.on_completed = Some(Box::new(callback));
         self
@@ -1171,7 +1185,7 @@ impl<T> Delay<T> {
     ///
     /// ```
     /// # use bevy_tweening::{lens::*, *};
-    /// # use bevy::{math::Vec3, ecs::world::World, ecs::system::Query, ecs::system::In, ecs::entity::Entity, transform::components::Transform};
+    /// # use bevy::{ecs::event::EventReader, math::{Vec3, curve::EaseFunction}, ecs::world::World, ecs::system::{In, Query}, ecs::entity::Entity};
     /// # use std::time::Duration;
     /// let mut world = World::new();
     /// let test_system_system_id = world.register_system(test_system);
@@ -1194,7 +1208,7 @@ impl<T> Delay<T> {
     /// }
     /// ```
     ///
-    /// [`with_completed()`]: Tween::with_completed
+    /// [`with_completed()`]: Delay::with_completed
     /// [`register_system()`]: bevy::ecs::world::World::register_system
     #[must_use]
     pub fn with_completed_system(mut self, system_id: SystemId<Entity>) -> Self {
@@ -1234,7 +1248,7 @@ impl<T> Delay<T> {
     ///
     /// See also [`set_completed()`].
     ///
-    /// [`set_completed()`]: Tween::set_completed
+    /// [`set_completed()`]: Delay::set_completed
     pub fn clear_completed(&mut self) {
         self.on_completed = None;
     }
@@ -1247,8 +1261,8 @@ impl<T> Delay<T> {
     ///
     /// See [`with_completed_event()`] for details.
     ///
-    /// [`set_completed()`]: Tween::set_completed
-    /// [`with_completed_event()`]: Tween::with_completed_event
+    /// [`set_completed()`]: Delay::set_completed
+    /// [`with_completed_event()`]: Delay::with_completed_event
     pub fn set_completed_event(&mut self, user_data: u64) {
         self.event_data = Some(user_data);
     }
@@ -1257,7 +1271,7 @@ impl<T> Delay<T> {
     ///
     /// See also [`set_completed_event()`].
     ///
-    /// [`set_completed_event()`]: Tween::set_completed_event
+    /// [`set_completed_event()`]: Delay::set_completed_event
     pub fn clear_completed_event(&mut self) {
         self.event_data = None;
     }
@@ -1272,7 +1286,8 @@ impl<T> Delay<T> {
     ///
     /// See [`with_completed_system()`] for details.
     ///
-    /// [`with_completed()`]: Tween::with_completed
+    /// [`with_completed()`]: Delay::with_completed
+    /// [`with_completed_system()`]: Delay::with_completed_system
     /// [`register_system()`]: bevy::ecs::world::World::register_system
     pub fn set_completed_system(&mut self, system_id: SystemId<Entity>) {
         self.system_id = Some(system_id);
@@ -1282,7 +1297,7 @@ impl<T> Delay<T> {
     ///
     /// See also [`set_completed_system()`].
     ///
-    /// [`clear_completed_system()`]: Tween::clear_completed_system
+    /// [`set_completed_system()`]: Delay::set_completed_system
     pub fn clear_completed_system(&mut self) {
         self.system_id = None;
     }
@@ -1326,10 +1341,16 @@ impl<T> Tweenable<T> for Delay<T> {
         // If completed this frame, notify the user
         if (state == TweenState::Completed) && !was_completed {
             if let Some(user_data) = &self.event_data {
-                events.send(TweenCompleted {
+                let event = TweenCompleted {
                     entity,
                     user_data: *user_data,
-                });
+                };
+
+                // send regular event
+                events.send(event);
+
+                // trigger all entity-scoped observers
+                commands.trigger_targets(event, entity);
             }
             if let Some(cb) = &self.on_completed {
                 cb(entity, self);
@@ -1352,9 +1373,11 @@ mod tests {
     use std::sync::{Arc, Mutex};
 
     use bevy::ecs::{
-        component::Tick,
+        change_detection::MaybeLocation,
+        component::{Mutable, Tick},
         event::Events,
-        system::{CommandQueue, SystemState},
+        system::SystemState,
+        world::CommandQueue,
     };
 
     use super::*;
@@ -1369,7 +1392,7 @@ mod tests {
     /// Utility to create a tween for testing.
     fn make_test_tween() -> Tween<Transform> {
         Tween::new(
-            EaseMethod::Linear,
+            EaseMethod::default(),
             Duration::from_secs(1),
             TransformPositionLens {
                 start: Vec3::ZERO,
@@ -1391,7 +1414,7 @@ mod tests {
     fn oneshot_test(In(_entity): In<Entity>) {}
 
     /// Manually tick a test tweenable targeting a component.
-    fn manual_tick_component<T: Component>(
+    fn manual_tick_component<T: Component<Mutability = Mutable>>(
         duration: Duration,
         tween: &mut dyn Tweenable<T>,
         world: &mut World,
@@ -1425,12 +1448,14 @@ mod tests {
         let mut c = DummyComponent::default();
         let mut added = Tick::new(0);
         let mut last_changed = Tick::new(0);
+        let mut caller = MaybeLocation::caller();
         let mut target = ComponentTarget::new(Mut::new(
             &mut c,
             &mut added,
             &mut last_changed,
             Tick::new(0),
             Tick::new(1),
+            caller.as_mut(),
         ));
         let mut target = target.to_mut();
 
@@ -1483,7 +1508,7 @@ mod tests {
     #[test]
     fn into_repeat_count() {
         let tween = Tween::new(
-            EaseMethod::Linear,
+            EaseMethod::default(),
             Duration::from_secs(1),
             TransformPositionLens {
                 start: Vec3::ZERO,
@@ -1497,7 +1522,7 @@ mod tests {
         );
 
         let tween = Tween::new(
-            EaseMethod::Linear,
+            EaseMethod::default(),
             Duration::from_secs(1),
             TransformPositionLens {
                 start: Vec3::ZERO,
@@ -1819,7 +1844,7 @@ mod tests {
     #[test]
     fn seq_tick() {
         let tween1 = Tween::new(
-            EaseMethod::Linear,
+            EaseMethod::default(),
             Duration::from_secs(1),
             TransformPositionLens {
                 start: Vec3::ZERO,
@@ -1827,7 +1852,7 @@ mod tests {
             },
         );
         let tween2 = Tween::new(
-            EaseMethod::Linear,
+            EaseMethod::default(),
             Duration::from_secs(1),
             TransformRotationLens {
                 start: Quat::IDENTITY,
@@ -1868,7 +1893,7 @@ mod tests {
     fn seq_tick_boundaries() {
         let mut seq = Sequence::new((0..3).map(|i| {
             Tween::new(
-                EaseMethod::Linear,
+                EaseMethod::default(),
                 Duration::from_secs(1),
                 TransformPositionLens {
                     start: Vec3::splat(i as f32),
@@ -1902,7 +1927,7 @@ mod tests {
     fn seq_iter() {
         let mut seq = Sequence::new((1..5).map(|i| {
             Tween::new(
-                EaseMethod::Linear,
+                EaseMethod::default(),
                 Duration::from_millis(200 * i),
                 TransformPositionLens {
                     start: Vec3::ZERO,
@@ -1931,7 +1956,7 @@ mod tests {
     #[test]
     fn seq_from_single() {
         let tween = Tween::new(
-            EaseMethod::Linear,
+            EaseMethod::default(),
             Duration::from_secs(1),
             TransformPositionLens {
                 start: Vec3::ZERO,
@@ -1947,7 +1972,7 @@ mod tests {
     fn seq_elapsed() {
         let mut seq = Sequence::new((1..5).map(|i| {
             Tween::new(
-                EaseMethod::Linear,
+                EaseMethod::default(),
                 Duration::from_millis(200 * i),
                 TransformPositionLens {
                     start: Vec3::ZERO,
@@ -1972,7 +1997,7 @@ mod tests {
     #[test]
     fn tracks_tick() {
         let tween1 = Tween::new(
-            EaseMethod::Linear,
+            EaseMethod::default(),
             Duration::from_millis(1000),
             TransformPositionLens {
                 start: Vec3::ZERO,
@@ -1980,7 +2005,7 @@ mod tests {
             },
         );
         let tween2 = Tween::new(
-            EaseMethod::Linear,
+            EaseMethod::default(),
             Duration::from_millis(800), // shorter
             TransformRotationLens {
                 start: Quat::IDENTITY,

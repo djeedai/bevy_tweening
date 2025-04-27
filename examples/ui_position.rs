@@ -1,11 +1,14 @@
-use bevy::prelude::*;
-use bevy_inspector_egui::{prelude::*, quick::ResourceInspectorPlugin};
+use bevy::{color::palettes::css::*, prelude::*};
+use bevy_inspector_egui::{bevy_egui::EguiPlugin, prelude::*, quick::ResourceInspectorPlugin};
 
 use bevy_tweening::{lens::*, *};
 
+mod utils;
+
 fn main() {
     App::default()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
+        .add_plugins((
+            DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "UiPositionLens".to_string(),
                 resolution: (1400., 600.).into(),
@@ -13,17 +16,23 @@ fn main() {
                 ..default()
             }),
             ..default()
-        }))
+        }),
+            EguiPlugin {
+                enable_multipass_for_primary_context: true,
+            },
+            ResourceInspectorPlugin::<Options>::new(),
+            TweeningPlugin,
+        ))
         .init_resource::<Options>()
-        .add_systems(Update, bevy::window::close_on_esc)
-        .add_plugins(TweeningPlugin)
-        .add_plugins(ResourceInspectorPlugin::<Options>::new())
+        .register_type::<Options>()
+        .add_systems(Update, utils::close_on_esc)
         .add_systems(Startup, setup)
         .add_systems(Update, update_animation_speed)
         .run();
 }
 
-#[derive(Copy, Clone, PartialEq, Resource, Reflect, InspectorOptions)]
+#[derive(Resource, Reflect, InspectorOptions)]
+#[reflect(InspectorOptions)]
 struct Options {
     #[inspector(min = 0.01, max = 100.)]
     speed: f32,
@@ -36,7 +45,7 @@ impl Default for Options {
 }
 
 fn setup(mut commands: Commands) {
-    commands.spawn(Camera2dBundle::default());
+    commands.spawn(Camera2d::default());
 
     let size = 25.;
 
@@ -99,24 +108,21 @@ fn setup(mut commands: Commands) {
         .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
         commands.spawn((
-            NodeBundle {
-                style: Style {
-                    width: Val::Px(size),
-                    height: Val::Px(size),
-                    left: Val::Px(x),
-                    top: Val::Px(10.),
-                    right: Val::Auto,
-                    bottom: Val::Auto,
-                    position_type: PositionType::Absolute,
-                    align_content: AlignContent::Center,
-                    align_items: AlignItems::Center,
-                    align_self: AlignSelf::Center,
-                    justify_content: JustifyContent::Center,
-                    ..default()
-                },
-                background_color: BackgroundColor(Color::RED),
+            Node {
+                width: Val::Px(size),
+                height: Val::Px(size),
+                left: Val::Px(x),
+                top: Val::Px(10.),
+                right: Val::Auto,
+                bottom: Val::Auto,
+                position_type: PositionType::Absolute,
+                align_content: AlignContent::Center,
+                align_items: AlignItems::Center,
+                align_self: AlignSelf::Center,
+                justify_content: JustifyContent::Center,
                 ..default()
             },
+            BackgroundColor(RED.into()),
             Animator::new(tween),
         ));
 
@@ -124,7 +130,7 @@ fn setup(mut commands: Commands) {
     }
 }
 
-fn update_animation_speed(options: Res<Options>, mut animators: Query<&mut Animator<Style>>) {
+fn update_animation_speed(mut animators: Query<&mut Animator<Node>>, options: Res<Options>) {
     if !options.is_changed() {
         return;
     }

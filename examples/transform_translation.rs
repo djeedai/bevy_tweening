@@ -1,11 +1,13 @@
-use bevy::prelude::*;
-use bevy_inspector_egui::{prelude::*, quick::ResourceInspectorPlugin};
+use bevy::{color::palettes::css::*, prelude::*};
+use bevy_inspector_egui::{bevy_egui::EguiPlugin, prelude::*, quick::ResourceInspectorPlugin};
 
 use bevy_tweening::{lens::*, *};
 
+mod utils;
+
 fn main() {
     App::default()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
+        .add_plugins((DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "TransformPositionLens".to_string(),
                 resolution: (1400., 600.).into(),
@@ -13,17 +15,24 @@ fn main() {
                 ..default()
             }),
             ..default()
-        }))
+        }),
+            EguiPlugin {
+                enable_multipass_for_primary_context: true,
+            },
+            //DefaultInspectorConfigPlugin,
+            ResourceInspectorPlugin::<Options>::new(),
+            TweeningPlugin,
+        ))
         .init_resource::<Options>()
-        .add_systems(Update, bevy::window::close_on_esc)
-        .add_plugins(TweeningPlugin)
-        .add_plugins(ResourceInspectorPlugin::<Options>::default())
+        .register_type::<Options>()
+        .add_systems(Update, utils::close_on_esc)        
         .add_systems(Startup, setup)
         .add_systems(Update, update_animation_speed)
         .run();
 }
 
-#[derive(Copy, Clone, PartialEq, Resource, Reflect, InspectorOptions)]
+#[derive(Resource, Reflect, InspectorOptions)]
+#[reflect(InspectorOptions)]
 struct Options {
     #[inspector(min = 0.01, max = 100.)]
     speed: f32,
@@ -36,7 +45,7 @@ impl Default for Options {
 }
 
 fn setup(mut commands: Commands) {
-    commands.spawn(Camera2dBundle::default());
+    commands.spawn(Camera2d::default());
 
     let size = 25.;
 
@@ -89,12 +98,9 @@ fn setup(mut commands: Commands) {
         .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
         commands.spawn((
-            SpriteBundle {
-                sprite: Sprite {
-                    color: Color::RED,
-                    custom_size: Some(Vec2::new(size, size)),
-                    ..default()
-                },
+            Sprite {
+                color: RED.into(),
+                custom_size: Some(Vec2::new(size, size)),
                 ..default()
             },
             Animator::new(tween),

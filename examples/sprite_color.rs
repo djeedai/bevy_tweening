@@ -1,5 +1,7 @@
-use bevy::prelude::*;
+use bevy::{color::palettes::css::*, prelude::*};
 use bevy_tweening::{lens::*, *};
+
+mod utils;
 
 fn main() {
     App::default()
@@ -12,14 +14,14 @@ fn main() {
             }),
             ..default()
         }))
-        .add_systems(Update, bevy::window::close_on_esc)
+        .add_systems(Update, utils::close_on_esc)
         .add_plugins(TweeningPlugin)
         .add_systems(Startup, setup)
         .run();
 }
 
 fn setup(mut commands: Commands) {
-    commands.spawn(Camera2dBundle::default());
+    commands.spawn(Camera2d::default());
 
     let size = 80.;
 
@@ -65,23 +67,20 @@ fn setup(mut commands: Commands) {
             *ease_function,
             std::time::Duration::from_secs(1),
             SpriteColorLens {
-                start: Color::RED,
-                end: Color::BLUE,
+                start: RED.into(),
+                end: BLUE.into(),
             },
         )
         .with_repeat_count(RepeatCount::Infinite)
         .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
         commands.spawn((
-            SpriteBundle {
-                transform: Transform::from_translation(Vec3::new(x, y, 0.)),
-                sprite: Sprite {
-                    color: Color::BLACK,
-                    custom_size: Some(Vec2::new(size, size)),
-                    ..default()
-                },
+            Sprite {
+                color: Color::BLACK,
+                custom_size: Some(Vec2::new(size, size)),
                 ..default()
             },
+            Transform::from_translation(Vec3::new(x, y, 0.)),
             Animator::new(tween),
         ));
 
