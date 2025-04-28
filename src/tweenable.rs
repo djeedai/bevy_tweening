@@ -961,11 +961,11 @@ impl<T> Tweenable<T> for Sequence<T> {
         while self.index < self.tweens.len() {
             let tween = &mut self.tweens[self.index];
 
+            let tween_remaining = tween.duration().saturating_sub(tween.elapsed());
+
             if let TweenState::Active = tween.tick(delta, target, entity, events, commands) {
                 return TweenState::Active;
             }
-
-            let tween_remaining = tween.duration().saturating_sub(tween.elapsed());
 
             tween.rewind();
             delta -= tween_remaining;
