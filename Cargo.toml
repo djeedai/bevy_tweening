@@ -1,6 +1,6 @@
 [package]
 name = "bevy_tweening"
-version = "0.12.0"
+version = "0.13.0"
 authors = [
     "François Mockers <mockersf@gmail.com>",
     "Jerome Humbert <djeedai@gmail.com>",
@@ -27,12 +27,11 @@ bevy_ui = ["bevy/bevy_ui", "bevy/bevy_render"]
 bevy_text = ["bevy/bevy_text", "bevy/bevy_render", "bevy/bevy_sprite"]
 
 [dependencies]
-bevy = { version = "0.16", default-features = false, features = [ "bevy_color",]}
-
+# Note: abuse 'bevy_color' to force 'bevy_math/curve' feature, which defines EaseFunction
+bevy = { version = "0.16", default-features = false, features = [ "bevy_color" ]}
 
 [dev-dependencies]
 bevy-inspector-egui = { version = "0.31" }
-
 
 [[example]]
 name = "menu"
