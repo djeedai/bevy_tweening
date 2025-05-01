@@ -57,7 +57,7 @@
 //!
 //! commands.spawn((
 //!     // Spawn an entity to animate the position of.
-//!     TransformBundle::default(),
+//!     Transform::default(),
 //!     // Add an Animator component to control and execute the animation.
 //!     Animator::new(tween),
 //! ));
@@ -195,14 +195,14 @@
 //! lens can also be created by implementing the trait, allowing to animate
 //! virtually any field of any Bevy component or asset.
 //!
-//! [`Transform::translation`]: https://docs.rs/bevy/0.15.0/bevy/transform/components/struct.Transform.html#structfield.translation
-//! [`Entity`]: https://docs.rs/bevy/0.15.0/bevy/ecs/entity/struct.Entity.html
-//! [`Query`]: https://docs.rs/bevy/0.15.0/bevy/ecs/system/struct.Query.html
-//! [`ColorMaterial`]: https://docs.rs/bevy/0.15.0/bevy/sprite/struct.ColorMaterial.html
-//! [`Sprite`]: https://docs.rs/bevy/0.15.0/bevy/sprite/struct.Sprite.html
-//! [`Node`]: https://docs.rs/bevy/0.15.0/bevy/ui/struct.Node.html#structfield.position
-//! [`TextColor`]: https://docs.rs/bevy/0.15.0/bevy/text/struct.TextColor.html
-//! [`Transform`]: https://docs.rs/bevy/0.15.0/bevy/transform/components/struct.Transform.html
+//! [`Transform::translation`]: https://docs.rs/bevy/0.16.0/bevy/transform/components/struct.Transform.html#structfield.translation
+//! [`Entity`]: https://docs.rs/bevy/0.16.0/bevy/ecs/entity/struct.Entity.html
+//! [`Query`]: https://docs.rs/bevy/0.16.0/bevy/ecs/system/struct.Query.html
+//! [`ColorMaterial`]: https://docs.rs/bevy/0.16.0/bevy/sprite/struct.ColorMaterial.html
+//! [`Sprite`]: https://docs.rs/bevy/0.16.0/bevy/sprite/struct.Sprite.html
+//! [`Node`]: https://docs.rs/bevy/0.16.0/bevy/ui/struct.Node.html#structfield.position
+//! [`TextColor`]: https://docs.rs/bevy/0.16.0/bevy/text/struct.TextColor.html
+//! [`Transform`]: https://docs.rs/bevy/0.16.0/bevy/transform/components/struct.Transform.html
 
 use std::time::Duration;
 
@@ -580,7 +580,7 @@ impl<T: Asset> AssetAnimator<T> {
 
 #[cfg(test)]
 mod tests {
-    use bevy::ecs::component::Tick;
+    use bevy::ecs::{change_detection::MaybeLocation, component::Tick};
 
     use self::tweenable::ComponentTarget;
 
@@ -617,12 +617,14 @@ mod tests {
             {
                 let mut added = Tick::new(0);
                 let mut last_changed = Tick::new(0);
+                let mut caller = MaybeLocation::caller();
                 let mut target = ComponentTarget::new(Mut::new(
                     &mut c,
                     &mut added,
                     &mut last_changed,
                     Tick::new(0),
                     Tick::new(1),
+                    caller.as_mut(),
                 ));
 
                 l.lerp(&mut target, r);
@@ -654,12 +656,14 @@ mod tests {
             {
                 let mut added = Tick::new(0);
                 let mut last_changed = Tick::new(0);
+                let mut caller = MaybeLocation::caller();
                 let mut target = AssetTarget::new(Mut::new(
                     &mut assets,
                     &mut added,
                     &mut last_changed,
                     Tick::new(0),
                     Tick::new(0),
+                    caller.as_mut(),
                 ));
                 target.handle = handle.clone();
 

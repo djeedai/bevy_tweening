@@ -5,7 +5,7 @@
 [![Crate](https://img.shields.io/crates/v/bevy_tweening.svg)](https://crates.io/crates/bevy_tweening)
 [![Build Status](https://github.com/djeedai/bevy_tweening/actions/workflows/ci.yaml/badge.svg)](https://github.com/djeedai/bevy_tweening/actions/workflows/ci.yaml)
 [![Coverage Status](https://coveralls.io/repos/github/djeedai/bevy_tweening/badge.svg?branch=main&kill_cache=1)](https://coveralls.io/github/djeedai/bevy_tweening?branch=main)
-[![Bevy tracking](https://img.shields.io/badge/Bevy%20tracking-v0.15-lightblue)](https://github.com/bevyengine/bevy/blob/main/docs/plugins_guidelines.md#main-branch-tracking)
+[![Bevy tracking](https://img.shields.io/badge/Bevy%20tracking-v0.16-lightblue)](https://github.com/bevyengine/bevy/blob/main/docs/plugins_guidelines.md#main-branch-tracking)
 
 Tweening animation plugin for the Bevy game engine.
 
@@ -24,7 +24,7 @@ Add to `Cargo.toml`:
 
 ```toml
 [dependencies]
-bevy_tweening = "0.12"
+bevy_tweening = "0.13"
 ```
 
 This crate supports the following features:
@@ -141,19 +141,19 @@ The naming scheme for predefined lenses is `"<TargetName><FieldName>Lens"`, wher
 
 | Target Component | Animated Field | Lens | Feature |
 |---|---|---|---|
-| [`Transform`](https://docs.rs/bevy/0.15.0/bevy/transform/components/struct.Transform.html) | [`translation`](https://docs.rs/bevy/0.15.0/bevy/transform/components/struct.Transform.html#structfield.translation)     | [`TransformPositionLens`](https://docs.rs/bevy_tweening/5fca4fa0139121adef3cbf8187b31c63fd6273c7/bevy_tweening/lens/struct.TransformPositionLens.html)     | |
-|                                                                                            | [`rotation`](https://docs.rs/bevy/0.15.0/bevy/transform/components/struct.Transform.html#structfield.rotation) (`Quat`)¹ | [`TransformRotationLens`](https://docs.rs/bevy_tweening/5fca4fa0139121adef3cbf8187b31c63fd6273c7/bevy_tweening/lens/struct.TransformRotationLens.html)     | |
-|                                                                                            | [`rotation`](https://docs.rs/bevy/0.15.0/bevy/transform/components/struct.Transform.html#structfield.rotation) (angle)²  | [`TransformRotateXLens`](https://docs.rs/bevy_tweening/5fca4fa0139121adef3cbf8187b31c63fd6273c7/bevy_tweening/lens/struct.TransformRotateXLens.html)       | |
-|                                                                                            | [`rotation`](https://docs.rs/bevy/0.15.0/bevy/transform/components/struct.Transform.html#structfield.rotation) (angle)²  | [`TransformRotateYLens`](https://docs.rs/bevy_tweening/5fca4fa0139121adef3cbf8187b31c63fd6273c7/bevy_tweening/lens/struct.TransformRotateYLens.html)       | |
-|                                                                                            | [`rotation`](https://docs.rs/bevy/0.15.0/bevy/transform/components/struct.Transform.html#structfield.rotation) (angle)²  | [`TransformRotateZLens`](https://docs.rs/bevy_tweening/5fca4fa0139121adef3cbf8187b31c63fd6273c7/bevy_tweening/lens/struct.TransformRotateZLens.html)       | |
-|                                                                                            | [`rotation`](https://docs.rs/bevy/0.15.0/bevy/transform/components/struct.Transform.html#structfield.rotation) (angle)²  | [`TransformRotateAxisLens`](https://docs.rs/bevy_tweening/5fca4fa0139121adef3cbf8187b31c63fd6273c7/bevy_tweening/lens/struct.TransformRotateAxisLens.html) | |
-|                                                                                            | [`scale`](https://docs.rs/bevy/0.15.0/bevy/transform/components/struct.Transform.html#structfield.scale)                 | [`TransformScaleLens`](https://docs.rs/bevy_tweening/5fca4fa0139121adef3cbf8187b31c63fd6273c7/bevy_tweening/lens/struct.TransformScaleLens.html)           | |
-| [`Sprite`](https://docs.rs/bevy/0.15.0/bevy/sprite/struct.Sprite.html)                     | [`color`](https://docs.rs/bevy/0.15.0/bevy/sprite/struct.Sprite.html#structfield.color)                                  | [`SpriteColorLens`](https://docs.rs/bevy_tweening/5fca4fa0139121adef3cbf8187b31c63fd6273c7/bevy_tweening/lens/struct.SpriteColorLens.html)                 | `bevy_sprite` |
-| [`Node`](https://docs.rs/bevy/0.15.0/bevy/ui/struct.Node.html)                             | [`position`](https://docs.rs/bevy/0.15.0/bevy/ui/struct.Node.html)                                                       | [`UiPositionLens`](https://docs.rs/bevy_tweening/5fca4fa0139121adef3cbf8187b31c63fd6273c7/bevy_tweening/lens/struct.UiPositionLens.html)                   | `bevy_ui`     |
-| [`BackgroundColor`](https://docs.rs/bevy/0.15.0/bevy/ui/struct.BackgroundColor.html)       |                                                                                                                          | [`UiBackgroundColorLens`](https://docs.rs/bevy_tweening/5fca4fa0139121adef3cbf8187b31c63fd6273c7/bevy_tweening/lens/struct.UiBackgroundColorLens.html)     | `bevy_ui`     |
-| [`TextColor`](https://docs.rs/bevy/0.15.0/bevy/text/struct.TextColor.html)                 |                                                                                                                          | [`TextColorLens`](https://docs.rs/bevy_tweening/5fca4fa0139121adef3cbf8187b31c63fd6273c7/bevy_tweening/lens/struct.TextColorLens.html)                     | `bevy_text`   |
+| [`Transform`](https://docs.rs/bevy/0.16/bevy/transform/components/struct.Transform.html) | [`translation`](https://docs.rs/bevy/0.16/bevy/transform/components/struct.Transform.html#structfield.translation)     | [`TransformPositionLens`](https://docs.rs/bevy_tweening/8b3cad18a090078d9055d77a632be44e701aecc7/bevy_tweening/lens/struct.TransformPositionLens.html)     | |
+|                                                                                            | [`rotation`](https://docs.rs/bevy/0.16/bevy/transform/components/struct.Transform.html#structfield.rotation) (`Quat`)¹ | [`TransformRotationLens`](https://docs.rs/bevy_tweening/8b3cad18a090078d9055d77a632be44e701aecc7/bevy_tweening/lens/struct.TransformRotationLens.html)     | |
+|                                                                                            | [`rotation`](https://docs.rs/bevy/0.16/bevy/transform/components/struct.Transform.html#structfield.rotation) (angle)²  | [`TransformRotateXLens`](https://docs.rs/bevy_tweening/8b3cad18a090078d9055d77a632be44e701aecc7/bevy_tweening/lens/struct.TransformRotateXLens.html)       | |
+|                                                                                            | [`rotation`](https://docs.rs/bevy/0.16/bevy/transform/components/struct.Transform.html#structfield.rotation) (angle)²  | [`TransformRotateYLens`](https://docs.rs/bevy_tweening/8b3cad18a090078d9055d77a632be44e701aecc7/bevy_tweening/lens/struct.TransformRotateYLens.html)       | |
+|                                                                                            | [`rotation`](https://docs.rs/bevy/0.16/bevy/transform/components/struct.Transform.html#structfield.rotation) (angle)²  | [`TransformRotateZLens`](https://docs.rs/bevy_tweening/8b3cad18a090078d9055d77a632be44e701aecc7/bevy_tweening/lens/struct.TransformRotateZLens.html)       | |
+|                                                                                            | [`rotation`](https://docs.rs/bevy/0.16/bevy/transform/components/struct.Transform.html#structfield.rotation) (angle)²  | [`TransformRotateAxisLens`](https://docs.rs/bevy_tweening/8b3cad18a090078d9055d77a632be44e701aecc7/bevy_tweening/lens/struct.TransformRotateAxisLens.html) | |
+|                                                                                            | [`scale`](https://docs.rs/bevy/0.16/bevy/transform/components/struct.Transform.html#structfield.scale)                 | [`TransformScaleLens`](https://docs.rs/bevy_tweening/8b3cad18a090078d9055d77a632be44e701aecc7/bevy_tweening/lens/struct.TransformScaleLens.html)           | |
+| [`Sprite`](https://docs.rs/bevy/0.16/bevy/sprite/struct.Sprite.html)                     | [`color`](https://docs.rs/bevy/0.16/bevy/sprite/struct.Sprite.html#structfield.color)                                  | [`SpriteColorLens`](https://docs.rs/bevy_tweening/8b3cad18a090078d9055d77a632be44e701aecc7/bevy_tweening/lens/struct.SpriteColorLens.html)                 | `bevy_sprite` |
+| [`Node`](https://docs.rs/bevy/0.16/bevy/ui/struct.Node.html)                             | [`position`](https://docs.rs/bevy/0.16/bevy/ui/struct.Node.html)                                                       | [`UiPositionLens`](https://docs.rs/bevy_tweening/8b3cad18a090078d9055d77a632be44e701aecc7/bevy_tweening/lens/struct.UiPositionLens.html)                   | `bevy_ui`     |
+| [`BackgroundColor`](https://docs.rs/bevy/0.16/bevy/ui/struct.BackgroundColor.html)       |                                                                                                                          | [`UiBackgroundColorLens`](https://docs.rs/bevy_tweening/8b3cad18a090078d9055d77a632be44e701aecc7/bevy_tweening/lens/struct.UiBackgroundColorLens.html)     | `bevy_ui`     |
+| [`TextColor`](https://docs.rs/bevy/0.16/bevy/text/struct.TextColor.html)                 |                                                                                                                          | [`TextColorLens`](https://docs.rs/bevy_tweening/8b3cad18a090078d9055d77a632be44e701aecc7/bevy_tweening/lens/struct.TextColorLens.html)                     | `bevy_text`   |
 
-There are two ways to interpolate rotations. See the [comparison of rotation lenses](https://docs.rs/bevy_tweening/5fca4fa0139121adef3cbf8187b31c63fd6273c7/bevy_tweening/lens/index.html#rotations) for details:
+There are two ways to interpolate rotations. See the [comparison of rotation lenses](https://docs.rs/bevy_tweening/8b3cad18a090078d9055d77a632be44e701aecc7/bevy_tweening/lens/index.html#rotations) for details:
 
 - ¹ Shortest-path interpolation between two rotations, using `Quat::slerp()`.
 - ² Angle-based interpolation, valid for rotations over ½ turn.
@@ -164,7 +164,7 @@ Asset animation always requires the `bevy_asset` feature.
 
 | Target Asset | Animated Field | Lens | Feature |
 |---|---|---|---|
-| [`ColorMaterial`](https://docs.rs/bevy/0.15.0/bevy/sprite/struct.ColorMaterial.html) | [`color`](https://docs.rs/bevy/0.15.0/bevy/sprite/struct.ColorMaterial.html#structfield.color) | [`ColorMaterialColorLens`](https://docs.rs/bevy_tweening/5fca4fa0139121adef3cbf8187b31c63fd6273c7/bevy_tweening/lens/struct.ColorMaterialColorLens.html) | `bevy_asset` + `bevy_sprite` |
+| [`ColorMaterial`](https://docs.rs/bevy/0.16/bevy/sprite/struct.ColorMaterial.html) | [`color`](https://docs.rs/bevy/0.16/bevy/sprite/struct.ColorMaterial.html#structfield.color) | [`ColorMaterialColorLens`](https://docs.rs/bevy_tweening/8b3cad18a090078d9055d77a632be44e701aecc7/bevy_tweening/lens/struct.ColorMaterialColorLens.html) | `bevy_asset` + `bevy_sprite` |
 
 ## Custom lens
 
@@ -222,7 +222,7 @@ The process is similar to custom components, creating a custom lens for the cust
 
 ## Examples
 
-See the [`examples/`](https://github.com/djeedai/bevy_tweening/tree/5fca4fa0139121adef3cbf8187b31c63fd6273c7/examples) folder.
+See the [`examples/`](https://github.com/djeedai/bevy_tweening/tree/8b3cad18a090078d9055d77a632be44e701aecc7/examples) folder.
 
 ### [`menu`](examples/menu.rs)
 
@@ -230,7 +230,7 @@ See the [`examples/`](https://github.com/djeedai/bevy_tweening/tree/5fca4fa01391
 cargo run --example menu --features="bevy/bevy_winit"
 ```
 
-![menu](https://raw.githubusercontent.com/djeedai/bevy_tweening/5fca4fa0139121adef3cbf8187b31c63fd6273c7/examples/menu.gif)
+![menu](https://raw.githubusercontent.com/djeedai/bevy_tweening/8b3cad18a090078d9055d77a632be44e701aecc7/examples/menu.gif)
 
 ### [`sprite_color`](examples/sprite_color.rs)
 
@@ -238,7 +238,7 @@ cargo run --example menu --features="bevy/bevy_winit"
 cargo run --example sprite_color --features="bevy/bevy_winit"
 ```
 
-![sprite_color](https://raw.githubusercontent.com/djeedai/bevy_tweening/5fca4fa0139121adef3cbf8187b31c63fd6273c7/examples/sprite_color.gif)
+![sprite_color](https://raw.githubusercontent.com/djeedai/bevy_tweening/8b3cad18a090078d9055d77a632be44e701aecc7/examples/sprite_color.gif)
 
 ### [`transform_rotation`](examples/transform_rotation.rs)
 
@@ -246,7 +246,7 @@ cargo run --example sprite_color --features="bevy/bevy_winit"
 cargo run --example transform_rotation --features="bevy/bevy_winit"
 ```
 
-![sprite_color](https://raw.githubusercontent.com/djeedai/bevy_tweening/5fca4fa0139121adef3cbf8187b31c63fd6273c7/examples/transform_rotation.gif)
+![sprite_color](https://raw.githubusercontent.com/djeedai/bevy_tweening/8b3cad18a090078d9055d77a632be44e701aecc7/examples/transform_rotation.gif)
 
 ### [`transform_translation`](examples/transform_translation.rs)
 
@@ -254,7 +254,7 @@ cargo run --example transform_rotation --features="bevy/bevy_winit"
 cargo run --example transform_translation --features="bevy/bevy_winit"
 ```
 
-![sprite_color](https://raw.githubusercontent.com/djeedai/bevy_tweening/5fca4fa0139121adef3cbf8187b31c63fd6273c7/examples/transform_translation.gif)
+![sprite_color](https://raw.githubusercontent.com/djeedai/bevy_tweening/8b3cad18a090078d9055d77a632be44e701aecc7/examples/transform_translation.gif)
 
 ### [`colormaterial_color`](examples/colormaterial_color.rs)
 
@@ -262,7 +262,7 @@ cargo run --example transform_translation --features="bevy/bevy_winit"
 cargo run --example colormaterial_color --features="bevy/bevy_winit"
 ```
 
-![colormaterial_color](https://raw.githubusercontent.com/djeedai/bevy_tweening/5fca4fa0139121adef3cbf8187b31c63fd6273c7/examples/colormaterial_color.gif)
+![colormaterial_color](https://raw.githubusercontent.com/djeedai/bevy_tweening/8b3cad18a090078d9055d77a632be44e701aecc7/examples/colormaterial_color.gif)
 
 ### [`ui_position`](examples/ui_position.rs)
 
@@ -270,7 +270,7 @@ cargo run --example colormaterial_color --features="bevy/bevy_winit"
 cargo run --example ui_position --features="bevy/bevy_winit"
 ```
 
-![ui_position](https://raw.githubusercontent.com/djeedai/bevy_tweening/5fca4fa0139121adef3cbf8187b31c63fd6273c7/examples/ui_position.gif)
+![ui_position](https://raw.githubusercontent.com/djeedai/bevy_tweening/8b3cad18a090078d9055d77a632be44e701aecc7/examples/ui_position.gif)
 
 ### [`sequence`](examples/sequence.rs)
 
@@ -278,11 +278,11 @@ cargo run --example ui_position --features="bevy/bevy_winit"
 cargo run --example sequence --features="bevy/bevy_winit"
 ```
 
-![sequence](https://raw.githubusercontent.com/djeedai/bevy_tweening/5fca4fa0139121adef3cbf8187b31c63fd6273c7/examples/sequence.gif)
+![sequence](https://raw.githubusercontent.com/djeedai/bevy_tweening/8b3cad18a090078d9055d77a632be44e701aecc7/examples/sequence.gif)
 
 ## Ease Functions
 
-Many [ease functions](https://docs.rs/bevy/0.15.0/bevy/math/curve/enum.EaseFunction.html) are available from `bevy_math`:
+Many [ease functions](https://docs.rs/bevy/0.16/bevy/math/curve/enum.EaseFunction.html) are available from `bevy_math`:
 
 - Linear
   > `f(t) = t`
@@ -359,6 +359,7 @@ Compatibility of `bevy_tweening` versions:
 
 | `bevy_tweening` | `bevy` |
 | :--             | :--    |
+| `0.13`          | `0.16` |
 | `0.12`          | `0.15` |
 | `0.11`          | `0.14` |
 | `0.10`          | `0.13` |
@@ -372,6 +373,17 @@ Compatibility of `bevy_tweening` versions:
 | `0.1`           | `0.5`  |
 
 Due to the fast-moving nature of Bevy and frequent breaking changes, and the limited resources to maintan 🍃 Bevy Tweening, the `main` (unreleased) Bevy branch is not supported. However the `bevy_tweening` crate is upgraded shortly after each new `bevy` release to support the newly released version.
+
+## License
+
+🍃 Bevy Tweening is dual-licensed under either:
+
+- MIT License ([`LICENSE-MIT`](./LICENSE-MIT) or <http://opensource.org/licenses/MIT>)
+- Apache License, Version 2.0 ([`LICENSE-APACHE2`](./LICENSE-APACHE2) or <http://www.apache.org/licenses/LICENSE-2.0>)
+
+at your option.
+
+`SPDX-License-Identifier: MIT OR Apache-2.0`
 
 ## Comparison with `bevy_easings`
 

@@ -194,24 +194,20 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 }
 
 fn update_text(
-    query_text_red: Query<&Children, With<RedProgress>>,
-    query_text_blue: Query<&Children, With<BlueProgress>>,
+    red_text_children: Single<&Children, With<RedProgress>>,
+    blue_text_children: Single<&Children, With<BlueProgress>>,
     mut text_spans: Query<&mut TextSpan, With<ProgressValue>>,
-    query_anim_red: Query<&Animator<Transform>, With<RedSprite>>,
-    query_anim_blue: Query<&Animator<Transform>, With<BlueSprite>>,
+    anim_red: Single<&Animator<Transform>, With<RedSprite>>,
+    anim_blue: Single<&Animator<Transform>, With<BlueSprite>>,
     mut query_event: EventReader<TweenCompleted>,
 ) {
-    let anim_red = query_anim_red.single();
     let progress_red = anim_red.tweenable().progress();
 
-    let anim_blue = query_anim_blue.single();
     let progress_blue = anim_blue.tweenable().progress();
 
-    let red_text_children = query_text_red.single();
     let mut red_text = text_spans.get_mut(red_text_children[1]).unwrap();
     red_text.0 = format!("{:5.1}%", progress_red * 100.);
 
-    let blue_text_children = query_text_blue.single();
     let mut blue_text = text_spans.get_mut(blue_text_children[1]).unwrap();
     blue_text.0 = format!("{:5.1}%", progress_blue * 100.);
 
