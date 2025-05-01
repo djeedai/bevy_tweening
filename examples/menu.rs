@@ -1,5 +1,5 @@
 use bevy::{color::palettes::css::*, prelude::*};
-use bevy_inspector_egui::quick::WorldInspectorPlugin;
+use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 use bevy_tweening::{lens::*, *};
 use std::time::Duration;
 
@@ -24,20 +24,25 @@ const INIT_TRANSITION_DONE: u64 = 1;
 /// marker.
 fn main() {
     App::default()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "Menu".to_string(),
-                resolution: (800., 400.).into(),
-                present_mode: bevy::window::PresentMode::Fifo, // vsync
+        .add_plugins((
+            DefaultPlugins.set(WindowPlugin {
+                primary_window: Some(Window {
+                    title: "Menu".to_string(),
+                    resolution: (800., 400.).into(),
+                    present_mode: bevy::window::PresentMode::Fifo, // vsync
+                    ..default()
+                }),
                 ..default()
             }),
-            ..default()
-        }))
+            EguiPlugin {
+                enable_multipass_for_primary_context: true,
+            },
+            WorldInspectorPlugin::new(),
+            TweeningPlugin,
+        ))
         .add_systems(Update, utils::close_on_esc)
         .add_systems(Update, interaction)
         .add_systems(Update, enable_interaction_after_initial_animation)
-        .add_plugins(TweeningPlugin)
-        .add_plugins(WorldInspectorPlugin::new())
         .add_systems(Startup, setup)
         .run();
 }

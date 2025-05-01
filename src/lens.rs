@@ -31,9 +31,9 @@
 //! - [`TransformRotateZLens`]
 //! - [`TransformRotateAxisLens`]
 //!
-//! [`rotation`]: https://docs.rs/bevy/0.15.0/bevy/transform/components/struct.Transform.html#structfield.rotation
-//! [`Transform`]: https://docs.rs/bevy/0.15.0/bevy/transform/components/struct.Transform.html
-//! [`Quat::slerp()`]: https://docs.rs/bevy/0.15.0/bevy/math/struct.Quat.html#method.slerp
+//! [`rotation`]: https://docs.rs/bevy/0.16.0/bevy/transform/components/struct.Transform.html#structfield.rotation
+//! [`Transform`]: https://docs.rs/bevy/0.16.0/bevy/transform/components/struct.Transform.html
+//! [`Quat::slerp()`]: https://docs.rs/bevy/0.16.0/bevy/math/struct.Quat.html#method.slerp
 
 use bevy::prelude::*;
 
@@ -92,7 +92,7 @@ pub trait Lens<T> {
 /// A lens to manipulate the [`color`] field of a section of a [`Text`]
 /// component.
 ///
-/// [`color`]: https://docs.rs/bevy/0.15.0/bevy/text/struct.TextColor.html
+/// [`color`]: https://docs.rs/bevy/0.16.0/bevy/text/struct.TextColor.html
 #[cfg(feature = "bevy_text")]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct TextColorLens {
@@ -111,8 +111,8 @@ impl Lens<TextColor> for TextColorLens {
 
 /// A lens to manipulate the [`translation`] field of a [`Transform`] component.
 ///
-/// [`translation`]: https://docs.rs/bevy/0.15.0/bevy/transform/components/struct.Transform.html#structfield.translation
-/// [`Transform`]: https://docs.rs/bevy/0.15.0/bevy/transform/components/struct.Transform.html
+/// [`translation`]: https://docs.rs/bevy/0.16.0/bevy/transform/components/struct.Transform.html#structfield.translation
+/// [`Transform`]: https://docs.rs/bevy/0.16.0/bevy/transform/components/struct.Transform.html
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct TransformPositionLens {
     /// Start value of the translation.
@@ -141,9 +141,9 @@ impl Lens<Transform> for TransformPositionLens {
 /// See the [top-level `lens` module documentation] for a comparison of rotation
 /// lenses.
 ///
-/// [`rotation`]: https://docs.rs/bevy/0.15.0/bevy/transform/components/struct.Transform.html#structfield.rotation
-/// [`Transform`]: https://docs.rs/bevy/0.15.0/bevy/transform/components/struct.Transform.html
-/// [`Quat::slerp()`]: https://docs.rs/bevy/0.15.0/bevy/math/struct.Quat.html#method.slerp
+/// [`rotation`]: https://docs.rs/bevy/0.16.0/bevy/transform/components/struct.Transform.html#structfield.rotation
+/// [`Transform`]: https://docs.rs/bevy/0.16.0/bevy/transform/components/struct.Transform.html
+/// [`Quat::slerp()`]: https://docs.rs/bevy/0.16.0/bevy/math/struct.Quat.html#method.slerp
 /// [top-level `lens` module documentation]: crate::lens
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct TransformRotationLens {
@@ -169,7 +169,7 @@ impl Lens<Transform> for TransformRotationLens {
 /// See the [top-level `lens` module documentation] for a comparison of rotation
 /// lenses.
 ///
-/// [`Transform`]: https://docs.rs/bevy/0.15.0/bevy/transform/components/struct.Transform.html
+/// [`Transform`]: https://docs.rs/bevy/0.16.0/bevy/transform/components/struct.Transform.html
 /// [top-level `lens` module documentation]: crate::lens
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct TransformRotateXLens {
@@ -196,7 +196,7 @@ impl Lens<Transform> for TransformRotateXLens {
 /// See the [top-level `lens` module documentation] for a comparison of rotation
 /// lenses.
 ///
-/// [`Transform`]: https://docs.rs/bevy/0.15.0/bevy/transform/components/struct.Transform.html
+/// [`Transform`]: https://docs.rs/bevy/0.16.0/bevy/transform/components/struct.Transform.html
 /// [top-level `lens` module documentation]: crate::lens
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct TransformRotateYLens {
@@ -223,7 +223,7 @@ impl Lens<Transform> for TransformRotateYLens {
 /// See the [top-level `lens` module documentation] for a comparison of rotation
 /// lenses.
 ///
-/// [`Transform`]: https://docs.rs/bevy/0.15.0/bevy/transform/components/struct.Transform.html
+/// [`Transform`]: https://docs.rs/bevy/0.16.0/bevy/transform/components/struct.Transform.html
 /// [top-level `lens` module documentation]: crate::lens
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct TransformRotateZLens {
@@ -254,7 +254,7 @@ impl Lens<Transform> for TransformRotateZLens {
 ///
 /// This method panics if the `axis` vector is not normalized.
 ///
-/// [`Transform`]: https://docs.rs/bevy/0.15.0/bevy/transform/components/struct.Transform.html
+/// [`Transform`]: https://docs.rs/bevy/0.16.0/bevy/transform/components/struct.Transform.html
 /// [top-level `lens` module documentation]: crate::lens
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct TransformRotateAxisLens {
@@ -275,8 +275,8 @@ impl Lens<Transform> for TransformRotateAxisLens {
 
 /// A lens to manipulate the [`scale`] field of a [`Transform`] component.
 ///
-/// [`scale`]: https://docs.rs/bevy/0.15.0/bevy/transform/components/struct.Transform.html#structfield.scale
-/// [`Transform`]: https://docs.rs/bevy/0.15.0/bevy/transform/components/struct.Transform.html
+/// [`scale`]: https://docs.rs/bevy/0.16.0/bevy/transform/components/struct.Transform.html#structfield.scale
+/// [`Transform`]: https://docs.rs/bevy/0.16.0/bevy/transform/components/struct.Transform.html
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct TransformScaleLens {
     /// Start value of the scale.
@@ -293,8 +293,8 @@ impl Lens<Transform> for TransformScaleLens {
 
 /// A lens to manipulate the [`position`] field of a UI [`Node`] component.
 ///
-/// [`position`]: https://docs.rs/bevy/0.15.0/bevy/ui/struct.Node.html
-/// [`Node`]: https://docs.rs/bevy/0.15.0/bevy/ui/struct.Node.html
+/// [`position`]: https://docs.rs/bevy/0.16.0/bevy/ui/struct.Node.html
+/// [`Node`]: https://docs.rs/bevy/0.16.0/bevy/ui/struct.Node.html
 #[cfg(feature = "bevy_ui")]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct UiPositionLens {
@@ -348,8 +348,8 @@ impl Lens<BackgroundColor> for UiBackgroundColorLens {
 
 /// A lens to manipulate the [`color`] field of a [`ColorMaterial`] asset.
 ///
-/// [`color`]: https://docs.rs/bevy/0.15.0/bevy/sprite/struct.ColorMaterial.html#structfield.color
-/// [`ColorMaterial`]: https://docs.rs/bevy/0.15.0/bevy/sprite/struct.ColorMaterial.html
+/// [`color`]: https://docs.rs/bevy/0.16.0/bevy/sprite/struct.ColorMaterial.html#structfield.color
+/// [`ColorMaterial`]: https://docs.rs/bevy/0.16.0/bevy/sprite/struct.ColorMaterial.html
 #[cfg(all(feature = "bevy_sprite", feature = "bevy_asset"))]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct ColorMaterialColorLens {
@@ -368,8 +368,8 @@ impl Lens<ColorMaterial> for ColorMaterialColorLens {
 
 /// A lens to manipulate the [`color`] field of a [`Sprite`] asset.
 ///
-/// [`color`]: https://docs.rs/bevy/0.15.0/bevy/sprite/struct.Sprite.html#structfield.color
-/// [`Sprite`]: https://docs.rs/bevy/0.15.0/bevy/sprite/struct.Sprite.html
+/// [`color`]: https://docs.rs/bevy/0.16.0/bevy/sprite/struct.Sprite.html#structfield.color
+/// [`Sprite`]: https://docs.rs/bevy/0.16.0/bevy/sprite/struct.Sprite.html
 #[cfg(feature = "bevy_sprite")]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct SpriteColorLens {
@@ -389,7 +389,7 @@ impl Lens<Sprite> for SpriteColorLens {
 
 #[cfg(test)]
 mod tests {
-    use bevy::ecs::component::Tick;
+    use bevy::ecs::{change_detection::MaybeLocation, component::Tick};
     use std::f32::consts::TAU;
 
     #[cfg(any(feature = "bevy_sprite", feature = "bevy_text"))]
@@ -415,12 +415,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut text_color,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 0.);
@@ -430,12 +432,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut text_color,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 1.);
@@ -445,12 +449,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut text_color,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 0.3);
@@ -469,12 +475,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut transform,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 0.);
@@ -486,12 +494,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut transform,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 1.);
@@ -505,12 +515,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut transform,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 0.3);
@@ -533,12 +545,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut transform,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 0.);
@@ -550,12 +564,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut transform,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 1.);
@@ -569,12 +585,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut transform,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 0.3);
@@ -598,12 +616,14 @@ mod tests {
             {
                 let mut added = Tick::new(0);
                 let mut last_changed = Tick::new(0);
+                let mut caller = MaybeLocation::caller();
                 let mut target = ComponentTarget::new(Mut::new(
                     &mut transform,
                     &mut added,
                     &mut last_changed,
                     Tick::new(0),
                     Tick::new(0),
+                    caller.as_mut(),
                 ));
 
                 lens.lerp(&mut target, *ratio);
@@ -625,12 +645,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut transform,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 0.1);
@@ -654,12 +676,14 @@ mod tests {
             {
                 let mut added = Tick::new(0);
                 let mut last_changed = Tick::new(0);
+                let mut caller = MaybeLocation::caller();
                 let mut target = ComponentTarget::new(Mut::new(
                     &mut transform,
                     &mut added,
                     &mut last_changed,
                     Tick::new(0),
                     Tick::new(0),
+                    caller.as_mut(),
                 ));
 
                 lens.lerp(&mut target, *ratio);
@@ -681,12 +705,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut transform,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 0.1);
@@ -710,12 +736,14 @@ mod tests {
             {
                 let mut added = Tick::new(0);
                 let mut last_changed = Tick::new(0);
+                let mut caller = MaybeLocation::caller();
                 let mut target = ComponentTarget::new(Mut::new(
                     &mut transform,
                     &mut added,
                     &mut last_changed,
                     Tick::new(0),
                     Tick::new(0),
+                    caller.as_mut(),
                 ));
 
                 lens.lerp(&mut target, *ratio);
@@ -737,12 +765,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut transform,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 0.1);
@@ -768,12 +798,14 @@ mod tests {
             {
                 let mut added = Tick::new(0);
                 let mut last_changed = Tick::new(0);
+                let mut caller = MaybeLocation::caller();
                 let mut target = ComponentTarget::new(Mut::new(
                     &mut transform,
                     &mut added,
                     &mut last_changed,
                     Tick::new(0),
                     Tick::new(0),
+                    caller.as_mut(),
                 ));
 
                 lens.lerp(&mut target, *ratio);
@@ -795,12 +827,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut transform,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 0.1);
@@ -823,12 +857,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut transform,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 0.);
@@ -840,12 +876,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut transform,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 1.);
@@ -857,12 +895,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut transform,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 0.3);
@@ -894,12 +934,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut node,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 0.);
@@ -912,12 +954,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut node,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 1.);
@@ -930,12 +974,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut node,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 0.3);
@@ -963,12 +1009,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = AssetTarget::new(Mut::new(
                 &mut assets,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
             target.handle = handle.clone();
 
@@ -979,12 +1027,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = AssetTarget::new(Mut::new(
                 &mut assets,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
             target.handle = handle.clone();
 
@@ -995,12 +1045,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = AssetTarget::new(Mut::new(
                 &mut assets,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
             target.handle = handle.clone();
 
@@ -1027,12 +1079,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut sprite,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 0.);
@@ -1042,12 +1096,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut sprite,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 1.);
@@ -1057,12 +1113,14 @@ mod tests {
         {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
+            let mut caller = MaybeLocation::caller();
             let mut target = ComponentTarget::new(Mut::new(
                 &mut sprite,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
+                caller.as_mut(),
             ));
 
             lens.lerp(&mut target, 0.3);

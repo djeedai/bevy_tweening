@@ -1,6 +1,6 @@
 [package]
 name = "bevy_tweening_bench"
-version = "0.12.0"
+version = "0.13.0"
 authors = ["Jerome Humbert <djeedai@gmail.com>"]
 edition = "2021"
 description = "Tweening plugin for Bevy -- Benchmarks"
@@ -18,7 +18,7 @@ criterion = { version = "0.5", features = ["html_reports"] }
 bevy_tweening = { path = "../" }
 
 [dependencies.bevy]
-version = "0.15"
+version = "0.16"
 default-features = false
 features = ["bevy_render", "bevy_sprite", "bevy_text", "bevy_ui"]
 
