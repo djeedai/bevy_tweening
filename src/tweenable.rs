@@ -1003,7 +1003,7 @@ impl<T> Tracks<T> {
             .map(AsRef::as_ref)
             .map(Tweenable::duration)
             .max()
-            .unwrap();
+            .unwrap_or(Duration::ZERO);
         Self {
             tracks,
             duration,
