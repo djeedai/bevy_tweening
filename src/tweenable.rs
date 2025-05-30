@@ -422,6 +422,7 @@ impl_boxed!(Tween<T>);
 impl_boxed!(Sequence<T>);
 impl_boxed!(Tracks<T>);
 impl_boxed!(Delay<T>);
+impl_boxed!(IdentityTween);
 
 /// Type of a callback invoked when a [`Tween`] or [`Delay`] has completed.
 ///
@@ -830,6 +831,39 @@ impl<T> Tweenable<T> for Tween<T> {
         }
         self.clock.reset();
     }
+}
+
+/// A tween that does nothing.
+#[derive(Clone, Copy)]
+pub struct IdentityTween;
+
+impl<T> Tweenable<T> for IdentityTween {
+    fn duration(&self) -> Duration {
+        Duration::ZERO
+    }
+
+    fn total_duration(&self) -> TotalDuration {
+        TotalDuration::Finite(Duration::ZERO)
+    }
+
+    fn set_elapsed(&mut self, _elapsed: Duration) {}
+
+    fn elapsed(&self) -> Duration {
+        Duration::ZERO
+    }
+
+    fn tick(
+        &mut self,
+        _delta: Duration,
+        _target: &mut dyn Targetable<T>,
+        _entity: Entity,
+        _events: &mut Mut<Events<TweenCompleted>>,
+        _commands: &mut Commands,
+    ) -> TweenState {
+        TweenState::Completed
+    }
+
+    fn rewind(&mut self) {}
 }
 
 /// A sequence of tweens played back in order one after the other.
