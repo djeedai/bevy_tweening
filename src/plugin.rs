@@ -86,7 +86,7 @@ pub enum AnimationSystem {
 ///
 /// This system extracts all components of type `T` with an [`Animator<T>`]
 /// attached to the same entity, and tick the animator to animate the component.
-pub fn component_animator_system<T: Component<Mutability = Mutable>, M: 'static>(
+pub fn component_animator_system<T: Component<Mutability = Mutable>, M: Send + Sync + 'static>(
     time: Res<Time>,
     mut animator_query: Query<(Entity, &mut Animator<T, M>)>,
     mut target_query: Query<&mut T>,

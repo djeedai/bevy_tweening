@@ -63,7 +63,7 @@ fn setup(mut commands: Commands) {
     let size = 25.;
     let screen_y = 150.;
 
-    let translation_tween = Tween::<_, TransformTranslation>::new_with_marker(
+    let translation_tween = Tween::new(
         EaseFunction::QuadraticInOut,
         std::time::Duration::from_secs(1),
         TransformPositionLens {
@@ -73,7 +73,7 @@ fn setup(mut commands: Commands) {
     )
     .with_repeat_count(RepeatCount::Infinite)
     .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
-    let scale_tween = Tween::<_, TransformScale>::new_with_marker(
+    let scale_tween = Tween::new(
         EaseFunction::SineInOut,
         std::time::Duration::from_secs_f32(0.5),
         TransformScaleLens {
@@ -100,9 +100,9 @@ fn setup(mut commands: Commands) {
             custom_size: Some(Vec2::splat(size)),
             ..default()
         },
-        Animator::new(translation_tween),
-        Animator::new(scale_tween),
-        Animator::new(rotation_tween),
+        Animator::<_, TransformTranslation>::new_with_marker(translation_tween),
+        Animator::<_, TransformScale>::new_with_marker(scale_tween),
+        Animator::<_, TransformRotation>::new_with_marker(rotation_tween),
     ));
 }
 
