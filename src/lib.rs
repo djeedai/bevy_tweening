@@ -533,21 +533,20 @@ impl<T: Component> Animator<T> {
             _marker: Default::default(),
         }
     }
-}
 
-impl<T: Component, M> Animator<T, M> {
-    /// Create a new animator component from a single tweenable.
-    #[must_use]
-    pub fn new_with_marker(tween: impl Tweenable<T> + 'static) -> Self {
-        Self {
-            state: default(),
-            tweenable: Box::new(tween),
-            target: None,
-            speed: 1.,
+    /// Create a new version of this animator component with a marker
+    pub fn with_marker<M>(self) -> Animator<T, M> {
+        Animator::<T, M> {
+            state: self.state,
+            tweenable: self.tweenable,
+            target: self.target,
+            speed: self.speed,
             _marker: Default::default(),
         }
     }
+}
 
+impl<T: Component, M> Animator<T, M> {
     /// Create a new version of this animator with the `target` set to the given entity.
     pub fn with_target(mut self, entity: Entity) -> Self {
         self.target = Some(entity);

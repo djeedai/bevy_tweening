@@ -100,9 +100,9 @@ fn setup(mut commands: Commands) {
             custom_size: Some(Vec2::splat(size)),
             ..default()
         },
-        Animator::<_, TransformTranslation>::new_with_marker(translation_tween),
-        Animator::<_, TransformScale>::new_with_marker(scale_tween),
-        Animator::<_, TransformRotation>::new_with_marker(rotation_tween),
+        Animator::new(translation_tween).with_marker::<TransformTranslation>(),
+        Animator::new(scale_tween).with_marker::<TransformScale>(),
+        Animator::new(rotation_tween).with_marker::<TransformRotation>(),
     ));
 }
 
