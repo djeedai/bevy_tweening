@@ -2,8 +2,8 @@
 name = "bevy_tweening"
 version = "0.13.0"
 authors = [
-    "François Mockers <mockersf@gmail.com>",
-    "Jerome Humbert <djeedai@gmail.com>",
+  "François Mockers <mockersf@gmail.com>",
+  "Jerome Humbert <djeedai@gmail.com>",
 ]
 edition = "2021"
 description = "Tweening animation plugin for the Bevy game engine"
@@ -28,18 +28,28 @@ bevy_text = ["bevy/bevy_text", "bevy/bevy_render", "bevy/bevy_sprite"]
 
 [dependencies]
 # Note: abuse 'bevy_color' to force 'bevy_math/curve' feature, which defines EaseFunction
-bevy = { version = "0.16", default-features = false, features = [ "bevy_color" ]}
+bevy = { version = "0.16", default-features = false, features = ["bevy_color"] }
 
 [dev-dependencies]
 bevy-inspector-egui = { version = "0.31" }
 
 [[example]]
 name = "menu"
-required-features = ["bevy_ui", "bevy_text", "bevy/bevy_winit", "bevy/bevy_picking"]
+required-features = [
+  "bevy_ui",
+  "bevy_text",
+  "bevy/bevy_winit",
+  "bevy/bevy_picking",
+]
 
 [[example]]
 name = "colormaterial_color"
-required-features = ["bevy_asset", "bevy_sprite", "bevy/bevy_winit", "bevy/bevy_picking"]
+required-features = [
+  "bevy_asset",
+  "bevy_sprite",
+  "bevy/bevy_winit",
+  "bevy/bevy_picking",
+]
 
 [[example]]
 name = "sprite_color"
@@ -55,15 +65,38 @@ required-features = ["bevy_sprite", "bevy/bevy_winit", "bevy/bevy_picking"]
 
 [[example]]
 name = "ui_position"
-required-features = ["bevy_sprite", "bevy_ui", "bevy/bevy_winit", "bevy/bevy_picking"]
+required-features = [
+  "bevy_sprite",
+  "bevy_ui",
+  "bevy/bevy_winit",
+  "bevy/bevy_picking",
+]
 
 [[example]]
 name = "text_color"
-required-features = ["bevy_ui", "bevy_text", "bevy/bevy_winit", "bevy/bevy_picking"]
+required-features = [
+  "bevy_ui",
+  "bevy_text",
+  "bevy/bevy_winit",
+  "bevy/bevy_picking",
+]
 
 [[example]]
 name = "sequence"
-required-features = ["bevy_sprite", "bevy_text", "bevy/bevy_winit", "bevy/bevy_picking"]
+required-features = [
+  "bevy_sprite",
+  "bevy_text",
+  "bevy/bevy_winit",
+  "bevy/bevy_picking",
+]
+
+[[example]]
+name = "custom_relative_lens"
+required-features = ["bevy/bevy_winit"]
+
+[[example]]
+name = "transform_marker"
+required-features = ["bevy/bevy_winit"]
 
 [workspace]
 resolver = "2"
