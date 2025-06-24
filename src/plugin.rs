@@ -39,24 +39,25 @@ impl Plugin for TweeningPlugin {
     fn build(&self, app: &mut App) {
         app.add_event::<TweenCompleted>().add_systems(
             Update,
-            component_animator_system::<Transform>.in_set(AnimationSystem::AnimationUpdate),
+            component_animator_system::<Transform, ()>.in_set(AnimationSystem::AnimationUpdate),
         );
 
         #[cfg(feature = "bevy_ui")]
         app.add_systems(
             Update,
-            component_animator_system::<Node>.in_set(AnimationSystem::AnimationUpdate),
+            component_animator_system::<Node, ()>.in_set(AnimationSystem::AnimationUpdate),
         );
         #[cfg(feature = "bevy_ui")]
         app.add_systems(
             Update,
-            component_animator_system::<BackgroundColor>.in_set(AnimationSystem::AnimationUpdate),
+            component_animator_system::<BackgroundColor, ()>
+                .in_set(AnimationSystem::AnimationUpdate),
         );
 
         #[cfg(feature = "bevy_sprite")]
         app.add_systems(
             Update,
-            component_animator_system::<Sprite>.in_set(AnimationSystem::AnimationUpdate),
+            component_animator_system::<Sprite, ()>.in_set(AnimationSystem::AnimationUpdate),
         );
 
         #[cfg(all(feature = "bevy_sprite", feature = "bevy_asset"))]
@@ -69,7 +70,7 @@ impl Plugin for TweeningPlugin {
         #[cfg(feature = "bevy_text")]
         app.add_systems(
             Update,
-            component_animator_system::<TextColor>.in_set(AnimationSystem::AnimationUpdate),
+            component_animator_system::<TextColor, ()>.in_set(AnimationSystem::AnimationUpdate),
         );
     }
 }
@@ -85,9 +86,9 @@ pub enum AnimationSystem {
 ///
 /// This system extracts all components of type `T` with an [`Animator<T>`]
 /// attached to the same entity, and tick the animator to animate the component.
-pub fn component_animator_system<T: Component<Mutability = Mutable>>(
+pub fn component_animator_system<T: Component<Mutability = Mutable>, M: 'static>(
     time: Res<Time>,
-    mut animator_query: Query<(Entity, &mut Animator<T>)>,
+    mut animator_query: Query<(Entity, &mut Animator<T, M>)>,
     mut target_query: Query<&mut T>,
     events: ResMut<Events<TweenCompleted>>,
     mut commands: Commands,
@@ -273,7 +274,7 @@ mod tests {
         )
         .with_completed_event(0);
         let mut env = TestEnv::new_separated(Animator::new(tween));
-        let mut system = IntoSystem::into_system(component_animator_system::<Transform>);
+        let mut system = IntoSystem::into_system(component_animator_system::<Transform, ()>);
         system.initialize(env.world_mut());
 
         env.tick(Duration::ZERO, &mut system);
@@ -305,7 +306,7 @@ mod tests {
 
         // fn nit() {}
         // let mut system = IntoSystem::into_system(nit);
-        let mut system = IntoSystem::into_system(component_animator_system::<Transform>);
+        let mut system = IntoSystem::into_system(component_animator_system::<Transform, ()>);
         system.initialize(env.world_mut());
 
         env.tick(Duration::ZERO, &mut system);
@@ -385,7 +386,7 @@ mod tests {
         let component = env.component_mut();
         assert!(component.is_changed());
 
-        let mut system = IntoSystem::into_system(component_animator_system::<DummyComponent>);
+        let mut system = IntoSystem::into_system(component_animator_system::<DummyComponent, ()>);
         system.initialize(env.world_mut());
 
         assert!(!defer.load(Ordering::SeqCst));
