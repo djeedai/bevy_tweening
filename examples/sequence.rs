@@ -34,6 +34,9 @@ struct RedSprite(pub TweenId);
 #[derive(Component)]
 struct BlueSprite(pub TweenId);
 
+#[derive(Component)]
+struct ProgressValue;
+
 fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
@@ -42,64 +45,60 @@ fn setup(
     commands.spawn(Camera2dBundle::default());
 
     let font = asset_server.load("fonts/FiraMono-Regular.ttf");
-    let text_style_red = TextStyle {
-        font: font.clone(),
-        font_size: 50.0,
-        color: RED.into(),
-    };
-    let text_style_blue = TextStyle {
+    let text_font = TextFont {
         font,
         font_size: 50.0,
-        color: BLUE.into(),
+        ..default()
     };
+
+    let text_color_red = TextColor(RED.into());
+    let text_color_blue = TextColor(BLUE.into());
 
     let justify = JustifyText::Center;
 
     // Text with the index of the active tween in the sequence
-    commands.spawn((
-        Text2dBundle {
-            text: Text {
-                sections: vec![
-                    TextSection {
-                        value: "progress: ".to_owned(),
-                        style: text_style_red.clone(),
-                    },
-                    TextSection {
-                        value: "0%".to_owned(),
-                        style: text_style_red,
-                    },
-                ],
-                justify,
-                ..default()
-            },
-            transform: Transform::from_translation(Vec3::new(0., 40., 0.)),
-            ..default()
-        },
-        RedProgress,
-    ));
+    commands
+        .spawn((
+            Text2d::default(),
+            TextLayout::new_with_justify(justify),
+            Transform::from_translation(Vec3::new(0., 40., 0.)),
+            RedProgress,
+        ))
+        .with_children(|children| {
+            children.spawn((
+                TextSpan::new("progress: "),
+                text_font.clone(),
+                text_color_red.clone(),
+            ));
+            children.spawn((
+                TextSpan::new("0%"),
+                text_font.clone(),
+                text_color_red.clone(),
+                ProgressValue,
+            ));
+        });
 
     // Text with progress of the active tween in the sequence
-    commands.spawn((
-        Text2dBundle {
-            text: Text {
-                sections: vec![
-                    TextSection {
-                        value: "progress: ".to_owned(),
-                        style: text_style_blue.clone(),
-                    },
-                    TextSection {
-                        value: "0%".to_owned(),
-                        style: text_style_blue,
-                    },
-                ],
-                justify,
-                ..default()
-            },
-            transform: Transform::from_translation(Vec3::new(0., -40., 0.)),
-            ..default()
-        },
-        BlueProgress,
-    ));
+    commands
+        .spawn((
+            Text2d::default(),
+            TextLayout::new_with_justify(justify),
+            Transform::from_translation(Vec3::new(0., -40., 0.)),
+            BlueProgress,
+        ))
+        .with_children(|children| {
+            children.spawn((
+                TextSpan::new("progress: "),
+                text_font.clone(),
+                text_color_blue.clone(),
+            ));
+            children.spawn((
+                TextSpan::new("0%"),
+                text_font.clone(),
+                text_color_blue.clone(),
+                ProgressValue,
+            ));
+        });
 
     let size = 25.;
 
@@ -231,11 +230,11 @@ fn update_text(
         1.
     };
 
-    let mut red_text = query_text_red.single_mut();
-    red_text.sections[1].value = format!("{:5.1}%", progress_red * 100.);
+    let mut red_text = text_spans.get_mut(red_text_children[1]).unwrap();
+    red_text.0 = format!("{:5.1}%", progress_red * 100.);
 
-    let mut blue_text = query_text_blue.single_mut();
-    blue_text.sections[1].value = format!("{:5.1}%", progress_blue * 100.);
+    let mut blue_text = text_spans.get_mut(blue_text_children[1]).unwrap();
+    blue_text.0 = format!("{:5.1}%", progress_blue * 100.);
 
     for ev in query_event.read() {
         println!(

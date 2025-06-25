@@ -57,7 +57,7 @@
 //!
 //! commands.spawn((
 //!     // Spawn an entity to animate the position of.
-//!     TransformBundle::default(),
+//!     Transform::default(),
 //!     // Add an Animator component to control and execute the animation.
 //!     Animator::new(tween),
 //! ));
@@ -95,7 +95,7 @@
 //! | [`Transform`]          | Yes                           |
 //! | [`Sprite`]             | Only if `bevy_sprite` feature |
 //! | [`ColorMaterial`]      | Only if `bevy_sprite` feature |
-//! | [`Style`]              | Only if `bevy_ui` feature     |
+//! | [`Node`]               | Only if `bevy_ui` feature     |
 //! | [`Text`]               | Only if `bevy_text` feature   |
 //! | All other components   | No                            |
 //!
@@ -195,24 +195,18 @@
 //! lens can also be created by implementing the trait, allowing to animate
 //! virtually any field of any Bevy component or asset.
 //!
-//! [`Transform::translation`]: https://docs.rs/bevy/0.12.0/bevy/transform/components/struct.Transform.html#structfield.translation
-//! [`Entity`]: https://docs.rs/bevy/0.12.0/bevy/ecs/entity/struct.Entity.html
-//! [`Query`]: https://docs.rs/bevy/0.12.0/bevy/ecs/system/struct.Query.html
-//! [`ColorMaterial`]: https://docs.rs/bevy/0.12.0/bevy/sprite/struct.ColorMaterial.html
-//! [`Sprite`]: https://docs.rs/bevy/0.12.0/bevy/sprite/struct.Sprite.html
-//! [`Style`]: https://docs.rs/bevy/0.12.0/bevy/ui/struct.Style.html
-//! [`Text`]: https://docs.rs/bevy/0.12.0/bevy/text/struct.Text.html
-//! [`Transform`]: https://docs.rs/bevy/0.12.0/bevy/transform/components/struct.Transform.html
+//! [`Transform::translation`]: https://docs.rs/bevy/0.16.0/bevy/transform/components/struct.Transform.html#structfield.translation
+//! [`Entity`]: https://docs.rs/bevy/0.16.0/bevy/ecs/entity/struct.Entity.html
+//! [`Query`]: https://docs.rs/bevy/0.16.0/bevy/ecs/system/struct.Query.html
+//! [`ColorMaterial`]: https://docs.rs/bevy/0.16.0/bevy/sprite/struct.ColorMaterial.html
+//! [`Sprite`]: https://docs.rs/bevy/0.16.0/bevy/sprite/struct.Sprite.html
+//! [`Node`]: https://docs.rs/bevy/0.16.0/bevy/ui/struct.Node.html#structfield.position
+//! [`TextColor`]: https://docs.rs/bevy/0.16.0/bevy/text/struct.TextColor.html
+//! [`Transform`]: https://docs.rs/bevy/0.16.0/bevy/transform/components/struct.Transform.html
 
 use std::time::Duration;
 
-use bevy::{
-    ecs::system::{EntityCommand, EntityCommands},
-    prelude::*,
-};
-use interpolation::Ease as IEase;
-pub use interpolation::{EaseFunction, Lerp};
-use slotmap::new_key_type;
+use bevy::prelude::*;
 
 pub use lens::Lens;
 pub use plugin::{AnimationSystem, TweeningPlugin};
@@ -342,8 +336,6 @@ impl std::ops::Not for PlaybackState {
 pub enum EaseMethod {
     /// Follow [`EaseFunction`].
     EaseFunction(EaseFunction),
-    /// Linear interpolation.
-    Linear,
     /// Discrete interpolation. The eased value will jump from start to end when
     /// stepping over the discrete limit, which must be value between 0 and 1.
     Discrete(f32),
@@ -355,8 +347,7 @@ impl EaseMethod {
     #[must_use]
     fn sample(self, x: f32) -> f32 {
         match self {
-            Self::EaseFunction(function) => x.calc(function),
-            Self::Linear => x,
+            Self::EaseFunction(function) => EasingCurve::new(0.0, 1.0, function).sample(x).unwrap(),
             Self::Discrete(limit) => {
                 if x > limit {
                     1.
@@ -371,7 +362,7 @@ impl EaseMethod {
 
 impl Default for EaseMethod {
     fn default() -> Self {
-        Self::Linear
+        Self::EaseFunction(EaseFunction::Linear)
     }
 }
 
@@ -721,8 +712,7 @@ impl ColorLerper for Color {
 
 #[cfg(test)]
 mod tests {
-    use bevy::ecs::component::Tick;
-    use slotmap::Key as _;
+    use bevy::ecs::{change_detection::MaybeLocation, component::Tick};
 
     use self::tweenable::ComponentTarget;
 
@@ -759,12 +749,14 @@ mod tests {
             {
                 let mut added = Tick::new(0);
                 let mut last_changed = Tick::new(0);
+                let mut caller = MaybeLocation::caller();
                 let mut target = ComponentTarget::new(Mut::new(
                     &mut c,
                     &mut added,
                     &mut last_changed,
                     Tick::new(0),
                     Tick::new(1),
+                    caller.as_mut(),
                 ));
 
                 l.lerp(&mut target, r);
@@ -796,12 +788,14 @@ mod tests {
             {
                 let mut added = Tick::new(0);
                 let mut last_changed = Tick::new(0);
+                let mut caller = MaybeLocation::caller();
                 let mut target = AssetTarget::new(Mut::new(
                     &mut assets,
                     &mut added,
                     &mut last_changed,
                     Tick::new(0),
                     Tick::new(0),
+                    caller.as_mut(),
                 ));
                 target.handle = handle.clone();
 
@@ -842,14 +836,17 @@ mod tests {
     #[test]
     fn ease_method() {
         let ease = EaseMethod::default();
-        assert!(matches!(ease, EaseMethod::Linear));
+        assert!(matches!(
+            ease,
+            EaseMethod::EaseFunction(EaseFunction::Linear)
+        ));
 
         let ease = EaseMethod::EaseFunction(EaseFunction::QuadraticIn);
         assert_eq!(0., ease.sample(0.));
         assert_eq!(0.25, ease.sample(0.5));
         assert_eq!(1., ease.sample(1.));
 
-        let ease = EaseMethod::Linear;
+        let ease = EaseMethod::EaseFunction(EaseFunction::Linear);
         assert_eq!(0., ease.sample(0.));
         assert_eq!(0.5, ease.sample(0.5));
         assert_eq!(1., ease.sample(1.));

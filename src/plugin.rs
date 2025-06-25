@@ -1,4 +1,4 @@
-use bevy::prelude::*;
+use bevy::{ecs::component::Mutable, prelude::*};
 
 use crate::{AnimCompleted, TweenAnimator, TweenCompleted};
 
@@ -7,8 +7,8 @@ use crate::{AnimCompleted, TweenAnimator, TweenCompleted};
 /// This plugin adds systems for a predefined set of components and assets, to
 /// allow their respective animators to be updated each frame:
 /// - [`Transform`]
-/// - [`Text`]
-/// - [`Style`]
+/// - [`TextColor`]
+/// - [`Node`]
 /// - [`Sprite`]
 /// - [`ColorMaterial`]
 ///
@@ -25,11 +25,11 @@ use crate::{AnimCompleted, TweenAnimator, TweenCompleted};
 /// add manually the relevant systems for the exact set of components and assets
 /// actually animated.
 ///
-/// [`Transform`]: https://docs.rs/bevy/0.12.0/bevy/transform/components/struct.Transform.html
-/// [`Text`]: https://docs.rs/bevy/0.12.0/bevy/text/struct.Text.html
-/// [`Style`]: https://docs.rs/bevy/0.12.0/bevy/ui/struct.Style.html
-/// [`Sprite`]: https://docs.rs/bevy/0.12.0/bevy/sprite/struct.Sprite.html
-/// [`ColorMaterial`]: https://docs.rs/bevy/0.12.0/bevy/sprite/struct.ColorMaterial.html
+/// [`Transform`]: https://docs.rs/bevy/0.16.0/bevy/transform/components/struct.Transform.html
+/// [`TextColor`]: https://docs.rs/bevy/0.16.0/bevy/text/struct.TextColor.html
+/// [`Node`]: https://docs.rs/bevy/0.16.0/bevy/ui/struct.Node.html
+/// [`Sprite`]: https://docs.rs/bevy/0.16.0/bevy/sprite/struct.Sprite.html
+/// [`ColorMaterial`]: https://docs.rs/bevy/0.16.0/bevy/sprite/struct.ColorMaterial.html
 #[derive(Debug, Clone, Copy)]
 pub struct TweeningPlugin;
 
@@ -76,6 +76,8 @@ mod tests {
         },
     };
 
+    use bevy::ecs::component::Mutable;
+
     use crate::{lens::TransformPositionLens, *};
 
     /// A simple isolated test environment with a [`World`] and a single
@@ -104,14 +106,31 @@ mod tests {
 
             Self {
                 world,
+
                 entity,
                 tween_id,
+            }
+        }
+
+        /// Like [`TestEnv::new`], but the component is placed on a separate entity.
+        pub fn new_separated(animator: Animator<T>) -> Self {
+            let mut world = World::new();
+            world.init_resource::<Events<TweenCompleted>>();
+            world.init_resource::<Time>();
+
+            let target = world.spawn(T::default()).id();
+            let entity = world.spawn(animator.with_target(target)).id();
+
+            Self {
+                world,
+                animator_entity: entity,
+                target_entity: Some(target),
                 _phantom: PhantomData,
             }
         }
     }
 
-    impl<T: Component> TestEnv<T> {
+    impl<T: Component<Mutability = Mutable>> TestEnv<T> {
         /// Get the test world.
         pub fn world_mut(&mut self) -> &mut World {
             &mut self.world
@@ -147,20 +166,46 @@ mod tests {
 
         /// Get the component.
         pub fn component_mut(&mut self) -> Mut<T> {
-            self.world.get_mut::<T>(self.entity).unwrap()
+            self.world
+                .get_mut::<T>(self.target_entity.unwrap_or(self.animator_entity))
+                .unwrap()
         }
 
         /// Get the emitted event count since last tick.
         pub fn event_count(&self) -> usize {
             let events = self.world.resource::<Events<TweenCompleted>>();
-            events.get_reader().len(events)
+            events.get_cursor().len(events)
         }
+    }
+
+    #[test]
+    fn custom_target_entity() {
+        let tween = Tween::new(
+            EaseMethod::EaseFunction(EaseFunction::Linear),
+            Duration::from_secs(1),
+            TransformPositionLens {
+                start: Vec3::ZERO,
+                end: Vec3::ONE,
+            },
+        )
+        .with_completed_event(0);
+        let mut env = TestEnv::new_separated(Animator::new(tween));
+        let mut system = IntoSystem::into_system(component_animator_system::<Transform>);
+        system.initialize(env.world_mut());
+
+        env.tick(Duration::ZERO, &mut system);
+        let transform = env.component_mut();
+        assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
+
+        env.tick(Duration::from_millis(500), &mut system);
+        let transform = env.component_mut();
+        assert!(transform.translation.abs_diff_eq(Vec3::splat(0.5), 1e-5));
     }
 
     #[test]
     fn change_detect_component() {
         let tween = Tween::new(
-            EaseMethod::Linear,
+            EaseMethod::default(),
             Duration::from_secs(1),
             TransformPositionLens {
                 start: Vec3::ZERO,
@@ -246,7 +291,7 @@ mod tests {
     fn change_detect_component_conditional() {
         let defer = Arc::new(AtomicBool::new(false));
         let tween = Tween::new(
-            EaseMethod::Linear,
+            EaseMethod::default(),
             Duration::from_secs(1),
             ConditionalDeferLens {
                 defer: Arc::clone(&defer),

@@ -1,8 +1,4 @@
-use bevy::{
-    color::palettes::css::*,
-    prelude::*,
-    sprite::{MaterialMesh2dBundle, Mesh2dHandle},
-};
+use bevy::{color::palettes::css::*, prelude::*};
 use bevy_tweening::{lens::*, *};
 use std::time::Duration;
 
@@ -30,7 +26,7 @@ fn setup(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
 ) {
-    commands.spawn(Camera2dBundle::default());
+    commands.spawn(Camera2d::default());
 
     let size = 80.;
 
@@ -40,7 +36,7 @@ fn setup(
     let mut x = -screen_x;
     let mut y = screen_y;
 
-    let quad_mesh: Mesh2dHandle = meshes.add(Rectangle::new(1., 1.)).into();
+    let quad_mesh = meshes.add(Rectangle::new(1., 1.));
 
     for ease_function in &[
         EaseFunction::QuadraticIn,
@@ -92,13 +88,9 @@ fn setup(
         .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
         commands.spawn((
-            MaterialMesh2dBundle {
-                mesh: quad_mesh.clone(),
-                transform: Transform::from_translation(Vec3::new(x, y, 0.))
-                    .with_scale(Vec3::splat(size)),
-                material: unique_material,
-                ..default()
-            },
+            Mesh2d(quad_mesh.clone()),
+            MeshMaterial2d(unique_material),
+            Transform::from_translation(Vec3::new(x, y, 0.)).with_scale(Vec3::splat(size)),
             AssetAnimator::new(tween),
         ));
         y -= size * spacing;

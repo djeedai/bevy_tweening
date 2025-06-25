@@ -1,5 +1,5 @@
 use bevy::{color::palettes::css::*, prelude::*};
-use bevy_inspector_egui::quick::WorldInspectorPlugin;
+use bevy_inspector_egui::{bevy_egui::EguiPlugin, quick::WorldInspectorPlugin};
 use bevy_tweening::{lens::*, *};
 use std::time::Duration;
 
@@ -24,51 +24,52 @@ const INIT_TRANSITION_DONE: u64 = 1;
 /// marker.
 fn main() {
     App::default()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "Menu".to_string(),
-                resolution: (800., 400.).into(),
-                present_mode: bevy::window::PresentMode::Fifo, // vsync
+        .add_plugins((
+            DefaultPlugins.set(WindowPlugin {
+                primary_window: Some(Window {
+                    title: "Menu".to_string(),
+                    resolution: (800., 400.).into(),
+                    present_mode: bevy::window::PresentMode::Fifo, // vsync
+                    ..default()
+                }),
                 ..default()
             }),
-            ..default()
-        }))
+            EguiPlugin {
+                enable_multipass_for_primary_context: true,
+            },
+            WorldInspectorPlugin::new(),
+            TweeningPlugin,
+        ))
         .add_systems(Update, utils::close_on_esc)
         .add_systems(Update, interaction)
         .add_systems(Update, enable_interaction_after_initial_animation)
-        .add_plugins(TweeningPlugin)
-        .add_plugins(WorldInspectorPlugin::new())
         .add_systems(Startup, setup)
         .run();
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn(Camera2dBundle::default());
+    commands.spawn(Camera2d::default());
 
     let font = asset_server.load("fonts/FiraMono-Regular.ttf");
 
     commands
         .spawn((
-            NodeBundle {
-                style: Style {
-                    position_type: PositionType::Absolute,
-                    left: Val::Px(0.),
-                    right: Val::Px(0.),
-                    top: Val::Px(0.),
-                    bottom: Val::Px(0.),
-                    margin: UiRect::all(Val::Px(16.)),
-                    padding: UiRect::all(Val::Px(16.)),
-                    flex_direction: FlexDirection::Column,
-                    align_content: AlignContent::Center,
-                    align_items: AlignItems::Center,
-                    align_self: AlignSelf::Center,
-                    justify_content: JustifyContent::Center,
-                    ..default()
-                },
-                background_color: BackgroundColor(Color::NONE),
+            Name::new("menu"),
+            Node {
+                position_type: PositionType::Absolute,
+                left: Val::Px(0.),
+                right: Val::Px(0.),
+                top: Val::Px(0.),
+                bottom: Val::Px(0.),
+                margin: UiRect::all(Val::Px(16.)),
+                padding: UiRect::all(Val::Px(16.)),
+                flex_direction: FlexDirection::Column,
+                align_content: AlignContent::Center,
+                align_items: AlignItems::Center,
+                align_self: AlignSelf::Center,
+                justify_content: JustifyContent::Center,
                 ..default()
             },
-            Name::new("menu"),
         ))
         .with_children(|container| {
             let mut start_time_ms = 0;
@@ -116,21 +117,38 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     ec.tween(tween_scale)
                 };
                 start_time_ms += 500;
-
-                ec.with_children(|parent| {
-                    parent.spawn(TextBundle {
-                        text: Text::from_section(
-                            text.to_string(),
-                            TextStyle {
+                container
+                    .spawn((
+                        Name::new(format!("button:{}", text)),
+                        Button,
+                        Node {
+                            min_width: Val::Px(300.),
+                            min_height: Val::Px(80.),
+                            margin: UiRect::all(Val::Px(8.)),
+                            padding: UiRect::all(Val::Px(8.)),
+                            align_content: AlignContent::Center,
+                            align_items: AlignItems::Center,
+                            align_self: AlignSelf::Center,
+                            justify_content: JustifyContent::Center,
+                            ..default()
+                        },
+                        BackgroundColor(NORMAL_COLOR),
+                        Transform::from_scale(Vec3::splat(0.01)),
+                        animator,
+                        label,
+                    ))
+                    .with_children(|parent| {
+                        parent.spawn((
+                            Text::new(text.to_string()),
+                            TextFont {
                                 font: font.clone(),
                                 font_size: 48.0,
-                                color: TEXT_COLOR,
+                                ..default()
                             },
-                        )
-                        .with_justify(JustifyText::Center),
-                        ..default()
+                            TextColor(TEXT_COLOR),
+                            TextLayout::new_with_justify(JustifyText::Center),
+                        ));
                     });
-                });
             }
         });
 }

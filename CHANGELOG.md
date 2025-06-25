@@ -3,6 +3,23 @@
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Compatible with Bevy 0.16
+
+### Fixed
+
+- Fixed `Sequence::duration()` returning the wrong result when any child is repeating. (#143)
+
+## [0.12.0] - 2024-12-07
+
+### Changed
+
+- Compatible with Bevy 0.15
+- Replaced `interpolation::EaseFunction` with `bevy_math::EaseFunction`, and removed the `interpolation` crate dependency.
+
 ## [0.11.0] - 2024-07-08
 
 ### Changed
