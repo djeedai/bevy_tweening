@@ -439,14 +439,29 @@ impl_boxed!(Sequence);
 impl_boxed!(Tracks);
 impl_boxed!(Delay);
 
-type TweenAction = dyn FnMut(EntityMut, f32) + Send + Sync + 'static;
+type ComponentAction = dyn FnMut(EntityMut, f32) + Send + Sync + 'static;
+type AssetAction = dyn FnMut(&mut World, UntypedHandle, f32) + Send + Sync + 'static;
+
+/// TODO
+pub trait TweenAssetExtensions {
+    /// TODO
+    fn new<A, L>(ease_function: impl Into<EaseMethod>, duration: Duration, lens: L) -> Self
+    where
+        A: Asset,
+        L: Lens<A> + Send + Sync + 'static;
+}
+
+enum TweenAction {
+    Component(Box<ComponentAction>),
+    Asset(Box<AssetAction>),
+}
 
 /// Single tweening animation instance.
 pub struct Tween {
     ease_function: EaseMethod,
     clock: AnimClock,
     direction: TweeningDirection,
-    action: Box<TweenAction>,
+    action: TweenAction,
     system_id: Option<SystemId>,
     send_completed_event: bool,
 }
@@ -516,7 +531,7 @@ impl Tween {
             ease_function: ease_function.into(),
             clock: AnimClock::new(duration),
             direction: TweeningDirection::Forward,
-            action: Box::new(action),
+            action: TweenAction::Component(Box::new(action)),
             send_completed_event: false,
         }
     }
@@ -624,6 +639,30 @@ impl Tween {
     }
 }
 
+impl TweenAssetExtensions for Tween {
+    #[must_use]
+    fn new<A, L>(ease_function: impl Into<EaseMethod>, duration: Duration, mut lens: L) -> Self
+    where
+        A: Asset,
+        L: Lens<A> + Send + Sync + 'static,
+    {
+        let action = move |world: &mut World, handle: UntypedHandle, ratio: f32| {
+            if let Some(assets) = world.get_resource_mut::<Assets<A>>() {
+                let mut target = AssetTarget::new(assets);
+                target.handle = handle.typed::<A>();
+                lens.lerp(&mut target, ratio);
+            }
+        };
+        Self {
+            ease_function: ease_function.into(),
+            clock: AnimClock::new(duration),
+            direction: TweeningDirection::Forward,
+            action: TweenAction::Asset(Box::new(action)),
+            send_completed_event: false,
+        }
+    }
+}
+
 impl Tweenable for Tween {
     fn duration(&self) -> Duration {
         self.clock.duration
@@ -675,7 +714,12 @@ impl Tweenable for Tween {
                 factor = 1. - factor;
             }
             let factor = self.ease_function.sample(factor);
-            (self.action)(ent_mut, factor);
+            match &mut self.action {
+                TweenAction::Component(action) => {
+                    action(ent_mut, factor);
+                }
+                _ => debug!("Ignoring call to tick() a component with an asset action."),
+            };
         }
 
         // Send completion event
