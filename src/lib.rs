@@ -210,7 +210,7 @@ use bevy::prelude::*;
 
 pub use lens::Lens;
 pub use plugin::{AnimationSystem, TweeningPlugin};
-use slotmap::SlotMap;
+use slotmap::{new_key_type, SlotMap};
 #[cfg(feature = "bevy_asset")]
 pub use tweenable::AssetTarget;
 pub use tweenable::{
@@ -460,19 +460,19 @@ fn make_tween_command<T>(tweenable: T) -> impl EntityCommand
 where
     T: Tweenable + 'static,
 {
-    move |target: Entity, world: &mut World| {
-        world
-            .resource_mut::<TweenAnimator>()
-            .queue(target, tweenable);
+    move |mut entity: EntityWorldMut| {
+        let e = entity.id();
+        entity.resource_mut::<TweenAnimator>().queue(e, tweenable);
     }
 }
 
 fn make_transform_from_command(end: Vec3, duration: Duration) -> impl EntityCommand {
-    move |target: Entity, world: &mut World| {
-        let start = world.entity(target).get::<Transform>().unwrap().translation;
+    move |mut entity: EntityWorldMut| {
+        let start = entity.get::<Transform>().unwrap().translation;
         let lens = lens::TransformPositionLens { start, end };
-        let tween = Tween::new(EaseMethod::Linear, duration, lens);
-        world.resource_mut::<TweenAnimator>().queue(target, tween);
+        let tween = Tween::new(EaseFunction::Linear, duration, lens);
+        let e = entity.id();
+        entity.resource_mut::<TweenAnimator>().queue(e, tween);
     }
 }
 
@@ -481,11 +481,11 @@ impl<'a> EntityCommandsTweeningExtensions<'a> for EntityCommands<'a> {
     where
         T: Tweenable + 'static,
     {
-        self.add(make_tween_command(tweenable))
+        self.queue(make_tween_command(tweenable))
     }
 
     fn move_to(&mut self, end: Vec3, duration: Duration) -> &mut EntityCommands<'a> {
-        self.add(make_transform_from_command(end, duration))
+        self.queue(make_transform_from_command(end, duration))
     }
 }
 
@@ -629,11 +629,11 @@ impl TweenAnimator {
         // Loop over active animations, tick them, and retain those which are still
         // active after that
         self.anims.retain(|tween_id, anim| {
-            // Note: we use get_many_entities_mut() to get an EntityMut instead of an
+            // Note: we use get_entity_mut() to get an EntityMut instead of an
             // EntityWorldMut, as the former is enough. This can allow
             // optimizing by parallelizing tweening of separate entities (which can't be
             // done with EntityWorldMut has it has exclusive World access).
-            let ent_mut = &mut world.get_many_entities_mut([anim.target]).unwrap()[0];
+            let ent_mut = &mut world.get_entity_mut([anim.target]).unwrap()[0];
 
             // Apply the animation tweenable
             let (_progress, state) =
@@ -702,17 +702,20 @@ trait ColorLerper {
 #[cfg(any(feature = "bevy_sprite", feature = "bevy_ui", feature = "bevy_text"))]
 impl ColorLerper for Color {
     fn lerp(&self, target: &Color, ratio: f32) -> Color {
-        let r = self.r().lerp(target.r(), ratio);
-        let g = self.g().lerp(target.g(), ratio);
-        let b = self.b().lerp(target.b(), ratio);
-        let a = self.a().lerp(target.a(), ratio);
-        Color::rgba(r, g, b, a)
+        let src = self.to_linear();
+        let dst = target.to_linear();
+        let r = src.red.lerp(dst.red, ratio);
+        let g = src.green.lerp(dst.green, ratio);
+        let b = src.blue.lerp(dst.blue, ratio);
+        let a = src.alpha.lerp(dst.alpha, ratio);
+        Color::linear_rgba(r, g, b, a)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use bevy::ecs::{change_detection::MaybeLocation, component::Tick};
+    use slotmap::Key as _;
 
     use self::tweenable::ComponentTarget;
 

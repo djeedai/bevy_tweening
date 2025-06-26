@@ -1,4 +1,4 @@
-use bevy::{ecs::component::Mutable, prelude::*};
+use bevy::prelude::*;
 
 use crate::{AnimCompleted, TweenAnimator, TweenCompleted};
 
@@ -106,25 +106,8 @@ mod tests {
 
             Self {
                 world,
-
                 entity,
                 tween_id,
-            }
-        }
-
-        /// Like [`TestEnv::new`], but the component is placed on a separate entity.
-        pub fn new_separated(animator: Animator<T>) -> Self {
-            let mut world = World::new();
-            world.init_resource::<Events<TweenCompleted>>();
-            world.init_resource::<Time>();
-
-            let target = world.spawn(T::default()).id();
-            let entity = world.spawn(animator.with_target(target)).id();
-
-            Self {
-                world,
-                animator_entity: entity,
-                target_entity: Some(target),
                 _phantom: PhantomData,
             }
         }
@@ -166,9 +149,7 @@ mod tests {
 
         /// Get the component.
         pub fn component_mut(&mut self) -> Mut<T> {
-            self.world
-                .get_mut::<T>(self.target_entity.unwrap_or(self.animator_entity))
-                .unwrap()
+            self.world.get_mut::<T>(self.entity).unwrap()
         }
 
         /// Get the emitted event count since last tick.
@@ -188,9 +169,9 @@ mod tests {
                 end: Vec3::ONE,
             },
         )
-        .with_completed_event(0);
-        let mut env = TestEnv::new_separated(Animator::new(tween));
-        let mut system = IntoSystem::into_system(component_animator_system::<Transform>);
+        .with_completed_event(true);
+        let mut env = TestEnv::<Transform>::new(tween);
+        let mut system = IntoSystem::into_system(plugin::animator_system);
         system.initialize(env.world_mut());
 
         env.tick(Duration::ZERO, &mut system);
