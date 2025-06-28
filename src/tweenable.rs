@@ -108,12 +108,6 @@ pub struct TweenCompleted {
     pub progress: f32,
 }
 
-/// Calculate the progress fraction in \[0:1\] of the ratio between two
-/// [`Duration`]s.
-fn fraction_progress(n: Duration, d: Duration) -> f32 {
-    n.div_duration_f32(d)
-}
-
 #[derive(Debug)]
 struct AnimClock {
     elapsed: Duration,
@@ -146,6 +140,61 @@ impl AnimClock {
         )
     }
 
+    /// Get the elapsed cycle index, accounting for finite clock endpoint.
+    fn cycle_index(&self) -> u32 {
+        let index = self.elapsed.div_duration_f64(self.cycle_duration) as u32;
+        if let TotalDuration::Finite(total_duration) = self.total_duration {
+            if self.elapsed >= total_duration {
+                return index - 1;
+            }
+        }
+        index
+    }
+
+    /// Get the elapsed cycle fraction, accounting for finite clock endpoint.
+    fn cycle_fraction(&self) -> f32 {
+        let factor = self.elapsed.div_duration_f64(self.cycle_duration).fract() as f32;
+        if let TotalDuration::Finite(total_duration) = self.total_duration {
+            if self.elapsed >= total_duration {
+                return 1.0;
+            }
+        }
+        factor
+    }
+
+    /// Get the mirroring-aware cycle fraction, accounting for finite clock
+    /// endpoint.
+    fn mirrored_cycle_fraction(&self) -> f32 {
+        let ratio = self.elapsed.div_duration_f64(self.cycle_duration);
+        let index = ratio as u32;
+        let factor = ratio.fract() as f32;
+        if let TotalDuration::Finite(total_duration) = self.total_duration {
+            if self.elapsed >= total_duration {
+                if self.is_cycle_mirrored(index - 1) {
+                    return 0.0;
+                } else {
+                    return 1.0;
+                }
+            }
+        }
+        if self.is_cycle_mirrored(index) {
+            1.0 - factor
+        } else {
+            factor
+        }
+    }
+
+    /// Check if the current cycle is a mirrored cycle.
+    #[must_use]
+    #[inline]
+    pub fn is_cycle_mirrored(&self, index: u32) -> bool {
+        if self.strategy == RepeatStrategy::MirroredRepeat {
+            (index & 1) != 0
+        } else {
+            false
+        }
+    }
+
     fn times_completed(&self) -> u32 {
         self.elapsed.div_duration_f64(self.cycle_duration) as u32
     }
@@ -161,8 +210,10 @@ impl AnimClock {
 
         let state = match self.total_duration {
             TotalDuration::Finite(total_duration) => {
+                // Always clamp
+                self.elapsed = self.elapsed.min(total_duration);
+
                 if direction.is_forward() && self.elapsed >= total_duration {
-                    self.elapsed = total_duration;
                     TweenState::Completed
                 } else if direction.is_backward() && self.elapsed == Duration::ZERO {
                     TweenState::Completed
@@ -464,7 +515,7 @@ pub trait Tweenable: Send + Sync {
     /// a single direction, so tweening from start to end and back to start
     /// counts as two completed cycles (one forward, one backward).
     fn cycles_completed(&self) -> u32 {
-        self.elapsed().div_duration_f32(self.cycle_duration()) as u32
+        self.elapsed().div_duration_f64(self.cycle_duration()) as u32
     }
 }
 
@@ -507,9 +558,6 @@ pub struct Tween {
     clock: AnimClock,
     /// Direction of playback the user asked for.
     playback_direction: TweeningDirection,
-    /// Direction the playback moves in the current cycle. This may be different
-    /// from the playback direction when using MirroredRepeat.
-    cycle_direction: TweeningDirection,
     action: TweenAction,
     system_id: Option<SystemId>,
     send_completed_event: bool,
@@ -580,7 +628,6 @@ impl Tween {
             ease_function: ease_function.into(),
             clock: AnimClock::new(duration),
             playback_direction: TweeningDirection::Forward,
-            cycle_direction: TweeningDirection::Forward,
             action: TweenAction::Component(Box::new(action)),
             system_id: None,
             send_completed_event: false,
@@ -692,11 +739,7 @@ impl Tween {
     /// time of the tween. Only the direction of playback from this moment
     /// potentially changes.
     pub fn set_playback_direction(&mut self, direction: TweeningDirection) {
-        if self.playback_direction != direction {
-            self.playback_direction = direction;
-            // Reverse the current cycle too for consistency
-            self.cycle_direction = !self.cycle_direction;
-        }
+        self.playback_direction = direction;
     }
 
     /// Set the playback direction of the tween.
@@ -705,7 +748,6 @@ impl Tween {
     #[must_use]
     pub fn with_playback_direction(mut self, direction: TweeningDirection) -> Self {
         self.playback_direction = direction;
-        self.cycle_direction = direction;
         self
     }
 
@@ -723,16 +765,46 @@ impl Tween {
         self.playback_direction
     }
 
-    /// The direction of the current playback cycle.
+    /// Get the elapsed cycle index (numbered from 0), accounting for finite
+    /// endpoint.
     ///
-    /// Unlike [`playback_direction()`], which is controlled by the user, this
-    /// simply gives the direction of the current cycle. It depends on the
-    /// current elapsed time and the playback direction requested by the user.
-    ///
-    /// See [`TweeningDirection`] for details.
+    /// If the elapsed time is equal to the total (finite) duration of the
+    /// tween, then the cycle index is capped at the total number of cycles
+    /// minus 1 (the tween doesn't loop when reaching the end of its last
+    /// cycle). This means that for a tween with N cycles, the index is always
+    /// in `0..N`, and therefore always `index < N`.
     #[must_use]
-    pub fn cycle_direction(&self) -> TweeningDirection {
-        self.cycle_direction
+    #[inline]
+    pub fn cycle_index(&self) -> u32 {
+        self.clock.cycle_index()
+    }
+
+    /// Get the elapsed cycle fraction, accounting for finite endpoint.
+    ///
+    /// The elapsed cycle fraction is the fraction alonside one cycle where the
+    /// tween currently is. This ignores any mirroring. If the elapsed time is
+    /// equal to the total (finite) duration of the tween, then the cycle
+    /// fraction is capped at `1.0` (the tween doesn't loop when reaching
+    /// the end of its last cycle).
+    ///
+    /// The returned value is always in `[0:1]` for finite tweens, and `[0:1)`
+    /// for infinite ones.
+    #[must_use]
+    #[inline]
+    pub fn cycle_fraction(&self) -> f32 {
+        self.clock.cycle_fraction()
+    }
+
+    /// Check if the current cycle is a mirrored cycle.
+    ///
+    /// When the repeat strategy is [`RepeatStrategy::MirroredRepeat`], every
+    /// odd cycle index (numbered from 0) is mirrored when applying the tween's
+    /// lens. For any other strategy or single-cycle tween, this is always
+    /// `false`.
+    #[must_use]
+    #[inline]
+    pub fn is_cycle_mirrored(&self) -> bool {
+        self.clock.is_cycle_mirrored(self.clock.cycle_index())
     }
 
     /// Set the number of times to repeat the animation.
@@ -769,7 +841,6 @@ impl TweenAssetExtensions for Tween {
             ease_function: ease_function.into(),
             clock: AnimClock::new(duration),
             playback_direction: TweeningDirection::Forward,
-            cycle_direction: TweeningDirection::Forward,
             action: TweenAction::Asset(Box::new(action)),
             system_id: None,
             send_completed_event: false,
@@ -812,44 +883,15 @@ impl Tweenable for Tween {
             self.clock.tick_back(delta)
         };
 
-        // Check for reversing
-        if self.clock.strategy == RepeatStrategy::MirroredRepeat {
-            let times_completed_for_direction = match state {
-                TweenState::Active => times_completed.abs(),
-                // If completed, ignore last completion for the sake of direction reversing
-                TweenState::Completed => (times_completed.abs() - 1).max(0),
-            } as u32;
-            if times_completed_for_direction & 1 != 0 {
-                self.cycle_direction = !self.cycle_direction;
-            }
-        }
-
         let entity = ent_mut.id();
 
         // Apply the lens, even if the animation completed, to ensure the state is
         // consistent.
-        let progress = if state == TweenState::Completed {
-            if self.cycle_direction.is_forward() {
-                1.0
-            } else {
-                0.0
-            }
-        } else {
-            let factor = self
-                .clock
-                .elapsed
-                .div_duration_f32(self.clock.cycle_duration)
-                .fract();
-            if self.cycle_direction == self.playback_direction {
-                factor
-            } else {
-                1.0 - factor
-            }
-        };
-        let progress = self.ease_function.sample(progress);
+        let fraction = self.clock.mirrored_cycle_fraction();
+        let fraction = self.ease_function.sample(fraction);
         match &mut self.action {
             TweenAction::Component(action) => {
-                action(ent_mut, progress);
+                action(ent_mut, fraction);
             }
             _ => (), //debug!("Ignoring call to tick() a component with an asset action."),
         };
@@ -860,7 +902,7 @@ impl Tweenable for Tween {
                 let event = TweenCompleted {
                     id: tween_id,
                     entity,
-                    progress,
+                    progress: fraction,
                 };
 
                 // Send completion event
@@ -880,7 +922,6 @@ impl Tweenable for Tween {
     }
 
     fn rewind(&mut self) {
-        self.cycle_direction = self.playback_direction;
         self.clock.rewind(self.playback_direction);
     }
 }
@@ -1131,7 +1172,7 @@ impl Tweenable for Sequence {
 // ent_mut.reborrow(), events.reborrow());             any_active = any_active
 // || (state == TweenState::Active);         }
 //         if any_active {
-//             // FIXME(nightly): Duration::div_duration_f32()
+//             // FIXME(nightly): Duration::div_duration_f64()
 //             let ratio = self.elapsed.as_secs_f32() /
 // self.duration.as_secs_f32();             (ratio, TweenState::Active) // TODO
 //         } else {
@@ -1266,7 +1307,7 @@ impl Tweenable for Delay {
     ) -> TweenState {
         self.timer.tick(delta);
 
-        let _progress = fraction_progress(self.elapsed(), self.cycle_duration());
+        let _progress = self.elapsed().div_duration_f64(self.cycle_duration());
         let state = self.state();
 
         // // If completed this frame, notify the user
@@ -1314,6 +1355,113 @@ mod tests {
     //     invoke_count: u64,
     //     last_reported_count: u32,
     // }
+
+    // Check the behavior of the functions calculating cycle information
+    #[test]
+    fn anim_clock_cycles() {
+        // The direction passed to AnimClock::set_elapsed() only affects the returned
+        // state, which is not tested in this test, so passing any value should produce
+        // the same test result here.
+        for dummy in [TweeningDirection::Forward, TweeningDirection::Backward] {
+            let cycle_duration = Duration::from_millis(100);
+            let repeat_count = 4;
+            let total_duration = cycle_duration * repeat_count;
+            let mut clock = AnimClock::new(cycle_duration);
+            clock.total_duration = TotalDuration::Finite(total_duration);
+
+            assert_eq!(cycle_duration, clock.cycle_duration);
+            assert_eq!(RepeatStrategy::Repeat, clock.strategy);
+
+            assert_eq!(Duration::ZERO, clock.elapsed());
+            assert_eq!(0, clock.cycle_index());
+            assert_approx_eq!(0.0, clock.cycle_fraction());
+            assert_approx_eq!(0.0, clock.mirrored_cycle_fraction());
+
+            let dt = Duration::from_millis(30);
+            clock.set_elapsed(dt, dummy);
+            assert_eq!(dt, clock.elapsed());
+            assert_eq!(0, clock.cycle_index());
+            assert_approx_eq!(0.3, clock.cycle_fraction());
+            assert_approx_eq!(0.3, clock.mirrored_cycle_fraction());
+
+            let dt = Duration::from_millis(110);
+            clock.set_elapsed(dt, dummy);
+            assert_eq!(dt, clock.elapsed());
+            assert_eq!(1, clock.cycle_index());
+            assert_approx_eq!(0.1, clock.cycle_fraction());
+            assert_approx_eq!(0.1, clock.mirrored_cycle_fraction());
+
+            let dt = Duration::from_millis(400);
+            clock.set_elapsed(dt, dummy);
+            assert_eq!(dt, clock.elapsed());
+            assert_eq!(3, clock.cycle_index()); // doesn't loop at end
+            assert_approx_eq!(1.0, clock.cycle_fraction()); // doesn't loop at end
+            assert_approx_eq!(1.0, clock.mirrored_cycle_fraction());
+
+            let dt = Duration::from_millis(410); // > total_duration; clamped
+            clock.set_elapsed(dt, dummy);
+            assert_eq!(total_duration, clock.elapsed()); // clamped
+            assert_eq!(3, clock.cycle_index()); // doesn't loop at end
+            assert_approx_eq!(1.0, clock.cycle_fraction()); // doesn't loop at end
+            assert_approx_eq!(1.0, clock.mirrored_cycle_fraction());
+
+            clock.strategy = RepeatStrategy::MirroredRepeat;
+
+            let dt = Duration::from_millis(110);
+            clock.set_elapsed(dt, dummy);
+            assert_eq!(dt, clock.elapsed());
+            assert_eq!(1, clock.cycle_index());
+            assert_approx_eq!(0.1, clock.cycle_fraction());
+            assert_approx_eq!(0.9, clock.mirrored_cycle_fraction()); // mirrored
+
+            let dt = Duration::from_millis(400);
+            clock.set_elapsed(dt, dummy);
+            assert_eq!(dt, clock.elapsed());
+            assert_eq!(3, clock.cycle_index()); // doesn't loop at end
+            assert_approx_eq!(1.0, clock.cycle_fraction()); // doesn't loop at end
+            assert_approx_eq!(0.0, clock.mirrored_cycle_fraction()); // mirrored
+
+            let dt = Duration::from_millis(410); // > total_duration; clamped
+            clock.set_elapsed(dt, dummy);
+            assert_eq!(total_duration, clock.elapsed()); // clamped
+            assert_eq!(3, clock.cycle_index()); // doesn't loop at end
+            assert_approx_eq!(1.0, clock.cycle_fraction()); // doesn't loop at end
+            assert_approx_eq!(0.0, clock.mirrored_cycle_fraction()); // mirrored
+        }
+    }
+
+    // Check the accumulated error of the clock over a long period
+    #[test]
+    fn anim_clock_precision() {
+        let cycle_duration = Duration::from_millis(1);
+        let mut clock = AnimClock::new(cycle_duration);
+        clock.total_duration = TotalDuration::Infinite;
+
+        let test_ticks = [
+            Duration::from_micros(123),
+            Duration::from_millis(1),
+            Duration::from_secs_f32(1. / 24.),
+            Duration::from_secs_f32(1. / 30.),
+            Duration::from_secs_f32(1. / 60.),
+            Duration::from_secs_f32(1. / 120.),
+            Duration::from_secs_f32(1. / 144.),
+            Duration::from_secs_f32(1. / 240.),
+        ];
+
+        let mut times_completed = 0;
+        let mut total_duration = Duration::ZERO;
+        let num_iter = 100_000_000; // 100m ms, >27h
+        for i in 0..num_iter {
+            let tick = test_ticks[i % test_ticks.len()];
+            times_completed += clock.tick(tick).1;
+            total_duration += tick;
+        }
+
+        assert_eq!(
+            total_duration.div_duration_f64(cycle_duration) as i32,
+            times_completed
+        );
+    }
 
     /// Utility to create a tween for testing.
     fn make_test_tween() -> Tween {
@@ -1400,38 +1548,6 @@ mod tests {
     }
 
     #[test]
-    fn anim_clock_precision() {
-        let cycle_duration = Duration::from_millis(1);
-        let mut clock = AnimClock::new(cycle_duration);
-        clock.total_duration = TotalDuration::Infinite;
-
-        let test_ticks = [
-            Duration::from_micros(123),
-            Duration::from_millis(1),
-            Duration::from_secs_f32(1. / 24.),
-            Duration::from_secs_f32(1. / 30.),
-            Duration::from_secs_f32(1. / 60.),
-            Duration::from_secs_f32(1. / 120.),
-            Duration::from_secs_f32(1. / 144.),
-            Duration::from_secs_f32(1. / 240.),
-        ];
-
-        let mut times_completed = 0;
-        let mut total_duration = Duration::ZERO;
-        let num_iter = 100_000_000; // 100m ms, >27h
-        for i in 0..num_iter {
-            let tick = test_ticks[i % test_ticks.len()];
-            times_completed += clock.tick(tick).1;
-            total_duration += tick;
-        }
-
-        assert_eq!(
-            total_duration.div_duration_f64(cycle_duration) as i32,
-            times_completed
-        );
-    }
-
-    #[test]
     fn into_repeat_count() {
         let tween = Tween::new(
             EaseMethod::default(),
@@ -1465,9 +1581,7 @@ mod tests {
     /// Test ticking of a single tween in isolation.
     #[test]
     fn tween_tick() {
-        for playback_direction in [
-            /*TweeningDirection::Forward,*/ TweeningDirection::Backward,
-        ] {
+        for playback_direction in [TweeningDirection::Forward, TweeningDirection::Backward] {
             for (count, strategy) in [
                 (RepeatCount::Finite(1), RepeatStrategy::default()),
                 (RepeatCount::Infinite, RepeatStrategy::Repeat),
@@ -1476,7 +1590,7 @@ mod tests {
                 (RepeatCount::Finite(2), RepeatStrategy::MirroredRepeat),
             ] {
                 println!(
-                    "TweeningType: count={count:?} strategy={strategy:?} playback={playback_direction:?}",
+                    "TweeningType: playback={playback_direction:?} count={count:?} strategy={strategy:?}",
                 );
 
                 // Create a linear tween over 1 second
@@ -1487,9 +1601,17 @@ mod tests {
                     .with_completed_event(true);
                 assert_eq!(tween.playback_direction(), playback_direction);
 
+                // Note: for infinite duration playing backward, we need to start *somewhere*
+                // since we can't start at infinity. So pick t=1s which is shorter than 11
+                // iterations of the 100ms test tween created by make_test_tween(), to ensure we
+                // reach t=0.
+                let backward_duration = tween
+                    .total_duration()
+                    .as_finite()
+                    .unwrap_or(Duration::from_secs(1));
                 if playback_direction == TweeningDirection::Backward {
                     // Seek to end, so that backward playback actually does something
-                    tween.set_elapsed(tween.total_duration().as_finite().unwrap());
+                    tween.set_elapsed(backward_duration);
                 }
 
                 let (mut world, entity, system_id) = make_test_env();
@@ -1510,98 +1632,87 @@ mod tests {
                 for i in 1..=11 {
                     // Calculate expected values
                     let mut elapsed = tick_duration * i;
-                    let (factor, times_completed, mut direction, expected_state, just_completed) =
-                        match count {
-                            RepeatCount::Finite(1) => {
-                                elapsed = elapsed.min(tween_duration);
-                                let times_completed = u32::from(i >= 5);
-                                let (factor, state) = if i < 5 {
-                                    (i as f32 * 0.2, TweenState::Active)
+                    let effectively_elapsed = if playback_direction.is_forward() {
+                        elapsed
+                    } else {
+                        backward_duration.saturating_sub(elapsed)
+                    };
+                    let cycles_completed = match count {
+                        RepeatCount::Infinite => effectively_elapsed,
+                        RepeatCount::Finite(count) => {
+                            effectively_elapsed.min(tween_duration * count)
+                        }
+                        RepeatCount::For(time) => effectively_elapsed.min(time),
+                    }
+                    .div_duration_f64(tween_duration)
+                        as u32;
+                    let (factor, mut direction, expected_state, just_completed) = match count {
+                        RepeatCount::Finite(1) => {
+                            elapsed = elapsed.min(tween_duration);
+                            let (factor, state) = if i < 5 {
+                                (i as f32 * 0.2, TweenState::Active)
+                            } else {
+                                (1.0, TweenState::Completed)
+                            };
+                            let just_completed = i == 5;
+                            (factor, TweeningDirection::Forward, state, just_completed)
+                        }
+                        RepeatCount::Finite(count) => {
+                            elapsed = elapsed.min(tween_duration * count);
+                            if strategy == RepeatStrategy::Repeat {
+                                let just_completed = i % 5 == 0;
+                                let (factor, state) = if i < 10 {
+                                    ((i as f32 * 0.2).fract(), TweenState::Active)
                                 } else {
                                     (1.0, TweenState::Completed)
                                 };
-                                let just_completed = i == 5;
+                                (factor, TweeningDirection::Forward, state, just_completed)
+                            } else {
+                                let i5 = i % 5;
+                                let just_completed = i5 == 0;
+                                let (factor, state) = if i < 10 {
+                                    ((i as f32 * 0.2).fract(), TweenState::Active)
+                                } else {
+                                    (1.0, TweenState::Completed)
+                                };
+                                // Once Completed, the direction doesn't change
+                                let direction = if i >= 5 {
+                                    TweeningDirection::Backward
+                                } else {
+                                    TweeningDirection::Forward
+                                };
+                                (factor, direction, state, just_completed)
+                            }
+                        }
+                        RepeatCount::Infinite => {
+                            if strategy == RepeatStrategy::Repeat {
+                                let just_completed = i % 5 == 0;
                                 (
-                                    factor,
-                                    times_completed,
+                                    (i as f32 * 0.2).fract(),
                                     TweeningDirection::Forward,
-                                    state,
+                                    TweenState::Active,
                                     just_completed,
                                 )
-                            }
-                            RepeatCount::Finite(count) => {
-                                elapsed = elapsed.min(tween_duration * count);
-                                if strategy == RepeatStrategy::Repeat {
-                                    let times_completed = i / 5;
-                                    let just_completed = i % 5 == 0;
-                                    let (factor, state) = if i < 10 {
-                                        ((i as f32 * 0.2).fract(), TweenState::Active)
-                                    } else {
-                                        (1.0, TweenState::Completed)
-                                    };
-                                    (
-                                        factor,
-                                        times_completed,
-                                        TweeningDirection::Forward,
-                                        state,
-                                        just_completed,
-                                    )
+                            } else {
+                                let i5 = i % 5;
+                                let i10 = i % 10;
+                                let factor = i5 as f32 * 0.2;
+                                let factor = if cycles_completed & 1 != 0 {
+                                    1.0 - factor
                                 } else {
-                                    let i5 = i % 5;
-                                    let times_completed = i / 5;
-                                    let just_completed = i5 == 0;
-                                    let (factor, state) = if i < 10 {
-                                        ((i as f32 * 0.2).fract(), TweenState::Active)
-                                    } else {
-                                        (1.0, TweenState::Completed)
-                                    };
-                                    // Once Completed, the direction doesn't change
-                                    let direction = if i >= 5 {
-                                        TweeningDirection::Backward
-                                    } else {
-                                        TweeningDirection::Forward
-                                    };
-                                    (factor, times_completed, direction, state, just_completed)
-                                }
-                            }
-                            RepeatCount::Infinite => {
-                                if strategy == RepeatStrategy::Repeat {
-                                    let times_completed = i / 5;
-                                    let just_completed = i % 5 == 0;
-                                    (
-                                        (i as f32 * 0.2).fract(),
-                                        times_completed,
-                                        TweeningDirection::Forward,
-                                        TweenState::Active,
-                                        just_completed,
-                                    )
+                                    factor
+                                };
+                                let (direction, factor) = if i10 >= 5 {
+                                    (TweeningDirection::Backward, 1.0 - factor)
                                 } else {
-                                    let i5 = i % 5;
-                                    let times_completed = i / 5;
-                                    let i10 = i % 10;
-                                    let factor = i5 as f32 * 0.2;
-                                    let factor = if times_completed & 1 != 0 {
-                                        1.0 - factor
-                                    } else {
-                                        factor
-                                    };
-                                    let (direction, factor) = if i10 >= 5 {
-                                        (TweeningDirection::Backward, 1.0 - factor)
-                                    } else {
-                                        (TweeningDirection::Forward, factor)
-                                    };
-                                    let just_completed = i5 == 0;
-                                    (
-                                        factor,
-                                        times_completed,
-                                        direction,
-                                        TweenState::Active,
-                                        just_completed,
-                                    )
-                                }
+                                    (TweeningDirection::Forward, factor)
+                                };
+                                let just_completed = i5 == 0;
+                                (factor, direction, TweenState::Active, just_completed)
                             }
-                            RepeatCount::For(_) => panic!("Untested"),
-                        };
+                        }
+                        RepeatCount::For(_) => panic!("Untested"),
+                    };
                     if playback_direction.is_backward() {
                         direction = !direction;
                     }
@@ -1610,9 +1721,14 @@ mod tests {
                     } else {
                         Vec3::splat(1. - factor)
                     };
+                    let elapsed = if playback_direction.is_forward() {
+                        elapsed
+                    } else {
+                        backward_duration.saturating_sub(elapsed)
+                    };
                     println!(
-                        "Expected: elapsed={:?} factor={} times_completed={} direction={:?} state={:?} just_completed={} translation={:?}",
-                        elapsed, factor, times_completed, direction, expected_state, just_completed, expected_translation
+                        "+ Expected: elapsed={:?} factor={} times_completed={} direction={:?} state={:?} just_completed={} translation={:?}",
+                        elapsed, factor, cycles_completed, direction, expected_state, just_completed, expected_translation
                     );
 
                     // Tick the tween
@@ -1625,21 +1741,15 @@ mod tests {
                     );
 
                     // Check actual values
-                    assert_eq!(tween.cycle_direction(), direction);
+                    assert_eq!(tween.is_cycle_mirrored(), direction != playback_direction);
                     assert_eq!(actual_state, expected_state);
-                    if playback_direction.is_forward() {
-                        assert_eq!(tween.elapsed(), elapsed);
-                    } else {
-                        assert_eq!(
-                            tween.elapsed(),
-                            tween.total_duration().as_finite().unwrap() - elapsed
-                        );
-                    }
-                    assert_eq!(tween.cycles_completed(), times_completed);
+                    assert_eq!(tween.elapsed(), elapsed);
+                    assert_eq!(tween.cycles_completed(), cycles_completed);
                     let transform = world.entity(entity).get::<Transform>().unwrap();
                     assert_approx_eq!(expected_translation, transform.translation, 1e-5);
                     assert_approx_eq!(Quat::IDENTITY, transform.rotation, 1e-5);
-                    {
+                    // FIXME - decide what to do with events when playing backward
+                    if playback_direction.is_forward() {
                         let mut event_reader = event_reader_system_state.get_mut(&mut world);
                         let event = event_reader.read().next();
                         if just_completed {
@@ -1656,8 +1766,20 @@ mod tests {
                 // Rewind
                 tween.rewind();
                 assert_eq!(tween.playback_direction(), playback_direction); // does not change
-                assert_eq!(tween.elapsed(), Duration::ZERO);
-                assert_eq!(tween.cycles_completed(), 0);
+                if playback_direction.is_forward() {
+                    assert_eq!(tween.elapsed(), Duration::ZERO);
+                    assert_eq!(tween.cycles_completed(), 0);
+                } else {
+                    assert_eq!(tween.elapsed(), backward_duration);
+                    let cycles_completed = match count {
+                        RepeatCount::Infinite => backward_duration,
+                        RepeatCount::Finite(count) => backward_duration.min(tween_duration * count),
+                        RepeatCount::For(time) => backward_duration.min(time),
+                    }
+                    .div_duration_f64(tween_duration)
+                        as u32;
+                    assert_eq!(cycles_completed, tween.cycles_completed());
+                }
 
                 // Dummy tick to update target
                 let actual_state = manual_tick_component(
@@ -1667,17 +1789,15 @@ mod tests {
                     &mut world,
                     entity,
                 );
-                assert_eq!(actual_state, TweenState::Active);
+                assert_eq!(TweenState::Active, actual_state);
                 let expected_translation = if playback_direction.is_backward() {
                     Vec3::ONE
                 } else {
                     Vec3::ZERO
                 };
                 let transform = world.entity(entity).get::<Transform>().unwrap();
-                assert!(transform
-                    .translation
-                    .abs_diff_eq(expected_translation, 1e-5));
-                assert!(transform.rotation.abs_diff_eq(Quat::IDENTITY, 1e-5));
+                assert_approx_eq!(expected_translation, transform.translation, 1e-5);
+                assert_approx_eq!(Quat::IDENTITY, transform.rotation, 1e-5);
 
                 // Clear event sending
                 tween.set_completed_event(false);
@@ -2232,7 +2352,7 @@ mod tests {
             entity,
         );
         assert_eq!(TweenState::Active, state);
-        assert_eq!(TweeningDirection::Forward, tween.cycle_direction());
+        assert!(!tween.is_cycle_mirrored());
         assert_eq!(0, tween.cycles_completed());
         assert_eq!(dt, tween.elapsed());
         let transform = world.entity(entity).get::<Transform>().unwrap();
@@ -2240,7 +2360,7 @@ mod tests {
 
         // rewind
         tween.rewind();
-        assert_eq!(TweeningDirection::Forward, tween.cycle_direction());
+        assert!(!tween.is_cycle_mirrored());
         assert_eq!(0, tween.cycles_completed());
         assert_eq!(Duration::ZERO, tween.elapsed());
         let transform = world.entity(entity).get::<Transform>().unwrap();
@@ -2255,7 +2375,7 @@ mod tests {
             &mut world,
             entity,
         );
-        assert_eq!(TweeningDirection::Backward, tween.cycle_direction());
+        assert!(tween.is_cycle_mirrored());
         assert_eq!(TweenState::Active, state);
         assert_eq!(1, tween.cycles_completed());
         assert_eq!(dt, tween.elapsed());
@@ -2263,9 +2383,9 @@ mod tests {
         assert_approx_eq!(Vec3::splat(0.8), transform.translation, 1e-5);
 
         // rewind
-        assert_eq!(TweeningDirection::Backward, tween.cycle_direction());
+        assert!(tween.is_cycle_mirrored());
         tween.rewind();
-        assert_eq!(TweeningDirection::Forward, tween.cycle_direction()); //restored
+        assert!(!tween.is_cycle_mirrored()); //restored
         assert_eq!(0, tween.cycles_completed());
         assert_eq!(Duration::ZERO, tween.elapsed());
         let transform = world.entity(entity).get::<Transform>().unwrap();
@@ -2281,16 +2401,16 @@ mod tests {
             entity,
         );
         assert_eq!(TweenState::Completed, state);
-        assert_eq!(TweeningDirection::Backward, tween.cycle_direction()); // frozen from last loop
+        assert!(tween.is_cycle_mirrored()); // frozen from last loop
         assert_eq!(4, tween.cycles_completed());
         assert_eq!(dt, tween.elapsed()); // Completed
         let transform = world.entity(entity).get::<Transform>().unwrap();
         assert_approx_eq!(Vec3::ZERO, transform.translation, 1e-5);
 
         // rewind
-        assert_eq!(TweeningDirection::Backward, tween.cycle_direction());
+        assert!(tween.is_cycle_mirrored());
         tween.rewind();
-        assert_eq!(TweeningDirection::Forward, tween.cycle_direction()); // restored
+        assert!(!tween.is_cycle_mirrored()); // restored
         assert_eq!(0, tween.cycles_completed());
         assert_eq!(Duration::ZERO, tween.elapsed());
         let transform = world.entity(entity).get::<Transform>().unwrap();
