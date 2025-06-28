@@ -54,17 +54,17 @@ use crate::Targetable;
 /// # use bevy::prelude::*;
 /// # use bevy_tweening::*;
 /// struct MyLens {
-///   start: f32,
-///   end: f32,
+///     start: f32,
+///     end: f32,
 /// }
 ///
 /// #[derive(Component)]
 /// struct MyStruct(f32);
 ///
 /// impl Lens<MyStruct> for MyLens {
-///   fn lerp(&mut self, target: &mut dyn Targetable<MyStruct>, ratio: f32) {
-///     target.0 = self.start + (self.end - self.start) * ratio;
-///   }
+///     fn lerp(&mut self, target: &mut dyn Targetable<MyStruct>, ratio: f32) {
+///         target.0 = self.start + (self.end - self.start) * ratio;
+///     }
 /// }
 /// ```
 pub trait Lens<T> {
@@ -376,18 +376,16 @@ impl Lens<Sprite> for SpriteColorLens {
 
 #[cfg(test)]
 mod tests {
-    use bevy::ecs::{change_detection::MaybeLocation, component::Tick};
     use std::f32::consts::TAU;
 
     #[cfg(any(feature = "bevy_sprite", feature = "bevy_text"))]
     use bevy::color::palettes::css::{BLUE, RED};
+    use bevy::ecs::{change_detection::MaybeLocation, component::Tick};
 
     use super::*;
-
-    use crate::tweenable::ComponentTarget;
-
     #[cfg(all(feature = "bevy_sprite", feature = "bevy_asset"))]
     use crate::tweenable::AssetTarget;
+    use crate::tweenable::ComponentTarget;
 
     #[cfg(feature = "bevy_text")]
     #[test]

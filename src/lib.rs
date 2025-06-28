@@ -106,9 +106,10 @@
 //! # use bevy_tweening::*;
 //! # let mut app = App::default();
 //! # #[derive(Component)] struct C;
-//! app.add_systems(Update,
-//!     component_animator_system::<C>
-//!         .in_set(AnimationSystem::AnimationUpdate));
+//! app.add_systems(
+//!     Update,
+//!     component_animator_system::<C>.in_set(AnimationSystem::AnimationUpdate),
+//! );
 //! ```
 //!
 //! Similarly for an asset `A`, use the `asset_animator_system`. This is only
@@ -207,14 +208,13 @@
 use std::time::Duration;
 
 use bevy::prelude::*;
-
 pub use lens::Lens;
 pub use plugin::{AnimationSystem, TweeningPlugin};
 use slotmap::{new_key_type, SlotMap};
 #[cfg(feature = "bevy_asset")]
 pub use tweenable::AssetTarget;
 pub use tweenable::{
-    BoxedTweenable, ComponentTarget, Delay, Sequence, Targetable, TotalDuration, Tracks, Tween,
+    BoxedTweenable, ComponentTarget, Delay, Sequence, Targetable, TotalDuration, Tween,
     TweenAssetExtensions, TweenCompleted, TweenState, Tweenable,
 };
 
@@ -636,9 +636,9 @@ impl TweenAnimator {
             let ent_mut = &mut world.get_entity_mut([anim.target]).unwrap()[0];
 
             // Apply the animation tweenable
-            let (_progress, state) =
+            let state =
                 anim.tweenable
-                    .tick(tween_id, delta_time, ent_mut.reborrow(), events.reborrow());
+                    .step(tween_id, delta_time, ent_mut.reborrow(), events.reborrow());
 
             // Raise completed event
             if state == TweenState::Completed {
@@ -718,7 +718,6 @@ mod tests {
     use slotmap::Key as _;
 
     use self::tweenable::ComponentTarget;
-
     use super::*;
     use crate::test_utils::*;
 

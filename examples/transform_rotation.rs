@@ -1,6 +1,5 @@
 use bevy::{color::palettes::css::*, prelude::*};
 use bevy_inspector_egui::{bevy_egui::EguiPlugin, prelude::*, quick::ResourceInspectorPlugin};
-
 use bevy_tweening::{lens::*, *};
 
 mod utils;

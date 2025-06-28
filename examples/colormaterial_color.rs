@@ -1,6 +1,7 @@
+use std::time::Duration;
+
 use bevy::{color::palettes::css::*, prelude::*};
 use bevy_tweening::{lens::*, *};
-use std::time::Duration;
 
 mod utils;
 

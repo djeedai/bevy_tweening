@@ -209,7 +209,7 @@ mod tests {
         let animator = env.animator();
         let anim = animator.get(env.tween_id).unwrap();
         assert_eq!(anim.state, PlaybackState::Playing);
-        assert_eq!(anim.tweenable.times_completed(), 0);
+        assert_eq!(anim.tweenable.cycles_completed(), 0);
         let transform = env.component_mut();
         assert!(transform.is_changed());
         assert!(transform.translation.abs_diff_eq(Vec3::ZERO, 1e-5));
@@ -220,7 +220,7 @@ mod tests {
         let animator = env.animator();
         let anim = animator.get(env.tween_id).unwrap();
         assert_eq!(anim.state, PlaybackState::Playing);
-        assert_eq!(anim.tweenable.times_completed(), 0);
+        assert_eq!(anim.tweenable.cycles_completed(), 0);
         let transform = env.component_mut();
         assert!(transform.is_changed());
         assert!(transform.translation.abs_diff_eq(Vec3::splat(0.5), 1e-5));
@@ -297,7 +297,7 @@ mod tests {
         let animator = env.animator();
         let anim = animator.get(env.tween_id).unwrap();
         assert_eq!(anim.state, PlaybackState::Playing);
-        assert_eq!(anim.tweenable.times_completed(), 0);
+        assert_eq!(anim.tweenable.cycles_completed(), 0);
         let component = env.component_mut();
         assert!(!component.is_changed());
         assert!(((*component).value - 0.).abs() <= 1e-5);
@@ -308,7 +308,7 @@ mod tests {
         let animator = env.animator();
         let anim = animator.get(env.tween_id).unwrap();
         assert_eq!(anim.state, PlaybackState::Playing);
-        assert_eq!(anim.tweenable.times_completed(), 0);
+        assert_eq!(anim.tweenable.cycles_completed(), 0);
         let component = env.component_mut();
         assert!(!component.is_changed());
         assert!(((*component).value - 0.).abs() <= 1e-5);
@@ -319,7 +319,7 @@ mod tests {
         let animator = env.animator();
         let anim = animator.get(env.tween_id).unwrap();
         assert_eq!(anim.state, PlaybackState::Playing);
-        assert_eq!(anim.tweenable.times_completed(), 0);
+        assert_eq!(anim.tweenable.cycles_completed(), 0);
         let component = env.component_mut();
         assert!(!component.is_changed());
         assert!(((*component).value - 0.).abs() <= 1e-5);
@@ -335,7 +335,7 @@ mod tests {
         let animator = env.animator();
         let anim = animator.get(env.tween_id).unwrap();
         assert_eq!(anim.state, PlaybackState::Playing);
-        assert_eq!(anim.tweenable.times_completed(), 0);
+        assert_eq!(anim.tweenable.cycles_completed(), 0);
         let component = env.component_mut();
         assert!(component.is_changed());
         assert!(((*component).value - 0.2).abs() <= 1e-5);
@@ -349,7 +349,7 @@ mod tests {
         let animator = env.animator();
         let anim = animator.get(env.tween_id).unwrap();
         assert_eq!(anim.state, PlaybackState::Playing);
-        assert_eq!(anim.tweenable.times_completed(), 0);
+        assert_eq!(anim.tweenable.cycles_completed(), 0);
         let component = env.component_mut();
         assert!(component.is_changed());
         assert!(((*component).value - 0.7).abs() <= 1e-5);
