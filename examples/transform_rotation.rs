@@ -103,14 +103,14 @@ fn setup(mut commands: Commands) {
                 Visibility::default(),
             ))
             .with_children(|parent| {
-                parent.spawn((
-                    Sprite {
+                parent
+                    .spawn((Sprite {
                         color: RED.into(),
                         custom_size: Some(Vec2::new(size, size * 0.5)),
                         ..default()
-                    },
-                    TweenAnimator::new(tween),
-                ));
+                    },))
+                    // Automatically insert the animation via the entity command queue
+                    .tween(tween);
             });
 
         y -= size * spacing;
@@ -121,15 +121,12 @@ fn setup(mut commands: Commands) {
     }
 }
 
-fn update_animation_speed(
-    options: Res<Options>,
-    mut animators: Query<&mut TweenAnimator<Transform>>,
-) {
+fn update_animation_speed(options: Res<Options>, mut animators: ResMut<TweenAnimator>) {
     if !options.is_changed() {
         return;
     }
 
-    for mut animator in animators.iter_mut() {
-        animator.set_speed(options.speed);
+    for (_id, anim) in animators.iter_mut() {
+        anim.speed = options.speed;
     }
 }

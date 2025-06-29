@@ -635,6 +635,10 @@ impl TweenAnimator {
             // done with EntityWorldMut has it has exclusive World access).
             let ent_mut = &mut world.get_entity_mut([anim.target]).unwrap()[0];
 
+            // Scale delta time by this animation's speed. Reject negative speeds; use
+            // backward playback to play in reverse direction.
+            let delta_time = delta_time.mul_f32(anim.speed.max(0.));
+
             // Apply the animation tweenable
             let state =
                 anim.tweenable

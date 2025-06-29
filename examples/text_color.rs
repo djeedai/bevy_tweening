@@ -81,30 +81,32 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         .with_repeat_count(RepeatCount::Infinite)
         .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
-        commands.spawn((
-            Text::new(*ease_name),
-            TextFont {
-                font: font.clone(),
-                font_size: 24.0,
-                ..default()
-            },
-            TextColor(Color::WHITE),
-            Node {
-                width: Val::Px(size_x),
-                height: Val::Px(size_y),
-                left: Val::Px(x),
-                top: Val::Px(y),
-                right: Val::Auto,
-                bottom: Val::Auto,
-                position_type: PositionType::Absolute,
-                align_content: AlignContent::Center,
-                align_items: AlignItems::Center,
-                align_self: AlignSelf::Center,
-                justify_content: JustifyContent::Center,
-                ..default()
-            },
-            TweenAnimator::new(tween),
-        ));
+        commands
+            .spawn((
+                Text::new(*ease_name),
+                TextFont {
+                    font: font.clone(),
+                    font_size: 24.0,
+                    ..default()
+                },
+                TextColor(Color::WHITE),
+                Node {
+                    width: Val::Px(size_x),
+                    height: Val::Px(size_y),
+                    left: Val::Px(x),
+                    top: Val::Px(y),
+                    right: Val::Auto,
+                    bottom: Val::Auto,
+                    position_type: PositionType::Absolute,
+                    align_content: AlignContent::Center,
+                    align_items: AlignItems::Center,
+                    align_self: AlignSelf::Center,
+                    justify_content: JustifyContent::Center,
+                    ..default()
+                },
+            ))
+            // Automatically insert the animation via the entity command queue
+            .tween(tween);
 
         y += delta_y;
         iy += 1;

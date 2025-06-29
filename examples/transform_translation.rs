@@ -97,28 +97,25 @@ fn setup(mut commands: Commands) {
         .with_repeat_count(RepeatCount::Infinite)
         .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
-        commands.spawn((
-            Sprite {
+        commands
+            .spawn((Sprite {
                 color: RED.into(),
                 custom_size: Some(Vec2::new(size, size)),
                 ..default()
-            },
-            TweenAnimator::new(tween),
-        ));
+            },))
+            // Automatically insert the animation via the entity command queue
+            .tween(tween);
 
         x += size * spacing;
     }
 }
 
-fn update_animation_speed(
-    options: Res<Options>,
-    mut animators: Query<&mut TweenAnimator<Transform>>,
-) {
+fn update_animation_speed(options: Res<Options>, mut animators: ResMut<TweenAnimator>) {
     if !options.is_changed() {
         return;
     }
 
-    for mut animator in animators.iter_mut() {
-        animator.set_speed(options.speed);
+    for (_id, anim) in animators.iter_mut() {
+        anim.speed = options.speed;
     }
 }

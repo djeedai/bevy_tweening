@@ -75,15 +75,14 @@ fn setup(mut commands: Commands) {
         .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
         commands
-            .spawn((SpriteBundle {
-                transform: Transform::from_translation(Vec3::new(x, y, 0.)),
-                sprite: Sprite {
+            .spawn((
+                Transform::from_translation(Vec3::new(x, y, 0.)),
+                Sprite {
                     color: Color::BLACK,
                     custom_size: Some(Vec2::new(size, size)),
                     ..default()
                 },
-                ..default()
-            },))
+            ))
             .tween(tween);
 
         y -= size * spacing;

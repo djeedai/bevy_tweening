@@ -53,6 +53,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
     let font = asset_server.load("fonts/FiraMono-Regular.ttf");
 
+    // The menu "container" node, parent of all menu buttons
     commands
         .spawn((
             Name::new("menu"),
@@ -73,6 +74,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
             },
         ))
         .with_children(|container| {
+            // The individual menu buttons
             let mut start_time_ms = 0;
             for (text, label) in [
                 ("Continue", ButtonLabel::Continue),
@@ -91,65 +93,42 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 .with_completed_event(true);
 
                 let mut ec = container.spawn((
-                    ButtonBundle {
-                        style: Style {
-                            min_width: Val::Px(300.),
-                            min_height: Val::Px(80.),
-                            margin: UiRect::all(Val::Px(8.)),
-                            padding: UiRect::all(Val::Px(8.)),
-                            align_content: AlignContent::Center,
-                            align_items: AlignItems::Center,
-                            align_self: AlignSelf::Center,
-                            justify_content: JustifyContent::Center,
-                            ..default()
-                        },
-                        background_color: BackgroundColor(NORMAL_COLOR),
-                        transform: Transform::from_scale(Vec3::splat(0.01)),
+                    Name::new(format!("button:{}", text)),
+                    Button,
+                    Node {
+                        min_width: Val::Px(300.),
+                        min_height: Val::Px(80.),
+                        margin: UiRect::all(Val::Px(8.)),
+                        padding: UiRect::all(Val::Px(8.)),
+                        align_content: AlignContent::Center,
+                        align_items: AlignItems::Center,
+                        align_self: AlignSelf::Center,
+                        justify_content: JustifyContent::Center,
                         ..default()
                     },
-                    Name::new(format!("button:{}", text)),
+                    BackgroundColor(NORMAL_COLOR),
+                    Transform::from_scale(Vec3::splat(0.01)),
                     label,
-                ));
-
-                let ec = if start_time_ms > 0 {
-                    let delay = Delay::new(Duration::from_millis(start_time_ms));
-                    ec.tween(delay.then(tween_scale))
-                } else {
-                    ec.tween(tween_scale)
-                };
-                start_time_ms += 500;
-                container
-                    .spawn((
-                        Name::new(format!("button:{}", text)),
-                        Button,
-                        Node {
-                            min_width: Val::Px(300.),
-                            min_height: Val::Px(80.),
-                            margin: UiRect::all(Val::Px(8.)),
-                            padding: UiRect::all(Val::Px(8.)),
-                            align_content: AlignContent::Center,
-                            align_items: AlignItems::Center,
-                            align_self: AlignSelf::Center,
-                            justify_content: JustifyContent::Center,
+                    children![(
+                        Text::new(text.to_string()),
+                        TextFont {
+                            font: font.clone(),
+                            font_size: 48.0,
                             ..default()
                         },
-                        BackgroundColor(NORMAL_COLOR),
-                        Transform::from_scale(Vec3::splat(0.01)),
-                        animator,
-                        label,
-                    ))
-                    .with_children(|parent| {
-                        parent.spawn((
-                            Text::new(text.to_string()),
-                            TextFont {
-                                font: font.clone(),
-                                font_size: 48.0,
-                                ..default()
-                            },
-                            TextColor(TEXT_COLOR),
-                            TextLayout::new_with_justify(JustifyText::Center),
-                        ));
-                    });
+                        TextColor(TEXT_COLOR),
+                        TextLayout::new_with_justify(JustifyText::Center),
+                    )],
+                ));
+
+                if start_time_ms > 0 {
+                    let delay = Delay::new(Duration::from_millis(start_time_ms));
+                    ec.tween(delay.then(tween_scale));
+                } else {
+                    ec.tween(tween_scale);
+                }
+
+                start_time_ms += 500;
             }
         });
 }

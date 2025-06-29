@@ -106,35 +106,37 @@ fn setup(mut commands: Commands) {
         .with_repeat_count(RepeatCount::Infinite)
         .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
-        commands.spawn((
-            Node {
-                width: Val::Px(size),
-                height: Val::Px(size),
-                left: Val::Px(x),
-                top: Val::Px(10.),
-                right: Val::Auto,
-                bottom: Val::Auto,
-                position_type: PositionType::Absolute,
-                align_content: AlignContent::Center,
-                align_items: AlignItems::Center,
-                align_self: AlignSelf::Center,
-                justify_content: JustifyContent::Center,
-                ..default()
-            },
-            BackgroundColor(RED.into()),
-            TweenAnimator::new(tween),
-        ));
+        commands
+            .spawn((
+                Node {
+                    width: Val::Px(size),
+                    height: Val::Px(size),
+                    left: Val::Px(x),
+                    top: Val::Px(10.),
+                    right: Val::Auto,
+                    bottom: Val::Auto,
+                    position_type: PositionType::Absolute,
+                    align_content: AlignContent::Center,
+                    align_items: AlignItems::Center,
+                    align_self: AlignSelf::Center,
+                    justify_content: JustifyContent::Center,
+                    ..default()
+                },
+                BackgroundColor(RED.into()),
+            ))
+            // Automatically insert the animation via the entity command queue
+            .tween(tween);
 
         x += offset_x;
     }
 }
 
-fn update_animation_speed(options: Res<Options>, mut animators: Query<&mut TweenAnimator<Style>>) {
+fn update_animation_speed(options: Res<Options>, mut animators: ResMut<TweenAnimator>) {
     if !options.is_changed() {
         return;
     }
 
-    for mut animator in animators.iter_mut() {
-        animator.set_speed(options.speed);
+    for (_id, anim) in animators.iter_mut() {
+        anim.speed = options.speed;
     }
 }
