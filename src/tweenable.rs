@@ -596,6 +596,13 @@ pub trait Tweenable: Send + Sync {
     fn cycles_completed(&self) -> u32 {
         self.elapsed().div_duration_f64(self.cycle_duration()) as u32
     }
+
+    /// Get the completion fraction in `[0:1]` of the current cycle.
+    fn cycle_fraction(&self) -> f32 {
+        self.elapsed()
+            .div_duration_f64(self.cycle_duration())
+            .fract() as f32
+    }
 }
 
 macro_rules! impl_boxed {
@@ -902,6 +909,7 @@ impl Tween {
     }
 }
 
+#[cfg(feature = "bevy_asset")]
 impl TweenAssetExtensions for Tween {
     #[must_use]
     fn new<A, L>(ease_function: impl Into<EaseMethod>, duration: Duration, mut lens: L) -> Self
@@ -1780,8 +1788,8 @@ mod tests {
 
                                     // Inifinite-repeat unclamped value
                                     let elapsed_ms = if playback_direction.is_forward() {
-                                        // i    | 1    2    3    4    5    6    7    8    9    10   11
-                                        // t(s) | 0.2  0.4  0.6  0.8  1.0  0.8  0.6  0.4  0.2  0.0  0.2
+                                        // i    | 1    2    3    4    5    6    7    8    9    10
+                                        // t(s) | 0.2  0.4  0.6  0.8  1.0  0.8  0.6  0.4  0.2  0.0
                                         ((i - 5) * 200).rem_euclid(2000) - 1000
                                     } else {
                                         // 0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 0.8, 0.6, 0.4, 0.2, 0.0,
