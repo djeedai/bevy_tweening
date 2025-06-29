@@ -1662,10 +1662,10 @@ mod tests {
     fn tween_tick() {
         for playback_direction in [TweeningDirection::Forward, TweeningDirection::Backward] {
             for (count, strategy) in [
-                //(RepeatCount::Finite(1), RepeatStrategy::default()),
-                //(RepeatCount::Infinite, RepeatStrategy::Repeat),
-                //(RepeatCount::Finite(2), RepeatStrategy::Repeat),
-                //(RepeatCount::Infinite, RepeatStrategy::MirroredRepeat),
+                (RepeatCount::Finite(1), RepeatStrategy::default()),
+                (RepeatCount::Infinite, RepeatStrategy::Repeat),
+                (RepeatCount::Finite(2), RepeatStrategy::Repeat),
+                (RepeatCount::Infinite, RepeatStrategy::MirroredRepeat),
                 (RepeatCount::Finite(2), RepeatStrategy::MirroredRepeat),
             ] {
                 println!(
@@ -1780,13 +1780,13 @@ mod tests {
 
                                     // Inifinite-repeat unclamped value
                                     let elapsed_ms = if playback_direction.is_forward() {
-                                        // 0.2, 0.4, 0.6, 0.8, 1.0, 0.8, 0.6, 0.4, 0.2, 0.0, 0.2,
-                                        // 0.4, ...
-                                        (((i - 5000) * 200) % 2000) - 1000
+                                        // i    | 1    2    3    4    5    6    7    8    9    10   11
+                                        // t(s) | 0.2  0.4  0.6  0.8  1.0  0.8  0.6  0.4  0.2  0.0  0.2
+                                        ((i - 5) * 200).rem_euclid(2000) - 1000
                                     } else {
                                         // 0.0, 0.2, 0.4, 0.6, 0.8, 1.0, 0.8, 0.6, 0.4, 0.2, 0.0,
                                         // ...
-                                        (((i + 5) * 200) % 2000) - 1000
+                                        ((i + 5) * 200).rem_euclid(2000) - 1000
                                     }
                                     .abs();
 
@@ -1807,14 +1807,16 @@ mod tests {
 
                                     // Once Completed, the direction doesn't change
                                     let direction = if playback_direction.is_forward() {
+                                        //           v [completion]
                                         // 2468X 86420 00
-                                        // ffffb bbbbf ff
-                                        if (i % 10) >= 5 && i < 10 {
+                                        // ffffb bbbbb bb
+                                        if i >= 5 {
                                             TweeningDirection::Backward
                                         } else {
                                             TweeningDirection::Forward
                                         }
                                     } else {
+                                        //           v [completion]
                                         // 86420 2468X XX
                                         // bbbbb fffff ff
                                         if i <= 5 {
