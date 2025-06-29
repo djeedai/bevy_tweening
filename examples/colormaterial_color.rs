@@ -26,6 +26,7 @@ fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    mut animator: ResMut<TweenAnimator>,
 ) {
     commands.spawn(Camera2d::default());
 
@@ -88,12 +89,14 @@ fn setup(
         .with_repeat_count(RepeatCount::Infinite)
         .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
+        animator.add_asset(unique_material.id(), tween);
+
         commands.spawn((
             Mesh2d(quad_mesh.clone()),
             MeshMaterial2d(unique_material),
             Transform::from_translation(Vec3::new(x, y, 0.)).with_scale(Vec3::splat(size)),
-            AssetAnimator::new(tween),
         ));
+
         y -= size * spacing;
         if y < -screen_y {
             x += size * spacing;

@@ -1,11 +1,12 @@
 use std::{
+    any::TypeId,
     cmp::Ordering,
     ops::{Deref, DerefMut},
     time::Duration,
 };
 
 use bevy::{
-    ecs::{component::Mutable, system::SystemId},
+    ecs::{change_detection::MutUntyped, component::Mutable, system::SystemId},
     prelude::*,
 };
 
@@ -466,38 +467,26 @@ impl<T: Component> Targetable<T> for ComponentTarget<'_, T> {
 
 /// Implementation of [`Targetable`] for an [`Asset`].
 #[cfg(feature = "bevy_asset")]
-pub struct AssetTarget<'a, T: Asset> {
-    assets: Mut<'a, Assets<T>>,
-    /// Handle to the asset to mutate.
-    pub handle: Handle<T>,
+pub struct AssetTarget<'a, A: Asset> {
+    target: Mut<'a, A>,
 }
 
 #[cfg(feature = "bevy_asset")]
-impl<'a, T: Asset> AssetTarget<'a, T> {
+impl<'a, A: Asset> AssetTarget<'a, A> {
     /// Create a new instance from an [`Assets`].
-    pub fn new(assets: Mut<'a, Assets<T>>) -> Self {
-        Self {
-            assets,
-            handle: Handle::Weak(AssetId::default()),
-        }
-    }
-
-    /// Check if the current target is valid given the value of [`handle`].
-    ///
-    /// [`handle`]: AssetTarget::handle
-    pub fn is_valid(&self) -> bool {
-        self.assets.contains(&self.handle)
+    pub fn new(target: Mut<'a, A>) -> Self {
+        Self { target }
     }
 }
 
 #[cfg(feature = "bevy_asset")]
-impl<T: Asset> Targetable<T> for AssetTarget<'_, T> {
-    fn target(&self) -> &T {
-        self.assets.get(&self.handle).unwrap()
+impl<A: Asset> Targetable<A> for AssetTarget<'_, A> {
+    fn target(&self) -> &A {
+        self.target.deref()
     }
 
-    fn target_mut(&mut self) -> &mut T {
-        self.assets.get_mut(&self.handle).unwrap()
+    fn target_mut(&mut self) -> &mut A {
+        self.target.deref_mut()
     }
 }
 
@@ -575,7 +564,7 @@ pub trait Tweenable: Send + Sync {
         &mut self,
         tween_id: TweenId,
         delta: Duration,
-        ent_mut: EntityMut,
+        target: MutUntyped,
         events: Mut<Events<TweenCompleted>>,
     ) -> TweenState;
 
@@ -603,6 +592,30 @@ pub trait Tweenable: Send + Sync {
             .div_duration_f64(self.cycle_duration())
             .fract() as f32
     }
+
+    /// Get the [`TypeId`] this tweenable targets.
+    ///
+    /// This returns the type of the component or resource that the
+    /// [`TweenAnimator`] needs to fetch from the ECS `World` in order to
+    /// resolve the animation target.
+    ///
+    /// - For components, this is the type of the component itself, _e.g._
+    ///   `TypeId::of::<C>()`.
+    /// - For assets, this is **NOT** the type of the asset `A`, but rather the
+    ///   type of the asset container `Assets<A>`. This is because the asset
+    ///   itself is not stored in the ECS `World`, but in the `Assets<A>`
+    ///   container. So we need to retrieve that container from the world, then
+    ///   find the asset by ID inside it.
+    ///
+    /// # Returns
+    ///
+    /// Returns the type of the target, if any, or `None` if this tweenable is
+    /// untyped. Typically only `Delay` is untyped, as this is the only
+    /// tweenable which doesn't actually mutate the target, so it doesn't
+    /// actually have any target associated with it.
+    ///
+    /// [`TweenAnimator`]: crate::TweenAnimator
+    fn type_id(&self) -> Option<TypeId>;
 }
 
 macro_rules! impl_boxed {
@@ -620,8 +633,7 @@ impl_boxed!(Sequence);
 //impl_boxed!(Tracks);
 impl_boxed!(Delay);
 
-type ComponentAction = dyn FnMut(EntityMut, f32) + Send + Sync + 'static;
-type AssetAction = dyn FnMut(&mut World, UntypedHandle, f32) + Send + Sync + 'static;
+type TargetAction = dyn FnMut(MutUntyped, f32) + Send + Sync + 'static;
 
 /// TODO
 pub trait TweenAssetExtensions {
@@ -633,9 +645,8 @@ pub trait TweenAssetExtensions {
 }
 
 enum TweenAction {
-    Component(Box<ComponentAction>),
-    #[allow(dead_code)]
-    Asset(Box<AssetAction>),
+    Component(Box<TargetAction>),
+    Asset(Box<TargetAction>),
 }
 
 /// Single tweening animation instance.
@@ -647,6 +658,8 @@ pub struct Tween {
     action: TweenAction,
     system_id: Option<SystemId>,
     send_completed_event: bool,
+    /// Type ID of the target component or `Assets<A>` resource.
+    type_id: TypeId,
 }
 
 impl Tween {
@@ -703,10 +716,10 @@ impl Tween {
         C: Component<Mutability = Mutable>,
         L: Lens<C> + Send + Sync + 'static,
     {
-        let action = move |mut ent_mut: EntityMut, ratio: f32| {
-            let Some(comp) = ent_mut.get_mut::<C>() else {
-                return; // TODO
-            };
+        let action = move |ptr: MutUntyped, ratio: f32| {
+            // SAFETY: ptr was obtained from the same component type.
+            #[allow(unsafe_code)]
+            let comp = unsafe { ptr.with_type::<C>() };
             let mut target = ComponentTarget::new(comp);
             lens.lerp(&mut target, ratio);
         };
@@ -717,6 +730,36 @@ impl Tween {
             action: TweenAction::Component(Box::new(action)),
             system_id: None,
             send_completed_event: false,
+            type_id: TypeId::of::<C>(),
+        }
+    }
+
+    ///
+    #[must_use]
+    pub fn new_asset<A, L>(
+        ease_function: impl Into<EaseMethod>,
+        duration: Duration,
+        mut lens: L,
+    ) -> Self
+    where
+        A: Asset,
+        L: Lens<A> + Send + Sync + 'static,
+    {
+        let action = move |ptr: MutUntyped, ratio: f32| {
+            // SAFETY: ptr was obtained from the same component type.
+            #[allow(unsafe_code)]
+            let asset = unsafe { ptr.with_type::<A>() };
+            let mut target = AssetTarget::new(asset);
+            lens.lerp(&mut target, ratio);
+        };
+        Self {
+            ease_function: ease_function.into(),
+            clock: AnimClock::new(duration),
+            playback_direction: TweeningDirection::Forward,
+            action: TweenAction::Asset(Box::new(action)),
+            system_id: None,
+            send_completed_event: false,
+            type_id: TypeId::of::<Assets<A>>(),
         }
     }
 
@@ -917,12 +960,12 @@ impl TweenAssetExtensions for Tween {
         A: Asset,
         L: Lens<A> + Send + Sync + 'static,
     {
-        let action = move |world: &mut World, handle: UntypedHandle, ratio: f32| {
-            if let Some(assets) = world.get_resource_mut::<Assets<A>>() {
-                let mut target = AssetTarget::new(assets);
-                target.handle = handle.typed::<A>();
-                lens.lerp(&mut target, ratio);
-            }
+        let action = move |ptr: MutUntyped, ratio: f32| {
+            // SAFETY: ptr was obtained from the same asset type.
+            #[allow(unsafe_code)]
+            let asset = unsafe { ptr.with_type::<A>() };
+            let mut target = AssetTarget::new(asset);
+            lens.lerp(&mut target, ratio);
         };
         Self {
             ease_function: ease_function.into(),
@@ -931,6 +974,7 @@ impl TweenAssetExtensions for Tween {
             action: TweenAction::Asset(Box::new(action)),
             system_id: None,
             send_completed_event: false,
+            type_id: TypeId::of::<Assets<A>>(),
         }
     }
 }
@@ -956,7 +1000,7 @@ impl Tweenable for Tween {
         &mut self,
         tween_id: TweenId,
         delta: Duration,
-        ent_mut: EntityMut,
+        target: MutUntyped,
         mut events: Mut<Events<TweenCompleted>>,
     ) -> TweenState {
         if self.clock.state(self.playback_direction) == TweenState::Completed {
@@ -970,7 +1014,7 @@ impl Tweenable for Tween {
             self.clock.tick_back(delta)
         };
 
-        let entity = ent_mut.id();
+        let target_entity = Entity::PLACEHOLDER; // TODO: ent_mut.id();
 
         // Apply the lens, even if the animation completed, to ensure the state is
         // consistent.
@@ -978,9 +1022,11 @@ impl Tweenable for Tween {
         let fraction = self.ease_function.sample(fraction);
         match &mut self.action {
             TweenAction::Component(action) => {
-                action(ent_mut, fraction);
+                action(target, fraction);
             }
-            _ => (), //debug!("Ignoring call to tick() a component with an asset action."),
+            TweenAction::Asset(action) => {
+                action(target, fraction);
+            }
         };
 
         // If completed at least once this frame, notify the user
@@ -988,7 +1034,7 @@ impl Tweenable for Tween {
             if self.send_completed_event {
                 let event = TweenCompleted {
                     id: tween_id,
-                    entity,
+                    entity: target_entity,
                     progress: fraction,
                 };
 
@@ -1010,6 +1056,10 @@ impl Tweenable for Tween {
 
     fn rewind(&mut self) {
         self.clock.rewind(self.playback_direction);
+    }
+
+    fn type_id(&self) -> Option<TypeId> {
+        Some(self.type_id)
     }
 }
 
@@ -1149,7 +1199,7 @@ impl Tweenable for Sequence {
         &mut self,
         tween_id: TweenId,
         mut delta: Duration,
-        mut ent_mut: EntityMut,
+        mut target: MutUntyped,
         mut events: Mut<Events<TweenCompleted>>,
     ) -> TweenState {
         // Calculate the new elapsed time at the end of this tick
@@ -1165,7 +1215,7 @@ impl Tweenable for Sequence {
 
             let prev_elapsed = tween.elapsed();
 
-            if tween.step(tween_id, delta, ent_mut.reborrow(), events.reborrow())
+            if tween.step(tween_id, delta, target.reborrow(), events.reborrow())
                 == TweenState::Active
             {
                 return TweenState::Active;
@@ -1194,6 +1244,18 @@ impl Tweenable for Sequence {
             // or only first?
             tween.rewind();
         }
+    }
+
+    fn type_id(&self) -> Option<TypeId> {
+        // Loop over all children, because we want to skip all untyped ones (Delay).
+        // Otherwise the animator will panic, because we can't create an untyped
+        // animation.
+        for tween in &self.tweens {
+            if let Some(type_id) = tween.type_id() {
+                return Some(type_id);
+            }
+        }
+        None
     }
 }
 
@@ -1389,7 +1451,7 @@ impl Tweenable for Delay {
         &mut self,
         _tween_id: TweenId,
         delta: Duration,
-        _ent_mut: EntityMut,
+        _target: MutUntyped,
         _events: Mut<Events<TweenCompleted>>,
     ) -> TweenState {
         self.timer.tick(delta);
@@ -1422,6 +1484,10 @@ impl Tweenable for Delay {
 
     fn rewind(&mut self) {
         self.timer.reset();
+    }
+
+    fn type_id(&self) -> Option<TypeId> {
+        None
     }
 }
 
@@ -1585,8 +1651,13 @@ mod tests {
         // Tick the given tween and apply its state to the given entity target
         let state =
             world.resource_scope(|world: &mut World, events: Mut<Events<TweenCompleted>>| {
+                let comp_id = world.component_id::<Transform>().unwrap();
                 let entity_mut = &mut world.get_entity_mut([entity]).unwrap()[0];
-                tween.step(tween_id, duration, entity_mut.reborrow(), events)
+                if let Ok(mut target) = entity_mut.get_mut_by_id(comp_id) {
+                    tween.step(tween_id, duration, target.reborrow(), events)
+                } else {
+                    TweenState::Completed
+                }
             });
 
         // Propagate events

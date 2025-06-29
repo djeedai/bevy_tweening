@@ -995,16 +995,15 @@ mod tests {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
             let mut caller = MaybeLocation::caller();
+            let asset = assets.get_mut(handle.id()).unwrap();
             let mut target = AssetTarget::new(Mut::new(
-                &mut assets,
+                asset,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
                 caller.as_mut(),
             ));
-            target.handle = handle.clone();
-
             lens.lerp(&mut target, 0.);
         }
         assert_eq!(assets.get(handle.id()).unwrap().color, RED.into());
@@ -1013,16 +1012,15 @@ mod tests {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
             let mut caller = MaybeLocation::caller();
+            let asset = assets.get_mut(handle.id()).unwrap();
             let mut target = AssetTarget::new(Mut::new(
-                &mut assets,
+                asset,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
                 caller.as_mut(),
             ));
-            target.handle = handle.clone();
-
             lens.lerp(&mut target, 1.);
         }
         assert_eq!(assets.get(handle.id()).unwrap().color, BLUE.into());
@@ -1031,16 +1029,15 @@ mod tests {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
             let mut caller = MaybeLocation::caller();
+            let asset = assets.get_mut(handle.id()).unwrap();
             let mut target = AssetTarget::new(Mut::new(
-                &mut assets,
+                asset,
                 &mut added,
                 &mut last_changed,
                 Tick::new(0),
                 Tick::new(0),
                 caller.as_mut(),
             ));
-            target.handle = handle.clone();
-
             lens.lerp(&mut target, 0.3);
         }
         assert_eq!(
