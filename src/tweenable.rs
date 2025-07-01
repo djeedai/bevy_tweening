@@ -1,9 +1,4 @@
-use std::{
-    any::TypeId,
-    cmp::Ordering,
-    ops::{Deref, DerefMut},
-    time::Duration,
-};
+use std::{any::TypeId, cmp::Ordering, time::Duration};
 
 use bevy::{
     ecs::{change_detection::MutUntyped, component::Mutable, system::SystemId},
@@ -406,90 +401,6 @@ impl Ord for TotalDuration {
     }
 }
 
-// TODO - Targetable et al. should be replaced with Mut->Mut from Bevy 0.9
-// https://github.com/bevyengine/bevy/pull/6199
-// However this is blocked on the impossibility to get a Mut<R: Resource> from a
-// ResMut<Assets<R>> without triggering change detection.
-// https://github.com/bevyengine/bevy/issues/13104
-
-/// Trait to workaround the discrepancies of the change detection mechanisms of
-/// assets and components.
-pub trait Targetable<T> {
-    /// Dereference the target and return a reference.
-    fn target(&self) -> &T;
-
-    /// Dereference the target, triggering any change detection, and return a
-    /// mutable reference.
-    fn target_mut(&mut self) -> &mut T;
-}
-
-impl<'a, T: 'a> Deref for dyn Targetable<T> + 'a {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        self.target()
-    }
-}
-
-impl<'a, T: 'a> DerefMut for dyn Targetable<T> + 'a {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.target_mut()
-    }
-}
-
-/// Implementation of [`Targetable`] for a [`Component`].
-pub struct ComponentTarget<'a, T: Component> {
-    target: Mut<'a, T>,
-}
-
-impl<'a, T: Component> ComponentTarget<'a, T> {
-    /// Create a new instance from a [`Component`].
-    pub fn new(target: Mut<'a, T>) -> Self {
-        Self { target }
-    }
-
-    /// Get a [`Mut`] for the current target.
-    #[allow(dead_code)] // used mainly in tests
-    pub fn to_mut(&mut self) -> Mut<'_, T> {
-        self.target.reborrow()
-    }
-}
-
-impl<T: Component> Targetable<T> for ComponentTarget<'_, T> {
-    fn target(&self) -> &T {
-        self.target.deref()
-    }
-
-    fn target_mut(&mut self) -> &mut T {
-        self.target.deref_mut()
-    }
-}
-
-/// Implementation of [`Targetable`] for an [`Asset`].
-#[cfg(feature = "bevy_asset")]
-pub struct AssetTarget<'a, A: Asset> {
-    target: Mut<'a, A>,
-}
-
-#[cfg(feature = "bevy_asset")]
-impl<'a, A: Asset> AssetTarget<'a, A> {
-    /// Create a new instance from an [`Assets`].
-    pub fn new(target: Mut<'a, A>) -> Self {
-        Self { target }
-    }
-}
-
-#[cfg(feature = "bevy_asset")]
-impl<A: Asset> Targetable<A> for AssetTarget<'_, A> {
-    fn target(&self) -> &A {
-        self.target.deref()
-    }
-
-    fn target_mut(&mut self) -> &mut A {
-        self.target.deref_mut()
-    }
-}
-
 /// An animatable entity, either a single [`Tween`] or a collection of them.
 pub trait Tweenable: Send + Sync {
     /// Get the duration of a single cycle of the animation.
@@ -717,11 +628,11 @@ impl Tween {
         L: Lens<C> + Send + Sync + 'static,
     {
         let action = move |ptr: MutUntyped, ratio: f32| {
-            // SAFETY: ptr was obtained from the same component type.
+            // SAFETY: ptr was obtained from the same component type, via the type_id saved
+            // below.
             #[allow(unsafe_code)]
             let comp = unsafe { ptr.with_type::<C>() };
-            let mut target = ComponentTarget::new(comp);
-            lens.lerp(&mut target, ratio);
+            lens.lerp(comp, ratio);
         };
         Self {
             ease_function: ease_function.into(),
@@ -749,8 +660,7 @@ impl Tween {
             // SAFETY: ptr was obtained from the same component type.
             #[allow(unsafe_code)]
             let asset = unsafe { ptr.with_type::<A>() };
-            let mut target = AssetTarget::new(asset);
-            lens.lerp(&mut target, ratio);
+            lens.lerp(asset, ratio);
         };
         Self {
             ease_function: ease_function.into(),
@@ -964,8 +874,7 @@ impl TweenAssetExtensions for Tween {
             // SAFETY: ptr was obtained from the same asset type.
             #[allow(unsafe_code)]
             let asset = unsafe { ptr.with_type::<A>() };
-            let mut target = AssetTarget::new(asset);
-            lens.lerp(&mut target, ratio);
+            lens.lerp(asset, ratio);
         };
         Self {
             ease_function: ease_function.into(),
@@ -1495,6 +1404,8 @@ impl Tweenable for Delay {
 mod tests {
     // use std::sync::{Arc, Mutex};
 
+    use std::ops::{Deref as _, DerefMut as _};
+
     use bevy::ecs::{
         change_detection::MaybeLocation, component::Tick, event::Events, system::SystemState,
     };
@@ -1680,15 +1591,14 @@ mod tests {
         let mut added = Tick::new(0);
         let mut last_changed = Tick::new(0);
         let mut caller = MaybeLocation::caller();
-        let mut target = ComponentTarget::new(Mut::new(
+        let mut target = Mut::new(
             &mut c,
             &mut added,
             &mut last_changed,
             Tick::new(0),
             Tick::new(1),
             caller.as_mut(),
-        ));
-        let mut target = target.to_mut();
+        );
 
         // No-op at start
         assert!(!target.is_added());

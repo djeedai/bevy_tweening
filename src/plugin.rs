@@ -261,7 +261,7 @@ mod tests {
     }
 
     impl Lens<DummyComponent> for ConditionalDeferLens {
-        fn lerp(&mut self, target: &mut dyn Targetable<DummyComponent>, ratio: f32) {
+        fn lerp(&mut self, mut target: Mut<DummyComponent>, ratio: f32) {
             if self.defer.load(Ordering::SeqCst) {
                 target.deref_mut().value += ratio;
             }

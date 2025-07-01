@@ -214,11 +214,9 @@ use bevy::{
 pub use lens::Lens;
 pub use plugin::{AnimationSystem, TweeningPlugin};
 use slotmap::{new_key_type, SlotMap};
-#[cfg(feature = "bevy_asset")]
-pub use tweenable::AssetTarget;
 pub use tweenable::{
-    BoxedTweenable, ComponentTarget, Delay, Sequence, Targetable, TotalDuration, Tween,
-    TweenAssetExtensions, TweenCompleted, TweenState, Tweenable,
+    BoxedTweenable, Delay, Sequence, TotalDuration, Tween, TweenAssetExtensions, TweenCompleted,
+    TweenState, Tweenable,
 };
 
 pub mod lens;
@@ -909,7 +907,6 @@ mod tests {
     use bevy::ecs::{change_detection::MaybeLocation, component::Tick};
     use slotmap::Key as _;
 
-    use self::tweenable::ComponentTarget;
     use super::*;
     use crate::test_utils::*;
 
@@ -930,7 +927,7 @@ mod tests {
     }
 
     impl Lens<DummyComponent> for DummyLens {
-        fn lerp(&mut self, target: &mut dyn Targetable<DummyComponent>, ratio: f32) {
+        fn lerp(&mut self, mut target: Mut<DummyComponent>, ratio: f32) {
             target.value = self.start.lerp(self.end, ratio);
         }
     }
@@ -944,18 +941,18 @@ mod tests {
                 let mut added = Tick::new(0);
                 let mut last_changed = Tick::new(0);
                 let mut caller = MaybeLocation::caller();
-                let mut target = ComponentTarget::new(Mut::new(
+                let mut target = Mut::new(
                     &mut c,
                     &mut added,
                     &mut last_changed,
                     Tick::new(0),
                     Tick::new(1),
                     caller.as_mut(),
-                ));
+                );
 
-                l.lerp(&mut target, r);
+                l.lerp(target.reborrow(), r);
 
-                assert!(target.to_mut().is_changed());
+                assert!(target.is_changed());
             }
 
             assert_approx_eq!(c.value, r);
@@ -964,7 +961,7 @@ mod tests {
 
     #[cfg(feature = "bevy_asset")]
     impl Lens<DummyAsset> for DummyLens {
-        fn lerp(&mut self, target: &mut dyn Targetable<DummyAsset>, ratio: f32) {
+        fn lerp(&mut self, mut target: Mut<DummyAsset>, ratio: f32) {
             target.value = self.start.lerp(self.end, ratio);
         }
     }
@@ -972,8 +969,6 @@ mod tests {
     #[cfg(feature = "bevy_asset")]
     #[test]
     fn dummy_lens_asset() {
-        use self::tweenable::AssetTarget;
-
         let mut assets = Assets::<DummyAsset>::default();
         let handle = assets.add(DummyAsset::default());
 
@@ -984,15 +979,15 @@ mod tests {
                 let mut last_changed = Tick::new(0);
                 let mut caller = MaybeLocation::caller();
                 let asset = assets.get_mut(handle.id()).unwrap();
-                let mut target = AssetTarget::new(Mut::new(
+                let target = Mut::new(
                     asset,
                     &mut added,
                     &mut last_changed,
                     Tick::new(0),
                     Tick::new(0),
                     caller.as_mut(),
-                ));
-                l.lerp(&mut target, r);
+                );
+                l.lerp(target, r);
             }
             assert_approx_eq!(assets.get(handle.id()).unwrap().value, r);
         }
