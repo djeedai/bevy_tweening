@@ -5,6 +5,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+_This change introduces a major API redesign, which removes the need for generics,
+and unifies all animations of all components and assets._
+
+### Added
+
+- Added `TweenId`, a unique identifier for a currently active animation.
+- Added `TotalDuration::from_cycles()` to simply creating an animation duration
+  from a number of individual cycles and their duration.
+- Added `TotalDuration::is_finite()` helper to check an animation duration is finite.
+- Added `TotalDuration::as_finite()` helper to convert an animation duration into
+  a `Duration` type if it's finite.
+- Implemented various operations on `TotalDuration`: `From<Duration>`, `Add`, `Sum`,
+  `PartialOrd`, `Ord`.
+- Added `Tweenable::cycle_fraction()` to query the current position of the animation
+  inside a cycle. This is roughly equivalent to the previous `progress()`.
+- Added `Tween::cycle_fraction()` and `Tween::cycle_index()` to query the position
+  of the animation inside a cycle and the cycle number, respectively.
+- Added helper `Tween::is_cycle_mirrored()`, which returns `true` if the playback
+  of the current cycle the animation is at is mirrored.
+  This always returns `false` unless `RepeatStrategy::MirroredRepeat` is used,
+  and the animation contains more than 1 cycle.
+
+### Changed
+
+- The `Lens<T>` trait now takes its target as `Mut<T>` instead of `&mut dyn Targetable<T>`.
+
+  ```rust
+  fn lerp(&mut self, target: Mut<T>, ratio: f32)
+  ```
+
+- The following types lost their generic parameter:
+  - `Tweenable`
+  - `Tween`
+  - `Sequence`
+  - `Delay`
+- `Tweenable::duration()` was renamed to `Tweenable::cycle_duration()` for clarity.
+- `Tweenable::times_completed()` was renamed to `Tweenable::cycles_completed()` for clarity.
+- `Tweenable::tick()` was renamed to `Tweenable::step()`, to insist on the fact
+  the step computes a new state, but doesn't necessarily moves any time back or forth.
+- `Tween::with_completed_event()` doesn't take `user_data` anymore, which was removed.
+  Instead it takes a `bool` indicating whether to send completion events or not.
+- Renamed `Tween<T>::set_direction()` into `Tween::set_playback_direction()` for clarity,
+  and `Tween<T>::direction()` into `Tween::playback_direction()`.
+  Note the clarified semantic of playback direction vs. mirroring repeat;
+  see the migration guide for details.
+- Renamed `AnimatorState` into `PlaybackState` for clarity.
+- Renamed `TweeningDirection` into `PlaybackDirection` to clarify the fact it only affects
+  animation playback, and is completely unrelated to cycle mirroring repeat.
+
+### Removed
+
+- Removed `Tracks<T>`. Use multiple animations instead.
+- Removed `Targetable`, `ComponentTarget`, `AssetTarget`. Those were workarounds
+  for the inability to use `Mut<T>` directly. In Bevy 0.16 they're not necessary.
+- Removed all references to "progress" in all APIs, in favor of `Duration`s.
+- Removed the `user_data` value from completed events.
+- Removed callback-based completion events. Use Bevy-style events or one-shot systems instead.
+
 ## [0.13.0] - 2025-04-28
 
 ### Changed

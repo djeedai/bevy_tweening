@@ -266,36 +266,33 @@ impl From<Duration> for RepeatCount {
     }
 }
 
-/// What to do when a tween animation needs to be repeated.
+/// Repeat strategy for animation cycles.
 ///
-/// Only applicable when [`RepeatCount`] is greater than the animation duration.
+/// Only applicable when [`RepeatCount`] is greater than the total duration of
+/// the tweenable animation.
 ///
 /// Default: `Repeat`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
 pub enum RepeatStrategy {
-    /// Reset the animation back to its starting position.
+    /// Reset the cycle back to its starting position.
     ///
-    /// When playback reaches the end of the animation, it jumps directly back
-    /// to the animation start. This can create discontinuities if the animation
-    /// is not authored to be looping.
+    /// When playback reaches the end of the animation cycle, it jumps directly
+    /// back to the cycle start. This can create discontinuities if the
+    /// animation is not authored to be looping.
+    #[default]
     Repeat,
-    /// Follow a ping-pong pattern, changing the direction each time an endpoint
-    /// is reached.
+
+    /// Follow a ping-pong pattern, changing the cycle direction each time an
+    /// endpoint is reached.
     ///
-    /// A complete cycle start -> end -> start always counts as 2 loop
-    /// iterations for the various operations where looping matters. That
-    /// is, a 1 second animation will take 2 seconds to end up back where it
-    /// started.
+    /// A complete loop start -> end -> start always counts as 2 cycles for the
+    /// various operations where cycle count matters. That is, an animation with
+    /// a 1-second cycle and a mirrored repeat strategy will take 2 seconds
+    /// to end up back in the state where it started.
     ///
     /// This strategy ensures that there's no discontinuity in the animation,
     /// since there's no jump.
     MirroredRepeat,
-}
-
-impl Default for RepeatStrategy {
-    fn default() -> Self {
-        Self::Repeat
-    }
 }
 
 /// Playback state of a [`TweenAnim`].
@@ -323,16 +320,16 @@ impl std::ops::Not for PlaybackState {
 
 /// Describe how eased value should be computed.
 ///
-/// This function is applied to the animation fraction `t` representing the
-/// playback position over the animation duration. The result is used to
-/// interpolate the animator target.
+/// This function is applied to the cycle fraction `t` representing the playback
+/// position over the cycle duration. The result is used to interpolate the
+/// animation target.
 ///
 /// In general a [`Lens`] should perform a linear interpolation over its target,
 /// and the non-linear behavior (for example, bounciness, etc.) comes from this
 /// function. This ensures the same [`Lens`] can be reused in multiple contexts,
 /// while the "shape" of the animation is controlled independently.
 ///
-/// Default: `Linear`.
+/// Default: `EaseFunction::Linear`.
 #[derive(Clone, Copy)]
 pub enum EaseMethod {
     /// Follow [`EaseFunction`].
@@ -340,7 +337,11 @@ pub enum EaseMethod {
     /// Discrete interpolation. The eased value will jump from start to end when
     /// stepping over the discrete limit, which must be value between 0 and 1.
     Discrete(f32),
-    /// Use a custom function to interpolate the value.
+    /// Use a custom function to interpolate the value. The function is called
+    /// with the cycle ratio, in `[0:1]`, as parameter, and must return the
+    /// easing factor, typically also in `[0:1]`. Note that values outside this
+    /// unit range may not work well with some animations; for example if
+    /// animating a color, a negative red values have no meaning.
     CustomFunction(fn(f32) -> f32),
 }
 
@@ -375,51 +376,43 @@ impl From<EaseFunction> for EaseMethod {
 
 /// Direction a tweening animation is playing.
 ///
-/// When playing a tweenable forward, the progress values `0` and `1` are
-/// respectively mapped to the start and end bounds of the lens(es) being used.
-/// Conversely, when playing backward, this mapping is reversed, such that a
-/// progress value of `0` corresponds to the state of the target at the end
-/// bound of the lens, while a progress value of `1` corresponds to the state of
-/// that target at the start bound of the lens, effectively making the animation
-/// play backward.
+/// The playback direction determines if the delta animation time passed to
+/// [`Tweenable::step()`], generally by the [`TweenAnimator`], is added or
+/// subtracted to the current time position on the animation's timeline.
+/// - In `Forward` direction, time passes forward from `t=0` to the total
+///   duration of the animation.
+/// - Conversely, in `Backward` direction, time passes backward from the total
+///   duration back to `t=0`.
 ///
-/// For all but [`RepeatStrategy::MirroredRepeat`] this is always
-/// [`TweeningDirection::Forward`], unless manually configured with
-/// [`Tween::set_direction()`] in which case the value is constant equal to the
-/// value set. When using [`RepeatStrategy::MirroredRepeat`], this is either
-/// forward (from start to end; ping) or backward (from end to start; pong),
-/// depending on the current iteration of the loop.
+/// Note that backward playback is supported for infinite animations (when the
+/// repeat count is [`RepeatCount::Infinite`]), but [`Tweenable::rewind()`] is
+/// not supported and will panic.
 ///
 /// Default: `Forward`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum TweeningDirection {
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum PlaybackDirection {
     /// Animation playing from start to end.
+    #[default]
     Forward,
     /// Animation playing from end to start, in reverse.
     Backward,
 }
 
-impl TweeningDirection {
-    /// Is the direction equal to [`TweeningDirection::Forward`]?
+impl PlaybackDirection {
+    /// Is the direction equal to [`PlaybackDirection::Forward`]?
     #[must_use]
     pub fn is_forward(&self) -> bool {
         *self == Self::Forward
     }
 
-    /// Is the direction equal to [`TweeningDirection::Backward`]?
+    /// Is the direction equal to [`PlaybackDirection::Backward`]?
     #[must_use]
     pub fn is_backward(&self) -> bool {
         *self == Self::Backward
     }
 }
 
-impl Default for TweeningDirection {
-    fn default() -> Self {
-        Self::Forward
-    }
-}
-
-impl std::ops::Not for TweeningDirection {
+impl std::ops::Not for PlaybackDirection {
     type Output = Self;
 
     fn not(self) -> Self::Output {
@@ -431,13 +424,18 @@ impl std::ops::Not for TweeningDirection {
 }
 
 new_key_type! {
-    /// Unique identifier for a tweenable.
+    /// Unique identifier for a tweenable animation currently registered with the [`TweenAnimator`].
     pub struct TweenId;
 }
 
 /// Extensions for [`EntityCommands`] to queue tween-based animations.
 pub trait EntityCommandsTweeningExtensions<'a> {
     /// Queue the given [`Tweenable`].
+    ///
+    /// This calls [`TweenAnimator::add()`] on the current entity, deriving the
+    /// proper component to animate based on the type of the lens stored in the
+    /// tweenable (see [`Tweenable::type_id()`]). That component must exists on
+    /// the entity.
     fn tween<T>(&mut self, tweenable: T) -> &mut Self
     where
         T: Tweenable + 'static;
@@ -446,12 +444,18 @@ pub trait EntityCommandsTweeningExtensions<'a> {
     ///
     /// The entity must have a [`Transform`] component. The tween animation will
     /// be initialized with the current [`Transform::translation`] as its
-    /// starting point, and the given endpoint and duration.
+    /// starting point, and the given endpoint and duration. The ease mode is
+    /// linear.
     ///
     /// Note that the starting point position is saved when the command is
     /// applied, generally after the current system when [`apply_deferred()`]
     /// runs. So any change to [`Transform::translation`] between this call and
     /// [`apply_deferred()`] will be taken into account.
+    ///
+    /// This function is a fire-and-forget convenience helper, and doesn't give
+    /// access to the [`TweenId`] created. To retrieve the ID and control
+    /// the animation playback, directly add the tweenable via
+    /// [`TweenAnimator::add()`].
     fn move_to(&mut self, end: Vec3, duration: Duration) -> &mut Self;
 }
 
@@ -557,12 +561,20 @@ pub struct TweenAnim {
 
 impl TweenAnim {
     /// Create a new tween animation.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the tweenable is "typeless", that is [`Tweenable::type_id()`]
+    /// returns `None`. Root animations enqueued in the [`TweenAnimator`] must
+    /// target a concrete component or asset type. This means in particular
+    /// that you can't insert a single [`Delay`]. You can however use a
+    /// [`Delay`] or other typeless tweenables as part of a [`Sequence`],
+    /// provided there's at least one other typed tweenable in the sequence.
     pub fn new(target: Entity, tweenable: impl Tweenable + 'static) -> Self {
         let type_id = tweenable.type_id().expect(
             "Typeless tweenable like Delay can't be inserted as root tweenable in an animation.",
         );
         Self {
-            //target: AnimTarget::Entity(target),
             target: AnimTarget::Entity {
                 type_id,
                 entity: target,
@@ -574,6 +586,23 @@ impl TweenAnim {
     }
 
     /// Create a new tween animation for an asset.
+    ///
+    /// The `type_id` must be `TypeId::of::<Assets<A>>`, where `A: Asset` is the
+    /// asset type to animate. The `asset_id` is the type-erased ID of the
+    /// actual asset, as stored in the `Assets<A>` container.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the tweenable is "typeless", that is [`Tweenable::type_id()`]
+    /// returns `None`. Root animations enqueued in the [`TweenAnimator`] must
+    /// target a concrete component or asset type. This means in particular
+    /// that you can't insert a single [`Delay`]. You can however use a
+    /// [`Delay`] or other typeless tweenables as part of a [`Sequence`],
+    /// provided there's at least one other typed tweenable in the sequence.
+    ///
+    /// Panics if the tweenable type is different from the `type_id` parameter,
+    /// which identified the type of the [`Assets`] container storing the asset
+    /// to animate.
     pub fn new_asset(
         type_id: TypeId,
         asset_id: UntypedAssetId,
@@ -597,8 +626,14 @@ impl TweenAnim {
 
     /// Stop animation playback and rewind the animation.
     ///
-    /// This changes the animator state to [`AnimatorState::Paused`] and  rewind
+    /// This changes the animator state to [`PlaybackState::Paused`] and rewinds
     /// its tweenable.
+    ///
+    /// # Panics
+    ///
+    /// Like [`Tweenable::rewind()`], this panics if the current playback
+    /// direction is [`PlaybackDirection::Backward`] and the animation is
+    /// infinitely repeating.
     pub fn stop(&mut self) {
         self.state = PlaybackState::Paused;
         self.tweenable.rewind();
@@ -1007,8 +1042,8 @@ mod tests {
 
     #[test]
     fn tweening_direction() {
-        let tweening_direction = TweeningDirection::default();
-        assert_eq!(tweening_direction, TweeningDirection::Forward);
+        let tweening_direction = PlaybackDirection::default();
+        assert_eq!(tweening_direction, PlaybackDirection::Forward);
     }
 
     #[test]

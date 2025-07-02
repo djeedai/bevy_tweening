@@ -5,7 +5,7 @@ use bevy::{
     prelude::*,
 };
 
-use crate::{EaseMethod, Lens, RepeatCount, RepeatStrategy, TweenId, TweeningDirection};
+use crate::{EaseMethod, Lens, PlaybackDirection, RepeatCount, RepeatStrategy, TweenId};
 
 /// The dynamic tweenable type.
 ///
@@ -151,7 +151,7 @@ impl AnimClock {
         };
 
         let (state, mut times_completed) =
-            self.set_elapsed(next_elapsed, TweeningDirection::Forward);
+            self.set_elapsed(next_elapsed, PlaybackDirection::Forward);
 
         if extra_completed > 0 && (times_completed < 0) {
             // The clock looped around, so returns -1. But we're already counting that loop
@@ -195,7 +195,7 @@ impl AnimClock {
             };
         };
 
-        self.set_elapsed(next_elapsed, TweeningDirection::Backward)
+        self.set_elapsed(next_elapsed, PlaybackDirection::Backward)
     }
 
     /// Get the elapsed cycle index, accounting for finite clock endpoint.
@@ -260,7 +260,7 @@ impl AnimClock {
     fn set_elapsed(
         &mut self,
         elapsed: Duration,
-        direction: TweeningDirection,
+        direction: PlaybackDirection,
     ) -> (TweenState, i32) {
         let old_times_completed = self.times_completed();
 
@@ -292,7 +292,7 @@ impl AnimClock {
         self.elapsed
     }
 
-    fn state(&self, playback_direction: TweeningDirection) -> TweenState {
+    fn state(&self, playback_direction: PlaybackDirection) -> TweenState {
         match self.total_duration {
             TotalDuration::Finite(total_duration) => {
                 if playback_direction.is_forward() && self.elapsed >= total_duration {
@@ -307,10 +307,10 @@ impl AnimClock {
         }
     }
 
-    fn rewind(&mut self, direction: TweeningDirection) {
+    fn rewind(&mut self, direction: PlaybackDirection) {
         self.elapsed = match direction {
-            TweeningDirection::Forward => Duration::ZERO,
-            TweeningDirection::Backward => self.total_duration.as_finite().unwrap(),
+            PlaybackDirection::Forward => Duration::ZERO,
+            PlaybackDirection::Backward => self.total_duration.as_finite().unwrap(),
         };
     }
 }
@@ -458,7 +458,7 @@ pub trait Tweenable: Send + Sync {
     ///
     /// Advance the internal clock of the animation by the specified amount of
     /// time. If the animation is currently playing backward
-    /// ([`TweeningDirection::Backward`]), the clock moves backward and the
+    /// ([`PlaybackDirection::Backward`]), the clock moves backward and the
     /// `delta` duration is subtracted from the [`elapsed()`] time instead of
     /// being added to it.
     ///
@@ -482,8 +482,14 @@ pub trait Tweenable: Send + Sync {
     /// Rewind the animation to its starting state.
     ///
     /// Note that the starting state depends on the current direction. For
-    /// [`TweeningDirection::Forward`] this is the start point of the lens,
-    /// whereas for [`TweeningDirection::Backward`] this is the end one.
+    /// [`PlaybackDirection::Forward`] this is the start point of the lens,
+    /// whereas for [`PlaybackDirection::Backward`] this is the end one.
+    ///
+    /// # Panics
+    ///
+    /// This panics if the current playback direction is
+    /// [`PlaybackDirection::Backward`] and the animation is infinitely
+    /// repeating.
     fn rewind(&mut self);
 
     /// Get the number of cycles completed.
@@ -565,7 +571,7 @@ pub struct Tween {
     ease_function: EaseMethod,
     clock: AnimClock,
     /// Direction of playback the user asked for.
-    playback_direction: TweeningDirection,
+    playback_direction: PlaybackDirection,
     action: TweenAction,
     system_id: Option<SystemId>,
     send_completed_event: bool,
@@ -637,7 +643,7 @@ impl Tween {
         Self {
             ease_function: ease_function.into(),
             clock: AnimClock::new(duration),
-            playback_direction: TweeningDirection::Forward,
+            playback_direction: PlaybackDirection::Forward,
             action: TweenAction::Component(Box::new(action)),
             system_id: None,
             send_completed_event: false,
@@ -665,7 +671,7 @@ impl Tween {
         Self {
             ease_function: ease_function.into(),
             clock: AnimClock::new(duration),
-            playback_direction: TweeningDirection::Forward,
+            playback_direction: PlaybackDirection::Forward,
             action: TweenAction::Asset(Box::new(action)),
             system_id: None,
             send_completed_event: false,
@@ -777,7 +783,7 @@ impl Tween {
     /// Changing the direction doesn't change any target state, nor the elapsed
     /// time of the tween. Only the direction of playback from this moment
     /// potentially changes.
-    pub fn set_playback_direction(&mut self, direction: TweeningDirection) {
+    pub fn set_playback_direction(&mut self, direction: PlaybackDirection) {
         self.playback_direction = direction;
     }
 
@@ -785,7 +791,7 @@ impl Tween {
     ///
     /// See [`Tween::set_playback_direction()`].
     #[must_use]
-    pub fn with_playback_direction(mut self, direction: TweeningDirection) -> Self {
+    pub fn with_playback_direction(mut self, direction: PlaybackDirection) -> Self {
         self.playback_direction = direction;
         self
     }
@@ -795,12 +801,12 @@ impl Tween {
     /// This is the value set by the user with [`with_playback_direction()`] and
     /// [`set_playback_direction()`]. This is never changed by the playback.
     ///
-    /// See [`TweeningDirection`] for details.
+    /// See [`PlaybackDirection`] for details.
     ///
     /// [`with_playback_direction()`]: Self::with_playback_direction
     /// [`set_playback_direction()`]: Self::set_playback_direction
     #[must_use]
-    pub fn playback_direction(&self) -> TweeningDirection {
+    pub fn playback_direction(&self) -> PlaybackDirection {
         self.playback_direction
     }
 
@@ -879,7 +885,7 @@ impl TweenAssetExtensions for Tween {
         Self {
             ease_function: ease_function.into(),
             clock: AnimClock::new(duration),
-            playback_direction: TweeningDirection::Forward,
+            playback_direction: PlaybackDirection::Forward,
             action: TweenAction::Asset(Box::new(action)),
             system_id: None,
             send_completed_event: false,
@@ -1426,7 +1432,7 @@ mod tests {
         // The direction passed to AnimClock::set_elapsed() only affects the returned
         // state, which is not tested in this test, so passing any value should produce
         // the same test result here.
-        for dummy in [TweeningDirection::Forward, TweeningDirection::Backward] {
+        for dummy in [PlaybackDirection::Forward, PlaybackDirection::Backward] {
             let cycle_duration = Duration::from_millis(100);
             let repeat_count = 4;
             let total_duration = cycle_duration * repeat_count;
@@ -1649,7 +1655,7 @@ mod tests {
     /// Test ticking of a single tween in isolation.
     #[test]
     fn tween_tick() {
-        for playback_direction in [TweeningDirection::Forward, TweeningDirection::Backward] {
+        for playback_direction in [PlaybackDirection::Forward, PlaybackDirection::Backward] {
             for (count, strategy) in [
                 (RepeatCount::Finite(1), RepeatStrategy::default()),
                 (RepeatCount::Infinite, RepeatStrategy::Repeat),
@@ -1678,7 +1684,7 @@ mod tests {
                     .total_duration()
                     .as_finite()
                     .unwrap_or(Duration::from_secs(1));
-                if playback_direction == TweeningDirection::Backward {
+                if playback_direction == PlaybackDirection::Backward {
                     // Seek to end, so that backward playback actually does something
                     tween.set_elapsed(backward_start_time);
                 }
@@ -1718,7 +1724,7 @@ mod tests {
                                 (
                                     elapsed_ms,
                                     elapsed_ms as f32 / 1000.0,
-                                    TweeningDirection::Forward,
+                                    PlaybackDirection::Forward,
                                     state,
                                     just_completed,
                                 )
@@ -1759,7 +1765,7 @@ mod tests {
                                     (
                                         elapsed_ms,
                                         factor,
-                                        TweeningDirection::Forward,
+                                        PlaybackDirection::Forward,
                                         state,
                                         just_completed,
                                     )
@@ -1800,18 +1806,18 @@ mod tests {
                                         // 2468X 86420 00
                                         // ffffb bbbbb bb
                                         if i >= 5 {
-                                            TweeningDirection::Backward
+                                            PlaybackDirection::Backward
                                         } else {
-                                            TweeningDirection::Forward
+                                            PlaybackDirection::Forward
                                         }
                                     } else {
                                         //           v [completion]
                                         // 86420 2468X XX
                                         // bbbbb fffff ff
                                         if i <= 5 {
-                                            TweeningDirection::Backward
+                                            PlaybackDirection::Backward
                                         } else {
-                                            TweeningDirection::Forward
+                                            PlaybackDirection::Forward
                                         }
                                     };
 
@@ -1831,7 +1837,7 @@ mod tests {
                                     (
                                         elapsed_ms,
                                         elapsed_ms as f32 / 1000.0,
-                                        TweeningDirection::Forward,
+                                        PlaybackDirection::Forward,
                                         TweenState::Active,
                                         just_completed,
                                     )
@@ -1858,17 +1864,17 @@ mod tests {
                                         // 2468X 86420 24
                                         // ffffb bbbbf ff
                                         if (i % 10) >= 5 {
-                                            TweeningDirection::Backward
+                                            PlaybackDirection::Backward
                                         } else {
-                                            TweeningDirection::Forward
+                                            PlaybackDirection::Forward
                                         }
                                     } else {
                                         // 86420 2468X 86
                                         // bbbbb fffff bb
                                         if ((i - 1) % 10) >= 5 {
-                                            TweeningDirection::Backward
+                                            PlaybackDirection::Backward
                                         } else {
-                                            TweeningDirection::Forward
+                                            PlaybackDirection::Forward
                                         }
                                     };
                                     let just_completed = (i % 5) == 0;
@@ -1935,7 +1941,7 @@ mod tests {
 
                 // Can't rewind infinite tweens moving backward, they don't have an endpoint
                 if tween.total_duration().is_finite()
-                    || (playback_direction != TweeningDirection::Backward)
+                    || (playback_direction != PlaybackDirection::Backward)
                 {
                     // Rewind
                     println!("+ Rewind");
@@ -1995,31 +2001,31 @@ mod tests {
         let mut tween = make_test_tween();
 
         // Default
-        assert_eq!(tween.playback_direction(), TweeningDirection::Forward);
+        assert_eq!(tween.playback_direction(), PlaybackDirection::Forward);
         assert_eq!(tween.elapsed(), Duration::ZERO);
 
         // no-op
-        tween.set_playback_direction(TweeningDirection::Forward);
-        assert_eq!(tween.playback_direction(), TweeningDirection::Forward);
+        tween.set_playback_direction(PlaybackDirection::Forward);
+        assert_eq!(tween.playback_direction(), PlaybackDirection::Forward);
         assert_eq!(tween.elapsed(), Duration::ZERO);
 
         // Backward
-        tween.set_playback_direction(TweeningDirection::Backward);
-        assert_eq!(tween.playback_direction(), TweeningDirection::Backward);
+        tween.set_playback_direction(PlaybackDirection::Backward);
+        assert_eq!(tween.playback_direction(), PlaybackDirection::Backward);
         assert_eq!(tween.elapsed(), Duration::ZERO);
 
         // Elapsed-invariant
         let d300 = Duration::from_millis(300);
-        tween.set_playback_direction(TweeningDirection::Forward);
+        tween.set_playback_direction(PlaybackDirection::Forward);
         tween.set_elapsed(d300);
         assert_eq!(tween.elapsed(), d300);
-        tween.set_playback_direction(TweeningDirection::Backward);
+        tween.set_playback_direction(PlaybackDirection::Backward);
         assert_eq!(tween.elapsed(), d300);
 
         let (mut world, entity, _system_id) = make_test_env();
 
         // Progress always increases alongside the current direction
-        tween.set_playback_direction(TweeningDirection::Backward);
+        tween.set_playback_direction(PlaybackDirection::Backward);
         assert_eq!(tween.elapsed(), d300);
         manual_tick_component(
             TweenId::null(), // unused in this test
