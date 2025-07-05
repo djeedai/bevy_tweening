@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::{AnimCompleted, TweenAnimator, TweenCompleted};
+use crate::{AnimCompletedEvent, TweenAnimator, TweenCompleted};
 
 /// Plugin to add systems related to tweening of common components and assets.
 ///
@@ -37,7 +37,7 @@ impl Plugin for TweeningPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<TweenAnimator>()
             .add_event::<TweenCompleted>()
-            .add_event::<AnimCompleted>()
+            .add_event::<AnimCompletedEvent>()
             .add_systems(
                 Update,
                 animator_system.in_set(AnimationSystem::AnimationUpdate),
@@ -57,7 +57,7 @@ pub fn animator_system(world: &mut World) {
     let delta_time = world.resource::<Time>().delta();
     // TODO: Use SystemState to cache all of that...
     world.resource_scope(|world, events: Mut<Events<TweenCompleted>>| {
-        world.resource_scope(|world, anim_events: Mut<Events<AnimCompleted>>| {
+        world.resource_scope(|world, anim_events: Mut<Events<AnimCompletedEvent>>| {
             world.resource_scope(|world, mut animator: Mut<TweenAnimator>| {
                 animator.play(world, delta_time, events, anim_events);
             });
@@ -90,19 +90,19 @@ mod tests {
     }
 
     impl<T: Component + Default> TestEnv<T> {
-        /// Create a new test environment containing a single entity with a
-        /// [`Transform`], and add the given animator on that same entity.
+        /// Create a new test environment containing a single entity with a `T`
+        /// component, and add the given animator on that same entity.
         pub fn new(tweenable: impl Tweenable + 'static) -> Self {
             let mut world = World::new();
             world.init_resource::<Time>();
             world.init_resource::<Events<TweenCompleted>>();
-            world.init_resource::<Events<AnimCompleted>>();
+            world.init_resource::<Events<AnimCompletedEvent>>();
             world.init_resource::<TweenAnimator>();
 
             let entity = world.spawn(T::default()).id();
             let tween_id = world.resource_scope(|world, mut animator: Mut<'_, TweenAnimator>| {
                 let target = ComponentTarget {
-                    component_id: world.component_id::<Transform>().unwrap(),
+                    component_id: world.component_id::<T>().unwrap(),
                     entity,
                 };
                 animator.add(target, tweenable)
@@ -142,7 +142,7 @@ mod tests {
             // Update events after system ticked, in case system emitted some events
             let mut events = self.world.resource_mut::<Events<TweenCompleted>>();
             events.update();
-            let mut events = self.world.resource_mut::<Events<AnimCompleted>>();
+            let mut events = self.world.resource_mut::<Events<AnimCompletedEvent>>();
             events.update();
         }
 

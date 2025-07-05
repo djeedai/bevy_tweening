@@ -28,10 +28,10 @@ use crate::{
 /// implement [`From`]:
 ///
 /// ```no_run
-/// # use std::time::Duration;
-/// # use bevy::ecs::system::Commands;
+/// # use std::{any::TypeId, time::Duration};
+/// # use bevy::ecs::{system::Commands, change_detection::MutUntyped};
 /// # use bevy::prelude::*;
-/// # use bevy_tweening::{BoxedTweenable, Sequence, TweenId, Tweenable, TweenCompleted, TweenState, Targetable, TotalDuration};
+/// # use bevy_tweening::{BoxedTweenable, Sequence, TweenId, Tweenable, TweenCompleted, TweenState, TotalDuration};
 /// #
 /// # struct MyTweenable;
 /// # impl Tweenable for MyTweenable {
@@ -39,11 +39,11 @@ use crate::{
 /// #     fn total_duration(&self) -> TotalDuration  { unimplemented!() }
 /// #     fn set_elapsed(&mut self, elapsed: Duration)  { unimplemented!() }
 /// #     fn elapsed(&self) -> Duration  { unimplemented!() }
-/// #     fn tick(&mut self, tween_id: TweenId, delta: Duration, ent_mut: EntityMut, events: Mut<Events<TweenCompleted>>) -> (f32, TweenState)  { unimplemented!() }
+/// #     fn step(&mut self, _tween_id: TweenId, delta: Duration, target: MutUntyped, notify_completed: &mut dyn FnMut(f32),) -> TweenState  { unimplemented!() }
 /// #     fn rewind(&mut self) { unimplemented!() }
-/// #     fn set_progress(&mut self, progress: f32) { unimplemented!() }
-/// #     fn progress(&self) -> f32 { unimplemented!() }
-/// #     fn times_completed(&self) -> u32 { unimplemented!() }
+/// #     fn cycles_completed(&self) -> u32 { unimplemented!() }
+/// #     fn cycle_fraction(&self) -> f32 { unimplemented!() }
+/// #     fn type_id(&self) -> Option<TypeId> { unimplemented!() }
 /// # }
 ///
 /// Sequence::new([Box::new(MyTweenable) as BoxedTweenable]);
@@ -570,7 +570,7 @@ enum TweenAction {
 
 /// Single tweening animation instance.
 pub struct Tween {
-    ease_function: EaseMethod,
+    ease_method: EaseMethod,
     clock: AnimClock,
     /// Direction of playback the user asked for.
     playback_direction: PlaybackDirection,
@@ -630,7 +630,7 @@ impl Tween {
     /// );
     /// ```
     #[must_use]
-    pub fn new<C, L>(ease_function: impl Into<EaseMethod>, duration: Duration, mut lens: L) -> Self
+    pub fn new<C, L>(ease_method: impl Into<EaseMethod>, duration: Duration, mut lens: L) -> Self
     where
         C: Component<Mutability = Mutable>,
         L: Lens<C> + Send + Sync + 'static,
@@ -643,7 +643,7 @@ impl Tween {
             lens.lerp(comp, ratio);
         };
         Self {
-            ease_function: ease_function.into(),
+            ease_method: ease_method.into(),
             clock: AnimClock::new(duration),
             playback_direction: PlaybackDirection::Forward,
             action: TweenAction::Component(Box::new(action)),
@@ -671,7 +671,7 @@ impl Tween {
             lens.lerp(asset, ratio);
         };
         Self {
-            ease_function: ease_function.into(),
+            ease_method: ease_function.into(),
             clock: AnimClock::new(duration),
             playback_direction: PlaybackDirection::Forward,
             action: TweenAction::Asset(Box::new(action)),
@@ -711,7 +711,7 @@ impl Tween {
     ///     for ev in reader.read() {
     ///         println!(
     ///             "Tween animation {:?} raised TweenCompleted for target entity {:?}!",
-    ///             ev.id, ev.entity
+    ///             ev.id, ev.target.as_component().unwrap().entity
     ///         );
     ///     }
     /// }
@@ -885,7 +885,7 @@ impl TweenAssetExtensions for Tween {
             lens.lerp(asset, ratio);
         };
         Self {
-            ease_function: ease_function.into(),
+            ease_method: ease_function.into(),
             clock: AnimClock::new(duration),
             playback_direction: PlaybackDirection::Forward,
             action: TweenAction::Asset(Box::new(action)),
@@ -934,7 +934,7 @@ impl Tweenable for Tween {
         // Apply the lens, even if the animation completed, to ensure the state is
         // consistent.
         let fraction = self.clock.mirrored_cycle_fraction();
-        let fraction = self.ease_function.sample(fraction);
+        let fraction = self.ease_method.sample(fraction);
         match &mut self.action {
             TweenAction::Component(action) => {
                 action(target, fraction);

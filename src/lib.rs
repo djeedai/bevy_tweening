@@ -13,10 +13,10 @@
 //! Tweening animation plugin for the Bevy game engine
 //!
 //! 🍃 Bevy Tweening provides interpolation-based animation between ("tweening")
-//! two values, for Bevy components and assets. Each field of a component or
-//! asset can be animated via a collection or predefined easing functions,
-//! or providing a custom animation curve. Custom components and assets are also
-//! supported.
+//! two values, for any component and asset, including both built-in Bevy ones
+//! and custom user-defined ones. Each field of a component or asset can be
+//! animated via a collection of predefined easing functions, or providing a
+//! custom animation curve.
 //!
 //! # Example
 //!
@@ -39,7 +39,6 @@
 //! # use bevy_tweening::{lens::*, *};
 //! # use std::time::Duration;
 //! # fn system(mut commands: Commands) {
-//! # let size = 16.;
 //! // Create a single animation (tween) to move an entity.
 //! let tween = Tween::new(
 //!     // Use a quadratic easing on both endpoints.
@@ -55,65 +54,43 @@
 //!     },
 //! );
 //!
-//! commands.spawn((
+//! commands
 //!     // Spawn an entity to animate the position of.
-//!     Transform::default(),
-//!     // Add an Animator component to control and execute the animation.
-//!     Animator::new(tween),
-//! ));
+//!     .spawn((Transform::default(),))
+//!     // Queue the tweenable animation
+//!     .tween(tween);
 //! # }
 //! ```
 //!
-//! Note that this example leverages the fact [`TweeningPlugin`] automatically
-//! adds the necessary system to animate [`Transform`] components. However, for
-//! most other components and assets, you need to manually add those systems to
-//! your `App`.
-//!
-//! # System setup
-//!
-//! Adding the [`TweeningPlugin`] to your app provides the basic setup for using
-//! 🍃 Bevy Tweening. However, additional setup is required depending on the
-//! components and assets you want to animate:
-//!
-//! - To ensure a component `C` is animated, the
-//!   [`component_animator_system::<C>`] system must run each frame, in addition
-//!   of adding an [`Animator::<C>`] component to the same Entity as `C`.
-//!
-//! - To ensure an asset `A` is animated, the [`asset_animator_system::<A>`]
-//!   system must run each frame, in addition of adding an [`AssetAnimator<A>`]
-//!   component to any Entity. Animating assets also requires the `bevy_asset`
-//!   feature (enabled by default).
-//!
-//! By default, 🍃 Bevy Tweening adopts a minimalist approach, and the
-//! [`TweeningPlugin`] will only add systems to animate components and assets
-//! for which a [`Lens`] is provided by 🍃 Bevy Tweening itself. This means that
-//! any other Bevy component or asset (either built-in from Bevy itself, or
-//! custom) requires manually scheduling the appropriate system.
-//!
-//! | Component or Asset | Animation system added by `TweeningPlugin`? |
-//! |---|---|
-//! | [`Transform`]          | Yes                           |
-//! | [`Sprite`]             | Only if `bevy_sprite` feature |
-//! | [`ColorMaterial`]      | Only if `bevy_sprite` feature |
-//! | [`Node`]               | Only if `bevy_ui` feature     |
-//! | [`Text`]               | Only if `bevy_text` feature   |
-//! | All other components   | No                            |
-//!
-//! To add a system for a component `C`, use:
+//! This example shows the general pattern to add animations for any component
+//! or asset. Since moving the position of an object is a very common
+//! task, 🍃 Bevy Tweening provides a shortcut for it. The above example can be
+//! rewritten more concicely as:
 //!
 //! ```
 //! # use bevy::prelude::*;
-//! # use bevy_tweening::*;
-//! # let mut app = App::default();
-//! # #[derive(Component)] struct C;
-//! app.add_systems(
-//!     Update,
-//!     component_animator_system::<C>.in_set(AnimationSystem::AnimationUpdate),
-//! );
+//! # use bevy_tweening::{lens::*, *};
+//! # use std::time::Duration;
+//! # fn system(mut commands: Commands) {
+//! commands
+//!     // Spawn an entity to animate the position of.
+//!     .spawn((Transform::default(),))
+//!     // Create-and-queue a new Transform::translation animation
+//!     .move_to(
+//!         Vec3::new(1., 2., -4.),
+//!         Duration::from_secs(1),
+//!         EaseFunction::QuadraticInOut,
+//!     );
+//! # }
 //! ```
 //!
-//! Similarly for an asset `A`, use the `asset_animator_system`. This is only
-//! available with the `bevy_asset` feature.
+//! # No system setup
+//!
+//! Unlike previous versions of 🍃 Bevy Tweening, you don't need any particular
+//! setup aside from adding the [`TweeningPlugin`] to your [`App`].
+//! In particular, per-component-type systems are gone. Instead, the
+//! [`TweenAnimator`] updates all tweenable animations for all components and
+//! assets at once, even for custom component and asset types.
 //!
 //! # Tweenables
 //!
@@ -124,7 +101,6 @@
 //! - [`Tween`] - A simple tween (easing) animation between two values.
 //! - [`Sequence`] - A series of tweenables executing in series, one after the
 //!   other.
-//! - [`Tracks`] - A collection of tweenables executing in parallel.
 //! - [`Delay`] - A time delay. This doesn't animate anything.
 //!
 //! ## Chaining animations
@@ -431,6 +407,53 @@ new_key_type! {
 }
 
 /// Extensions for [`EntityCommands`] to queue tween-based animations.
+///
+/// This trait provide extension functions to [`EntityCommands`], allowing
+/// convenient syntaxes like inserting a new component and immediately attaching
+/// a tweenable animation to it in a single call.
+///
+/// ```
+/// # use bevy::{prelude::*, ecs::world::CommandQueue};
+/// # use bevy_tweening::{*, lens::TransformPositionLens};
+/// # use std::time::Duration;
+/// # let mut queue = CommandQueue::default();
+/// # let mut world = World::default();
+/// # let mut commands = Commands::new(&mut queue, &mut world);
+/// let tween = Tween::new(
+///     EaseFunction::QuadraticIn,
+///     Duration::from_secs(1),
+///     TransformPositionLens {
+///         start: Vec3::ZERO,
+///         end: Vec3::new(3.5, 0., 0.),
+///     },
+/// );
+/// commands.spawn(Transform::default()).tween(tween);
+/// ```
+///
+/// or even more concisely:
+///
+/// ```
+/// # use bevy::{prelude::*, ecs::world::CommandQueue};
+/// # use bevy_tweening::*;
+/// # use std::time::Duration;
+/// # let mut queue = CommandQueue::default();
+/// # let mut world = World::default();
+/// # let mut commands = Commands::new(&mut queue, &mut world);
+/// commands.spawn(Transform::default()).move_to(
+///     Vec3::new(3.5, 0., 0.),
+///     Duration::from_secs(1),
+///     EaseFunction::QuadraticIn,
+/// );
+/// ```
+///
+/// This convenience comes at the price of reduced control and error checking.
+/// Additional information like the [`TweenId`] of a newly created [`TweenAnim`]
+/// cannot be retrieved. And any error (_e.g._ trying to insert an animation
+/// with a tweenable of a component type while the entity doesn't have that
+/// component) cannot be forwarded back to the caller, so will produce a panic
+/// instead. This is best used for cases where you know those conditions at
+/// build time. To avoid a panic, prefer manually queuing a new tweenable
+/// animation through the [`TweenAnimator`].
 pub trait EntityCommandsTweeningExtensions<'a> {
     /// Queue the given [`Tweenable`].
     ///
@@ -446,8 +469,7 @@ pub trait EntityCommandsTweeningExtensions<'a> {
     ///
     /// The entity must have a [`Transform`] component. The tween animation will
     /// be initialized with the current [`Transform::translation`] as its
-    /// starting point, and the given endpoint and duration. The ease mode is
-    /// linear.
+    /// starting point, and the given endpoint, duration, and ease method.
     ///
     /// Note that the starting point position is saved when the command is
     /// applied, generally after the current system when [`apply_deferred()`]
@@ -458,7 +480,28 @@ pub trait EntityCommandsTweeningExtensions<'a> {
     /// access to the [`TweenId`] created. To retrieve the ID and control
     /// the animation playback, directly add the tweenable via
     /// [`TweenAnimator::add()`].
-    fn move_to(&mut self, end: Vec3, duration: Duration) -> &mut Self;
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use bevy::{prelude::*, ecs::world::CommandQueue};
+    /// # use bevy_tweening::*;
+    /// # use std::time::Duration;
+    /// # let mut queue = CommandQueue::default();
+    /// # let mut world = World::default();
+    /// # let mut commands = Commands::new(&mut queue, &mut world);
+    /// commands.spawn(Transform::default()).move_to(
+    ///     Vec3::new(3.5, 0., 0.),
+    ///     Duration::from_secs(1),
+    ///     EaseFunction::QuadraticIn,
+    /// );
+    /// ```
+    fn move_to(
+        &mut self,
+        end: Vec3,
+        duration: Duration,
+        ease_method: impl Into<EaseMethod>,
+    ) -> &mut Self;
 }
 
 /// Build an [`EntityCommand`] which queues the new tweenable into the
@@ -487,7 +530,11 @@ where
     }
 }
 
-fn make_transform_from_command(end: Vec3, duration: Duration) -> impl EntityCommand {
+fn make_transform_from_command(
+    end: Vec3,
+    duration: Duration,
+    ease_method: EaseMethod,
+) -> impl EntityCommand {
     move |mut entity: EntityWorldMut| {
         let component_id = entity
             .world()
@@ -495,7 +542,7 @@ fn make_transform_from_command(end: Vec3, duration: Duration) -> impl EntityComm
             .expect("Transform component not registered in the World");
         let start = entity.get::<Transform>().unwrap().translation;
         let lens = lens::TransformPositionLens { start, end };
-        let tween = Tween::new(EaseFunction::Linear, duration, lens);
+        let tween = Tween::new(ease_method, duration, lens);
         let e = entity.id();
         let target = ComponentTarget {
             entity: e,
@@ -515,21 +562,84 @@ impl<'a> EntityCommandsTweeningExtensions<'a> for EntityCommands<'a> {
         self.queue(make_tween_command(tweenable))
     }
 
-    fn move_to(&mut self, end: Vec3, duration: Duration) -> &mut EntityCommands<'a> {
-        self.queue(make_transform_from_command(end, duration))
+    fn move_to(
+        &mut self,
+        end: Vec3,
+        duration: Duration,
+        ease_method: impl Into<EaseMethod>,
+    ) -> &mut EntityCommands<'a> {
+        self.queue(make_transform_from_command(
+            end,
+            duration,
+            ease_method.into(),
+        ))
+    }
+}
+
+impl<'a> EntityCommandsTweeningExtensions<'a> for EntityWorldMut<'a> {
+    fn tween<T>(&mut self, tweenable: T) -> &mut Self
+    where
+        T: Tweenable + 'static,
+    {
+        let type_id = tweenable.type_id().unwrap();
+        let component_id = self.world().components().get_id(type_id).unwrap();
+        let target = ComponentTarget {
+            component_id,
+            entity: self.id(),
+        };
+        self.world_scope(|world: &mut World| {
+            world.resource_mut::<TweenAnimator>().add(target, tweenable);
+        });
+        self
+    }
+
+    fn move_to(
+        &mut self,
+        end: Vec3,
+        duration: Duration,
+        ease_method: impl Into<EaseMethod>,
+    ) -> &mut Self {
+        let component_id = self.world().component_id::<Transform>().unwrap();
+        let start = self.get::<Transform>().unwrap().translation;
+        let lens = lens::TransformPositionLens { start, end };
+        let tween = Tween::new(ease_method, duration, lens);
+        let e = self.id();
+        let target = ComponentTarget {
+            entity: e,
+            component_id,
+        };
+        self.world_scope(|world: &mut World| {
+            world.resource_mut::<TweenAnimator>().add(target, tween);
+        });
+        self
     }
 }
 
 /// Event raised when a [`TweenAnim`] completed.
 #[derive(Copy, Clone, Event)]
-pub struct AnimCompleted {
-    /// The ID of the tween animation which completed.
+pub struct AnimCompletedEvent {
+    /// The ID of the tween animation which completed. Note that commonly the
+    /// [`TweenAnim`] is pruned out of the [`TweenAnimator`] on completion, so
+    /// can't be queried anymore with this ID. However animation IDs are unique,
+    /// so this can be used to identify the tweenable animation from an ID
+    /// stored by the user.
     pub id: TweenId,
-    /// The animation target.
+    /// The animation target. This is provided both as a convenience for
+    /// [`TweenAnim`]s not pruned from the [`TweenAnimator`] on completion, and
+    /// because for those animations which are pruned the information is not
+    /// available in anymore in another way.
     pub target: AnimTarget,
 }
 
 /// Component animation target.
+///
+/// References a component used as the target of a tweenable animation. The
+/// component is identified by the ID of the component type as registered in the
+/// [`World`] where the animation is queued, and the [`Entity`] holding the
+/// component instance of that type.
+///
+/// This is a lightweight reference (copyable) implicitly tied to a given
+/// [`World`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ComponentTarget {
     /// Component ID of the registered component being animated.
@@ -539,6 +649,14 @@ pub struct ComponentTarget {
 }
 
 /// Asset animation target.
+///
+/// References an asset used as the target of a tweenable animation. The asset
+/// is identified by the ID of the [`Assets<A>`] resource type registered in the
+/// [`World`] where the animation is queued, and the unique asset ID identifying
+/// the asset instance inside that [`Assets<A>`] resource.
+///
+/// This is a lightweight reference (copyable) implicitly tied to a given
+/// [`World`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AssetTarget {
     /// Resource ID of the registered [`Assets<A>`] asset container.
@@ -548,6 +666,12 @@ pub struct AssetTarget {
 }
 
 /// Animation target.
+///
+/// References either a component or an asset used as the target of a tweenable
+/// animation. See [`ComponentTarget`] and [`AssetTarget`] for details.
+///
+/// This is a lightweight reference (copyable) implicitly tied to a given
+/// [`World`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum AnimTarget {
     /// Component animation target.
@@ -756,7 +880,10 @@ impl TweenAnimator {
     /// # use bevy_tweening::{lens::*, *};
     /// # use std::time::Duration;
     /// # let mut world = World::default();
-    /// # let entity = Entity::PLACEHOLDER;
+    /// # world.register_component::<Transform>();
+    /// # world.register_resource::<TweenAnimator>();
+    /// # world.init_resource::<TweenAnimator>();
+    /// # let entity = world.spawn_empty().id();
     /// let tween = Tween::new(
     ///     EaseFunction::QuadraticInOut,
     ///     Duration::from_secs(1),
@@ -879,7 +1006,7 @@ impl TweenAnimator {
         world: &mut World,
         delta_time: Duration,
         mut events: Mut<Events<TweenCompleted>>,
-        mut anim_events: Mut<Events<AnimCompleted>>,
+        mut anim_events: Mut<Events<AnimCompletedEvent>>,
     ) {
         // Loop over active animations, tick them, and retain those which are still
         // active after that
@@ -937,7 +1064,7 @@ impl TweenAnimator {
 
             // Raise completed event
             if state == TweenState::Completed {
-                anim_events.send(AnimCompleted {
+                anim_events.send(AnimCompletedEvent {
                     id: tween_id,
                     target: anim.target,
                 });
