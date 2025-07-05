@@ -138,7 +138,11 @@ fn enable_interaction_after_initial_animation(
     mut reader: EventReader<TweenCompleted>,
 ) {
     for event in reader.read() {
-        commands.entity(event.entity).insert(InitTransitionDone);
+        if let AnimTarget::Component(comp_target) = &event.target {
+            commands
+                .entity(comp_target.entity)
+                .insert(InitTransitionDone);
+        }
     }
 }
 

@@ -205,10 +205,12 @@
 //! [`TextColor`]: https://docs.rs/bevy/0.16.0/bevy/text/struct.TextColor.html
 //! [`Transform`]: https://docs.rs/bevy/0.16.0/bevy/transform/components/struct.Transform.html
 
-use std::{any::TypeId, time::Duration};
+use std::time::Duration;
 
 use bevy::{
-    asset::UntypedAssetId, ecs::change_detection::MutUntyped, platform::collections::HashMap,
+    asset::UntypedAssetId,
+    ecs::{change_detection::MutUntyped, component::ComponentId},
+    platform::collections::HashMap,
     prelude::*,
 };
 pub use lens::Lens;
@@ -467,17 +469,41 @@ where
 {
     move |mut entity: EntityWorldMut| {
         let e = entity.id();
-        entity.resource_mut::<TweenAnimator>().queue(e, tweenable);
+        let type_id = tweenable
+            .type_id()
+            .expect("Can't add untyped tweenable as root animation.");
+        let component_id = entity
+            .world()
+            .components()
+            .get_id(type_id)
+            .expect("Tweenable component not registered with the World.");
+        let target = ComponentTarget {
+            entity: e,
+            component_id,
+        };
+        entity
+            .resource_mut::<TweenAnimator>()
+            .queue(target.into(), tweenable);
     }
 }
 
 fn make_transform_from_command(end: Vec3, duration: Duration) -> impl EntityCommand {
     move |mut entity: EntityWorldMut| {
+        let component_id = entity
+            .world()
+            .component_id::<Transform>()
+            .expect("Transform component not registered in the World");
         let start = entity.get::<Transform>().unwrap().translation;
         let lens = lens::TransformPositionLens { start, end };
         let tween = Tween::new(EaseFunction::Linear, duration, lens);
         let e = entity.id();
-        entity.resource_mut::<TweenAnimator>().queue(e, tween);
+        let target = ComponentTarget {
+            entity: e,
+            component_id,
+        };
+        entity
+            .resource_mut::<TweenAnimator>()
+            .queue(target.into(), tween);
     }
 }
 
@@ -499,53 +525,102 @@ impl<'a> EntityCommandsTweeningExtensions<'a> for EntityCommands<'a> {
 pub struct AnimCompleted {
     /// The ID of the tween animation which completed.
     pub id: TweenId,
-    /// The [`Entity`] the animation which completed is attached to.
+    /// The animation target.
+    pub target: AnimTarget,
+}
+
+/// Component animation target.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ComponentTarget {
+    /// Component ID of the registered component being animated.
+    pub component_id: ComponentId,
+    /// Entity holding the component instance being animated.
     pub entity: Entity,
 }
 
-///
-#[derive(Debug, Clone, Copy)]
-pub enum AnimTarget {
-    ///
-    Entity {
-        ///
-        type_id: TypeId,
-        ///
-        entity: Entity,
-    },
-    ///
-    Asset {
-        ///
-        type_id: TypeId,
-        ///
-        asset_id: UntypedAssetId,
-    },
+/// Asset animation target.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct AssetTarget {
+    /// Resource ID of the registered [`Assets<A>`] asset container.
+    pub resource_id: ComponentId,
+    /// Asset ID of the target asset being animated.
+    pub asset_id: UntypedAssetId,
 }
 
-// impl AnimTarget {
-//     pub fn resolve<'w>(&self, world: &'w mut World) ->
-// Result<AnimResolvedTarget<'w>, ()> {         match self {
-//             AnimTarget::Entity(target) => {
-//                 let ent_mut = &mut
-// world.get_entity_mut([*target]).unwrap()[0];
-// Ok(AnimResolvedTarget::Entity(ent_mut))             }
-//             AnimTarget::Asset(asset_id) => {
-//                 if let Some(comp_id) =
-// world.components().get_resource_id(asset_id.type_id()) {
-// if let Some(mut_untyped) = world.get_resource_mut_by_id(comp_id) {
-//                         return Ok(AnimResolvedTarget::Asset(mut_untyped));
-//                     }
-//                 }
-//                 Err(())
-//             }
-//         }
-//     }
-// }
+/// Animation target.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum AnimTarget {
+    /// Component animation target.
+    Component(ComponentTarget),
+    /// Asset animation target.
+    Asset(AssetTarget),
+}
 
-// pub enum AnimResolvedTarget<'w> {
-//     Entity(&'w mut EntityMut<'w>),
-//     Asset(MutUntyped<'w>),
-// }
+impl AnimTarget {
+    /// Check if the target is a component.
+    #[inline]
+    pub fn is_component(&self) -> bool {
+        matches!(*self, AnimTarget::Component(..))
+    }
+
+    /// Convert this target to a component target if possible.
+    #[inline]
+    pub fn as_component(&self) -> Option<&ComponentTarget> {
+        if let Self::Component(component) = self {
+            Some(component)
+        } else {
+            None
+        }
+    }
+
+    /// Convert this target to a component target if possible.
+    #[inline]
+    pub fn as_component_mut(&mut self) -> Option<&mut ComponentTarget> {
+        if let Self::Component(component) = self {
+            Some(component)
+        } else {
+            None
+        }
+    }
+
+    /// Check if the target is an asset.
+    #[inline]
+    pub fn is_asset(&self) -> bool {
+        matches!(*self, AnimTarget::Asset(..))
+    }
+
+    /// Convert this target to an asset target if possible.
+    #[inline]
+    pub fn as_asset(&self) -> Option<&AssetTarget> {
+        if let Self::Asset(asset) = self {
+            Some(asset)
+        } else {
+            None
+        }
+    }
+
+    /// Convert this target to an asset target if possible.
+    #[inline]
+    pub fn as_asset_mut(&mut self) -> Option<&mut AssetTarget> {
+        if let Self::Asset(asset) = self {
+            Some(asset)
+        } else {
+            None
+        }
+    }
+}
+
+impl From<ComponentTarget> for AnimTarget {
+    fn from(value: ComponentTarget) -> Self {
+        AnimTarget::Component(value)
+    }
+}
+
+impl From<AssetTarget> for AnimTarget {
+    fn from(value: AssetTarget) -> Self {
+        AnimTarget::Asset(value)
+    }
+}
 
 /// A [`Tweenable`]-based animation.
 pub struct TweenAnim {
@@ -570,15 +645,9 @@ impl TweenAnim {
     /// that you can't insert a single [`Delay`]. You can however use a
     /// [`Delay`] or other typeless tweenables as part of a [`Sequence`],
     /// provided there's at least one other typed tweenable in the sequence.
-    pub fn new(target: Entity, tweenable: impl Tweenable + 'static) -> Self {
-        let type_id = tweenable.type_id().expect(
-            "Typeless tweenable like Delay can't be inserted as root tweenable in an animation.",
-        );
+    pub fn new(target: AnimTarget, tweenable: impl Tweenable + 'static) -> Self {
         Self {
-            target: AnimTarget::Entity {
-                type_id,
-                entity: target,
-            },
+            target,
             tweenable: Box::new(tweenable),
             state: PlaybackState::Playing,
             speed: 1.,
@@ -603,26 +672,26 @@ impl TweenAnim {
     /// Panics if the tweenable type is different from the `type_id` parameter,
     /// which identified the type of the [`Assets`] container storing the asset
     /// to animate.
-    pub fn new_asset(
-        type_id: TypeId,
-        asset_id: UntypedAssetId,
-        tweenable: impl Tweenable + 'static,
-    ) -> Self {
-        let tween_type_id = tweenable.type_id().expect(
-            "Typeless tweenable like Delay can't be inserted as root tweenable in an animation.",
-        );
-        assert_eq!(
-            type_id, tween_type_id,
-            "The tweenable type doesn't match the Assets<A> type of the target asset."
-        );
-        Self {
-            //target: AnimTarget::Entity(target),
-            target: AnimTarget::Asset { type_id, asset_id },
-            tweenable: Box::new(tweenable),
-            state: PlaybackState::Playing,
-            speed: 1.,
-        }
-    }
+    // pub fn new_asset(
+    //     type_id: TypeId,
+    //     asset_id: UntypedAssetId,
+    //     tweenable: impl Tweenable + 'static,
+    // ) -> Self {
+    //     let tween_type_id = tweenable.type_id().expect(
+    //         "Typeless tweenable like Delay can't be inserted as root tweenable in an animation.",
+    //     );
+    //     assert_eq!(
+    //         type_id, tween_type_id,
+    //         "The tweenable type doesn't match the Assets<A> type of the target asset."
+    //     );
+    //     Self {
+    //         //target: AnimTarget::Entity(target),
+    //         target: AnimTarget::Asset { type_id, asset_id },
+    //         tweenable: Box::new(tweenable),
+    //         state: PlaybackState::Playing,
+    //         speed: 1.,
+    //     }
+    // }
 
     /// Stop animation playback and rewind the animation.
     ///
@@ -656,7 +725,7 @@ pub struct TweenAnimator {
     /// itself. This is necessary because there's no UntypedAssets interface in
     /// Bevy. The TypeId key must be the type of the Assets<A> type itself.
     asset_resolver: HashMap<
-        TypeId,
+        ComponentId,
         Box<
             dyn for<'w> Fn(MutUntyped<'w>, UntypedAssetId) -> MutUntyped<'w>
                 + Send
@@ -703,11 +772,11 @@ impl TweenAnimator {
     /// the new animation, to later access it to dynamically modify the playback
     /// (e.g. speed).
     #[inline]
-    pub fn add<T>(&mut self, target: Entity, tweenable: T) -> TweenId
+    pub fn add<T>(&mut self, target: ComponentTarget, tweenable: T) -> TweenId
     where
         T: Tweenable + 'static,
     {
-        self.anims.insert(TweenAnim::new(target, tweenable))
+        self.anims.insert(TweenAnim::new(target.into(), tweenable))
     }
 
     /// Add a new asset animation to the animator queue.
@@ -722,45 +791,46 @@ impl TweenAnimator {
     /// the tweenable was created with _e.g._ [`Tween::new_asset<A>()`] then
     /// [`Tweenable::type_id()`] correctly returns `Assets<A>`. Note that the
     /// type is **NOT** the asset type `A` itself, but rather `Assets<A>`.
-    #[inline]
-    pub fn add_asset<A, T, I>(&mut self, asset_id: I, tweenable: T) -> TweenId
-    where
-        A: Asset,
-        T: Tweenable + 'static,
-        I: Into<AssetId<A>>,
-    {
-        let type_id = TypeId::of::<Assets<A>>();
-        assert_eq!(
-            Some(type_id),
-            tweenable.type_id(),
-            "Tweenable has different target type than Assets<A>."
-        );
+    // #[inline]
+    // pub fn add_asset<A, T, I>(&mut self, asset_id: I, tweenable: T) -> TweenId
+    // where
+    //     A: Asset,
+    //     T: Tweenable + 'static,
+    //     I: Into<AssetId<A>>,
+    // {
+    //     let type_id = TypeId::of::<Assets<A>>();
+    //     assert_eq!(
+    //         Some(type_id),
+    //         tweenable.type_id(),
+    //         "Tweenable has different target type than Assets<A>."
+    //     );
 
-        self.asset_resolver.entry(type_id).or_insert_with(|| {
-            Box::new(
-                // Convert ( Mut<Assets<A>>, AssetId<A> ) -> Mut<A>
-                |assets: MutUntyped, asset_id: UntypedAssetId| -> MutUntyped {
-                    // SAFETY: The type ID was checked above with an assert to make sure the one
-                    // stored in the Tweenable (which is where the untyped value comes from) is
-                    // the same as Assets<A>.
-                    #[allow(unsafe_code)]
-                    let assets = unsafe { assets.with_type::<Assets<A>>() };
+    //     self.asset_resolver.entry(resource_id).or_insert_with(|| {
+    //         Box::new(
+    //             // Convert ( Mut<Assets<A>>, AssetId<A> ) -> Mut<A>
+    //             |assets: MutUntyped, asset_id: UntypedAssetId| -> MutUntyped {
+    //                 // SAFETY: The type ID was checked above with an assert to make sure the one
+    //                 // stored in the Tweenable (which is where the untyped value comes from) is
+    //                 // the same as Assets<A>.
+    //                 #[allow(unsafe_code)]
+    //                 let assets = unsafe { assets.with_type::<Assets<A>>() };
 
-                    let asset_id = asset_id.typed::<A>();
-                    let asset: Mut<A> = assets.map_unchanged(|a| {
-                        // FIXME - replace with get_mut_untracked() to skip ECS change detection; see https://github.com/bevyengine/bevy/issues/13104
-                        a.get_mut(asset_id).unwrap()
-                    });
+    //                 let asset_id = asset_id.typed::<A>();
+    //                 let asset: Mut<A> = assets.map_unchanged(|a| {
+    //                     // FIXME - replace with get_mut_untracked() to skip ECS change detection; see https://github.com/bevyengine/bevy/issues/13104
+    //                     a.get_mut(asset_id).unwrap()
+    //                 });
 
-                    asset.into()
-                },
-            )
-        });
+    //                 asset.into()
+    //             },
+    //         )
+    //     });
 
-        let asset_id: AssetId<A> = asset_id.into();
-        self.anims
-            .insert(TweenAnim::new_asset(type_id, asset_id.untyped(), tweenable))
-    }
+    //     let asset_id: AssetId<A> = asset_id.into();
+    //     let target = WorldAssetTarget { resource_id, asset_id: asset_id.untyped() };
+    //     self.anims
+    //         .insert(TweenAnim::new(target.into(), tweenable))
+    // }
 
     /// Queue a prepared tweenable animation.
     ///
@@ -768,7 +838,7 @@ impl TweenAnimator {
     ///
     /// [`make()`]: Animator::make
     #[inline]
-    pub(crate) fn queue(&mut self, target: Entity, tweenable: impl Tweenable + 'static) {
+    pub(crate) fn queue(&mut self, target: AnimTarget, tweenable: impl Tweenable + 'static) {
         self.anims.insert(TweenAnim::new(target, tweenable));
     }
 
@@ -822,26 +892,18 @@ impl TweenAnimator {
             // simplifying some borrow checker complications with World.
             //let ent_mut = &mut world.get_entity_mut([anim.target]).unwrap()[0];
 
-            // FIXME
-            let mut target_entity = Entity::PLACEHOLDER;
-
             let Some(mut mut_untyped) = (match &anim.target {
-                AnimTarget::Entity { entity, type_id } => {
-                    target_entity = *entity;
-                    if let Some(component_id) = world.components().get_id(*type_id) {
-                        world.get_mut_by_id(*entity, component_id)
-                    } else {
-                        None
-                    }
-                }
-                AnimTarget::Asset { type_id, asset_id } => {
-                    if let Some(resource_id) = world.components().get_resource_id(*type_id) {
-                        if let Some(assets) = world.get_resource_mut_by_id(resource_id) {
-                            if let Some(resolver) = self.asset_resolver.get(type_id) {
-                                Some(resolver(assets, *asset_id))
-                            } else {
-                                None
-                            }
+                AnimTarget::Component(ComponentTarget {
+                    entity,
+                    component_id,
+                }) => world.get_mut_by_id(*entity, *component_id),
+                AnimTarget::Asset(AssetTarget {
+                    resource_id,
+                    asset_id,
+                }) => {
+                    if let Some(assets) = world.get_resource_mut_by_id(*resource_id) {
+                        if let Some(resolver) = self.asset_resolver.get(resource_id) {
+                            Some(resolver(assets, *asset_id))
                         } else {
                             None
                         }
@@ -857,19 +919,27 @@ impl TweenAnimator {
             // backward playback to play in reverse direction.
             let delta_time = delta_time.mul_f32(anim.speed.max(0.));
 
+            let mut notify_completed = |fraction: f32| {
+                events.send(TweenCompleted {
+                    id: tween_id,
+                    target: anim.target,
+                    progress: fraction,
+                });
+            };
+
             // Apply the animation tweenable
             let state = anim.tweenable.step(
                 tween_id,
                 delta_time,
                 mut_untyped.reborrow(),
-                events.reborrow(),
+                &mut notify_completed,
             );
 
             // Raise completed event
             if state == TweenState::Completed {
                 anim_events.send(AnimCompleted {
                     id: tween_id,
-                    entity: target_entity,
+                    target: anim.target,
                 });
             }
 

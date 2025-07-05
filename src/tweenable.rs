@@ -5,7 +5,9 @@ use bevy::{
     prelude::*,
 };
 
-use crate::{EaseMethod, Lens, PlaybackDirection, RepeatCount, RepeatStrategy, TweenId};
+use crate::{
+    AnimTarget, EaseMethod, Lens, PlaybackDirection, RepeatCount, RepeatStrategy, TweenId,
+};
 
 /// The dynamic tweenable type.
 ///
@@ -99,7 +101,7 @@ pub struct TweenCompleted {
     pub id: TweenId,
     /// The [`Entity`] the tween which completed and the [`TweenAnim`] it's part
     /// of are attached to.
-    pub entity: Entity,
+    pub target: AnimTarget,
     /// Current progress of the owner [`TweenAnim`].
     pub progress: f32,
 }
@@ -476,7 +478,7 @@ pub trait Tweenable: Send + Sync {
         tween_id: TweenId,
         delta: Duration,
         target: MutUntyped,
-        events: Mut<Events<TweenCompleted>>,
+        notify_completed: &mut dyn FnMut(f32),
     ) -> TweenState;
 
     /// Rewind the animation to its starting state.
@@ -913,10 +915,10 @@ impl Tweenable for Tween {
 
     fn step(
         &mut self,
-        tween_id: TweenId,
+        _tween_id: TweenId,
         delta: Duration,
         target: MutUntyped,
-        mut events: Mut<Events<TweenCompleted>>,
+        notify_completed: &mut dyn FnMut(f32),
     ) -> TweenState {
         if self.clock.state(self.playback_direction) == TweenState::Completed {
             return TweenState::Completed;
@@ -928,8 +930,6 @@ impl Tweenable for Tween {
         } else {
             self.clock.tick_back(delta)
         };
-
-        let target_entity = Entity::PLACEHOLDER; // TODO: ent_mut.id();
 
         // Apply the lens, even if the animation completed, to ensure the state is
         // consistent.
@@ -947,14 +947,7 @@ impl Tweenable for Tween {
         // If completed at least once this frame, notify the user
         if times_completed != 0 {
             if self.send_completed_event {
-                let event = TweenCompleted {
-                    id: tween_id,
-                    entity: target_entity,
-                    progress: fraction,
-                };
-
-                // Send completion event
-                events.send(event);
+                notify_completed(fraction);
             }
 
             // Trigger all entity-scoped observers
@@ -1115,7 +1108,7 @@ impl Tweenable for Sequence {
         tween_id: TweenId,
         mut delta: Duration,
         mut target: MutUntyped,
-        mut events: Mut<Events<TweenCompleted>>,
+        notify_completed: &mut dyn FnMut(f32),
     ) -> TweenState {
         // Calculate the new elapsed time at the end of this tick
         self.elapsed = self.elapsed.saturating_add(delta);
@@ -1130,7 +1123,7 @@ impl Tweenable for Sequence {
 
             let prev_elapsed = tween.elapsed();
 
-            if tween.step(tween_id, delta, target.reborrow(), events.reborrow())
+            if tween.step(tween_id, delta, target.reborrow(), notify_completed)
                 == TweenState::Active
             {
                 return TweenState::Active;
@@ -1173,84 +1166,6 @@ impl Tweenable for Sequence {
         None
     }
 }
-
-// /// A collection of [`Tweenable`] executing in parallel.
-// pub struct Tracks {
-//     tracks: Vec<BoxedTweenable>,
-//     duration: Duration,
-//     elapsed: Duration,
-// }
-
-// impl Tracks {
-//     /// Create a new [`Tracks`] from an iterator over a collection of
-//     /// [`Tweenable`].
-//     #[must_use]
-//     pub fn new(items: impl IntoIterator<Item = impl Into<BoxedTweenable>>) ->
-// Self {         let tracks: Vec<_> =
-// items.into_iter().map(Into::into).collect();         let duration = tracks
-//             .iter()
-//             .map(AsRef::as_ref)
-//             .map(Tweenable::total_duration)
-//             .max()
-//             .unwrap();
-//         Self {
-//             tracks,
-//             duration,
-//             elapsed: Duration::ZERO,
-//         }
-//     }
-// }
-
-// impl Tweenable for Tracks {
-//     fn cycle_duration(&self) -> Duration {
-//         self.duration
-//     }
-
-//     fn total_duration(&self) -> TotalDuration {
-//         TotalDuration::Finite(self.duration)
-//     }
-
-//     fn set_elapsed(&mut self, elapsed: Duration) {
-//         self.elapsed = elapsed;
-
-//         for tweenable in &mut self.tracks {
-//             tweenable.set_elapsed(elapsed);
-//         }
-//     }
-
-//     fn elapsed(&self) -> Duration {
-//         self.elapsed
-//     }
-
-//     fn step(
-//         &mut self,
-//         tween_id: TweenId,
-//         delta: Duration,
-//         mut ent_mut: EntityMut,
-//         mut events: Mut<Events<TweenCompleted>>,
-//     ) -> (f32, TweenState) {
-//         self.elapsed = self.elapsed.saturating_add(delta).min(self.duration);
-//         let mut any_active = false;
-//         for tweenable in &mut self.tracks {
-//             let (_, state) = tweenable.step(tween_id, delta,
-// ent_mut.reborrow(), events.reborrow());             any_active = any_active
-// || (state == TweenState::Active);         }
-//         if any_active {
-//             // FIXME(nightly): Duration::div_duration_f64()
-//             let ratio = self.elapsed.as_secs_f32() /
-// self.duration.as_secs_f32();             (ratio, TweenState::Active) // TODO
-//         } else {
-//             (1., TweenState::Completed)
-//         }
-//     }
-
-//     fn rewind(&mut self) {
-//         self.elapsed = Duration::ZERO;
-//         for tween in &mut self.tracks {
-//             tween.rewind();
-//         }
-//     }
-// }
 
 /// A time delay that doesn't animate anything.
 ///
@@ -1367,7 +1282,7 @@ impl Tweenable for Delay {
         _tween_id: TweenId,
         delta: Duration,
         _target: MutUntyped,
-        _events: Mut<Events<TweenCompleted>>,
+        _notify_completed: &mut dyn FnMut(f32),
     ) -> TweenState {
         self.timer.tick(delta);
 
@@ -1418,7 +1333,7 @@ mod tests {
     use slotmap::Key as _;
 
     use super::*;
-    use crate::{lens::*, test_utils::assert_approx_eq};
+    use crate::{lens::*, test_utils::assert_approx_eq, ComponentTarget};
 
     // #[derive(Default, Copy, Clone)]
     // struct CallbackMonitor {
@@ -1566,16 +1481,29 @@ mod tests {
         entity: Entity,
     ) -> TweenState {
         // Tick the given tween and apply its state to the given entity target
-        let state =
-            world.resource_scope(|world: &mut World, events: Mut<Events<TweenCompleted>>| {
-                let comp_id = world.component_id::<Transform>().unwrap();
+        let state = world.resource_scope(
+            |world: &mut World, mut events: Mut<Events<TweenCompleted>>| {
+                let component_id = world.component_id::<Transform>().unwrap();
                 let entity_mut = &mut world.get_entity_mut([entity]).unwrap()[0];
-                if let Ok(mut target) = entity_mut.get_mut_by_id(comp_id) {
-                    tween.step(tween_id, duration, target.reborrow(), events)
+                if let Ok(mut target) = entity_mut.get_mut_by_id(component_id) {
+                    let world_target = ComponentTarget {
+                        entity,
+                        component_id,
+                    }
+                    .into();
+                    let mut notify_completed = |fraction: f32| {
+                        events.send(TweenCompleted {
+                            id: tween_id,
+                            target: world_target,
+                            progress: fraction,
+                        });
+                    };
+                    tween.step(tween_id, duration, target.reborrow(), &mut notify_completed)
                 } else {
                     TweenState::Completed
                 }
-            });
+            },
+        );
 
         // Propagate events
         {
@@ -1926,12 +1854,18 @@ mod tests {
 
                     // Events are only sent when playing forward
                     if playback_direction.is_forward() {
+                        let component_id = world.component_id::<Transform>().unwrap();
                         let mut event_reader = event_reader_system_state.get_mut(&mut world);
                         let event = event_reader.read().next();
                         if just_completed {
                             assert!(event.is_some());
                             if let Some(event) = event {
-                                assert_eq!(event.entity, entity);
+                                let comp_target = event
+                                    .target
+                                    .as_component()
+                                    .expect("Expected a component target, got an asset one.");
+                                assert_eq!(comp_target.entity, entity);
+                                assert_eq!(comp_target.component_id, component_id);
                             }
                         } else {
                             assert!(event.is_none());

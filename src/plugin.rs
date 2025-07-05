@@ -100,8 +100,12 @@ mod tests {
             world.init_resource::<TweenAnimator>();
 
             let entity = world.spawn(T::default()).id();
-            let tween_id = world.resource_scope(|_, mut animator: Mut<'_, TweenAnimator>| {
-                animator.add(entity, tweenable)
+            let tween_id = world.resource_scope(|world, mut animator: Mut<'_, TweenAnimator>| {
+                let target = ComponentTarget {
+                    component_id: world.component_id::<Transform>().unwrap(),
+                    entity,
+                };
+                animator.add(target, tweenable)
             });
 
             Self {
