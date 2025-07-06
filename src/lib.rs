@@ -16,11 +16,13 @@
 //! two values, for any component and asset, including both built-in Bevy ones
 //! and custom user-defined ones. Each field of a component or asset can be
 //! animated via a collection of predefined easing functions, or providing a
-//! custom animation curve.
+//! custom animation curve. The library supports any number of animations queued
+//! in parallel, even on the same component or asset type, and allows runtime
+//! control over playback and animation speed.
 //!
 //! # Example
 //!
-//! Add the tweening plugin to your app:
+//! Add the [`TweeningPlugin`] to your app:
 //!
 //! ```no_run
 //! use bevy::prelude::*;
@@ -46,7 +48,7 @@
 //!     // Animation time.
 //!     Duration::from_secs(1),
 //!     // The lens gives access to the Transform component of the Entity,
-//!     // for the Animator to animate it. It also contains the start and
+//!     // for the TweenAnimator to animate it. It also contains the start and
 //!     // end values respectively associated with the progress ratios 0. and 1.
 //!     TransformPositionLens {
 //!         start: Vec3::ZERO,
@@ -84,7 +86,7 @@
 //! # }
 //! ```
 //!
-//! # No system setup
+//! # Ready to animate
 //!
 //! Unlike previous versions of 🍃 Bevy Tweening, you don't need any particular
 //! setup aside from adding the [`TweeningPlugin`] to your [`App`].
@@ -102,6 +104,9 @@
 //! - [`Sequence`] - A series of tweenables executing in series, one after the
 //!   other.
 //! - [`Delay`] - A time delay. This doesn't animate anything.
+//!
+//! To execute multiple animations in parallel, simply enqueue each animation
+//! independently. This require careful selection of timings.
 //!
 //! ## Chaining animations
 //!
@@ -134,43 +139,60 @@
 //! let seq = tween1.then(tween2);
 //! ```
 //!
-//! # Animators and lenses
+//! Note that some tweenable animations can be of infinite duration; this is the
+//! case for example when using [`RepeatCount::Infinite`]. If you add such an
+//! infinite animation in a sequence, and append more tweenable after it, those
+//! tweenable will never play because playback will be stuck forever repeating
+//! the first animation. You're responsible for creating sequences that make
+//! sense. In general, only use infinite tweenable animations alone or as the
+//! last element of a sequence.
 //!
-//! Bevy components and assets are animated with tweening _animator_ components,
-//! which take a tweenable and apply it to another component on the same
-//! [`Entity`]. Those animators determine that other component and its fields to
-//! animate using a _lens_.
+//! # `TweenAnimator` and lenses
 //!
-//! ## Components animation
+//! Bevy components and assets are animated with the [`TweenAnimator`] resource.
+//! The animator determine the component or asset to animate via an
+//! [`AnimTarget`], and accesses its field(s) using a [`Lens`].
 //!
-//! Components are animated with the [`Animator`] component, which is generic
-//! over the type of component it animates. This is a restriction imposed by
-//! Bevy, to access the animated component as a mutable reference via a
-//! [`Query`] and comply with the ECS rules.
-//!
-//! The [`Animator`] itself is not generic over the subset of fields of the
-//! components it animates. This limits the proliferation of generic types when
-//! animating e.g. both the position and rotation of an entity.
-//!
-//! ## Assets animation
-//!
-//! Assets are animated in a similar way to component, via the [`AssetAnimator`]
-//! component. This requires the `bevy_asset` feature (enabled by default).
+//! - Components are animated via the [`ComponentTarget`], which identifies a
+//!   component instance on an entity via the [`Entity`] itself and the
+//!   [`ComponentId`] of the registered component type.
+//! - Assets are animated in a similar way to component, via the [`AssetTarget`]
+//!   which identifies an asset via the type of its [`Assets`] collection and
+//!   the [`AssetId`] referencing that asset inside the collection.
 //!
 //! Because assets are typically shared, and the animation applies to the asset
 //! itself, all users of the asset see the animation. For example, animating the
 //! color of a [`ColorMaterial`] will change the color of all the
-//! 2D meshes using that material.
+//! 2D meshes using that material. If you want to animate the color of a single
+//! mesh, you have to duplicate the asset and assign a unique copy to that mesh,
+//! then animate that copy alone.
 //!
 //! ## Lenses
 //!
-//! Both [`Animator`] and [`AssetAnimator`] access the field(s) to animate via a
-//! lens, a type that implements the [`Lens`] trait.
+//! The [`AnimTarget`] references the container (component or asset) being
+//! animated. However only a part of that component or asset is generally
+//! animated. To that end, the [`TweenAnimator`] accesses the field(s) to
+//! animate via a _lens_, a type that implements the [`Lens`] trait and allows
+//! mapping a container to the actual value(s) animated.
 //!
-//! Several predefined lenses are provided in the [`lens`] module for the most
-//! commonly animated fields, like the components of a [`Transform`]. A custom
-//! lens can also be created by implementing the trait, allowing to animate
-//! virtually any field of any Bevy component or asset.
+//! For example, the [`TransformPositionLens`] uses a [`Transform`] component as
+//! input, and animates its [`Transform::translation`] field only, leaving the
+//! rotation and scale unchanged.
+//!
+//! ```no_run
+//! impl Lens<Transform> for TransformPositionLens {
+//!     fn lerp(&mut self, mut target: Mut<Transform>, ratio: f32) {
+//!         target.translation = self.start.lerp(self.end, ratio);
+//!     }
+//! }
+//! ```
+//!
+//! Several built-in lenses are provided in the [`lens`] module for the most
+//! commonly animated fields, like the components of a [`Transform`]. Those are
+//! provided for convenience and mainly as examples. In general 🍃 Bevy Tweening
+//! expects you to write your own lenses by implementing the trait, which as you
+//! can see above is very simple. This allows animating virtually any field of
+//! any component or asset, whether shipped with Bevy or defined by the user.
 //!
 //! [`Transform::translation`]: https://docs.rs/bevy/0.16.0/bevy/transform/components/struct.Transform.html#structfield.translation
 //! [`Entity`]: https://docs.rs/bevy/0.16.0/bevy/ecs/entity/struct.Entity.html
@@ -180,6 +202,7 @@
 //! [`Node`]: https://docs.rs/bevy/0.16.0/bevy/ui/struct.Node.html#structfield.position
 //! [`TextColor`]: https://docs.rs/bevy/0.16.0/bevy/text/struct.TextColor.html
 //! [`Transform`]: https://docs.rs/bevy/0.16.0/bevy/transform/components/struct.Transform.html
+//! [`TransformPositionLens`]: crate::lens::TransformPositionLens
 
 use std::time::Duration;
 
@@ -193,8 +216,8 @@ pub use lens::Lens;
 pub use plugin::{AnimationSystem, TweeningPlugin};
 use slotmap::{new_key_type, SlotMap};
 pub use tweenable::{
-    BoxedTweenable, Delay, Sequence, TotalDuration, Tween, TweenAssetExtensions, TweenCompleted,
-    TweenState, Tweenable,
+    BoxedTweenable, Delay, Sequence, TotalDuration, Tween, TweenAssetExtensions,
+    TweenCompletedEvent, TweenState, Tweenable,
 };
 
 pub mod lens;
@@ -496,6 +519,8 @@ pub trait EntityCommandsTweeningExtensions<'a> {
     ///     EaseFunction::QuadraticIn,
     /// );
     /// ```
+    ///
+    /// [`apply_deferred()`]: bevy::ecs::system::System::apply_deferred
     fn move_to(
         &mut self,
         end: Vec3,
@@ -651,15 +676,15 @@ pub struct ComponentTarget {
 /// Asset animation target.
 ///
 /// References an asset used as the target of a tweenable animation. The asset
-/// is identified by the ID of the [`Assets<A>`] resource type registered in the
+/// is identified by the ID of the [`Assets`] resource type registered in the
 /// [`World`] where the animation is queued, and the unique asset ID identifying
-/// the asset instance inside that [`Assets<A>`] resource.
+/// the asset instance inside that [`Assets`] resource.
 ///
 /// This is a lightweight reference (copyable) implicitly tied to a given
 /// [`World`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AssetTarget {
-    /// Resource ID of the registered [`Assets<A>`] asset container.
+    /// Resource ID of the registered [`Assets`] asset container.
     pub resource_id: ComponentId,
     /// Asset ID of the target asset being animated.
     pub asset_id: UntypedAssetId,
@@ -845,9 +870,9 @@ pub struct TweenAnimator {
     /// Queue of animations currently playing.
     anims: SlotMap<TweenId, TweenAnim>,
     /// Asset resolver allowing to convert a pair of { untyped pointer to
-    /// Assets<A>, untyped AssetId } into an untyped pointer to the asset A
+    /// `Assets<A>`, untyped `AssetId` } into an untyped pointer to the asset A
     /// itself. This is necessary because there's no UntypedAssets interface in
-    /// Bevy. The TypeId key must be the type of the Assets<A> type itself.
+    /// Bevy. The TypeId key must be the type of the `Assets<A>` type itself.
     asset_resolver: HashMap<
         ComponentId,
         Box<
@@ -872,8 +897,9 @@ impl TweenAnimator {
     /// Add a new component animation to the animator queue.
     ///
     /// In general you don't need to call this directly. Instead, use the
-    /// extensions provided by [`EntityCommandsTweening`] to directly create and
-    /// queue tweenable animations on a given [`EntityCommands`], like this:
+    /// extensions provided by [`EntityCommandsTweeningExtensions`] to directly
+    /// create and queue tweenable animations on a given [`EntityCommands`],
+    /// like this:
     ///
     /// ```
     /// # use bevy::prelude::*;
@@ -905,59 +931,6 @@ impl TweenAnimator {
     {
         self.anims.insert(TweenAnim::new(target.into(), tweenable))
     }
-
-    /// Add a new asset animation to the animator queue.
-    ///
-    /// This creates a new animation with the given tweenable, targeting the
-    /// asset with the given ID.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the target type of the tweenable (which can be queried with
-    /// [`Tweenable::type_id()`]) is different from `Assets<A>`. In general if
-    /// the tweenable was created with _e.g._ [`Tween::new_asset<A>()`] then
-    /// [`Tweenable::type_id()`] correctly returns `Assets<A>`. Note that the
-    /// type is **NOT** the asset type `A` itself, but rather `Assets<A>`.
-    // #[inline]
-    // pub fn add_asset<A, T, I>(&mut self, asset_id: I, tweenable: T) -> TweenId
-    // where
-    //     A: Asset,
-    //     T: Tweenable + 'static,
-    //     I: Into<AssetId<A>>,
-    // {
-    //     let type_id = TypeId::of::<Assets<A>>();
-    //     assert_eq!(
-    //         Some(type_id),
-    //         tweenable.type_id(),
-    //         "Tweenable has different target type than Assets<A>."
-    //     );
-
-    //     self.asset_resolver.entry(resource_id).or_insert_with(|| {
-    //         Box::new(
-    //             // Convert ( Mut<Assets<A>>, AssetId<A> ) -> Mut<A>
-    //             |assets: MutUntyped, asset_id: UntypedAssetId| -> MutUntyped {
-    //                 // SAFETY: The type ID was checked above with an assert to make sure the one
-    //                 // stored in the Tweenable (which is where the untyped value comes from) is
-    //                 // the same as Assets<A>.
-    //                 #[allow(unsafe_code)]
-    //                 let assets = unsafe { assets.with_type::<Assets<A>>() };
-
-    //                 let asset_id = asset_id.typed::<A>();
-    //                 let asset: Mut<A> = assets.map_unchanged(|a| {
-    //                     // FIXME - replace with get_mut_untracked() to skip ECS change detection; see https://github.com/bevyengine/bevy/issues/13104
-    //                     a.get_mut(asset_id).unwrap()
-    //                 });
-
-    //                 asset.into()
-    //             },
-    //         )
-    //     });
-
-    //     let asset_id: AssetId<A> = asset_id.into();
-    //     let target = WorldAssetTarget { resource_id, asset_id: asset_id.untyped() };
-    //     self.anims
-    //         .insert(TweenAnim::new(target.into(), tweenable))
-    // }
 
     /// Queue a prepared tweenable animation.
     ///
@@ -1000,12 +973,16 @@ impl TweenAnimator {
     /// Loop over the internal queue of tweenable animations, apply them to
     /// their respective target [`Entity`], and prune all the completed
     /// ones (the ones returning [`TweenState::Completed`]). In the later case,
-    /// send [`TweenCompleted`] events if enabled on each individual tweenable.
+    /// send [`TweenCompletedEvent`]s if enabled on each individual tweenable.
+    ///
+    /// If you use the [`TweeningPlugin`], this is automatically called by the
+    /// animation system the plugin registers. See the
+    /// [`AnimationSystem::AnimationUpdate`] system set.
     pub fn play(
         &mut self,
         world: &mut World,
         delta_time: Duration,
-        mut events: Mut<Events<TweenCompleted>>,
+        mut events: Mut<Events<TweenCompletedEvent>>,
         mut anim_events: Mut<Events<AnimCompletedEvent>>,
     ) {
         // Loop over active animations, tick them, and retain those which are still
@@ -1047,7 +1024,7 @@ impl TweenAnimator {
             let delta_time = delta_time.mul_f32(anim.speed.max(0.));
 
             let mut notify_completed = |fraction: f32| {
-                events.send(TweenCompleted {
+                events.send(TweenCompletedEvent {
                     id: tween_id,
                     target: anim.target,
                     progress: fraction,

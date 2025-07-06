@@ -135,7 +135,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 
 fn enable_interaction_after_initial_animation(
     mut commands: Commands,
-    mut reader: EventReader<TweenCompleted>,
+    mut reader: EventReader<TweenCompletedEvent>,
 ) {
     for event in reader.read() {
         if let AnimTarget::Component(comp_target) = &event.target {

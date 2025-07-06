@@ -108,8 +108,7 @@ pub struct TransformPositionLens {
 
 impl Lens<Transform> for TransformPositionLens {
     fn lerp(&mut self, mut target: Mut<Transform>, ratio: f32) {
-        let value = self.start + (self.end - self.start) * ratio;
-        target.translation = value;
+        target.translation = self.start.lerp(self.end, ratio);
     }
 }
 

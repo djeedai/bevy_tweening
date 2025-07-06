@@ -263,7 +263,7 @@ fn update_text(
     mut q_textspans: Query<&mut TextSpan, With<ProgressValue>>,
     q_anim_red: Query<&RedSprite>,
     q_anim_blue: Query<&BlueSprite>,
-    mut q_event_completed: EventReader<TweenCompleted>,
+    mut q_event_completed: EventReader<TweenCompletedEvent>,
 ) {
     let anim_red = q_anim_red.single().unwrap();
     let progress_red = if let Some(anim) = animator.get(anim_red.path_tween_id) {
@@ -287,7 +287,7 @@ fn update_text(
 
     for ev in q_event_completed.read() {
         println!(
-            "Event: TweenCompleted tween_id={:?} entity={:?}",
+            "Event: TweenCompletedEvent tween_id={:?} entity={:?}",
             ev.id, ev.entity
         );
     }

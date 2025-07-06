@@ -31,7 +31,7 @@ use crate::{
 /// # use std::{any::TypeId, time::Duration};
 /// # use bevy::ecs::{system::Commands, change_detection::MutUntyped};
 /// # use bevy::prelude::*;
-/// # use bevy_tweening::{BoxedTweenable, Sequence, TweenId, Tweenable, TweenCompleted, TweenState, TotalDuration};
+/// # use bevy_tweening::{BoxedTweenable, Sequence, TweenId, Tweenable, TweenCompletedEvent, TweenState, TotalDuration};
 /// #
 /// # struct MyTweenable;
 /// # impl Tweenable for MyTweenable {
@@ -62,7 +62,7 @@ pub type BoxedTweenable = Box<dyn Tweenable + 'static>;
 
 /// Playback state of a [`Tweenable`].
 ///
-/// This is returned by [`Tweenable::tick()`] to allow the caller to execute
+/// This is returned by [`Tweenable::step()`] to allow the caller to execute
 /// some logic based on the updated state of the tweenable, like advanding a
 /// sequence to its next child tweenable.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -90,19 +90,26 @@ pub enum TweenState {
 /// The semantic is slightly different from [`TweenState::Completed`], which
 /// indicates that the tweenable has finished ticking and do not need to be
 /// updated anymore, a state which is never reached for looping animation. Here
-/// the [`TweenCompleted`] event instead marks the end of a single loop
+/// the [`TweenCompletedEvent`] instead marks the end of a single loop
 /// iteration.
 #[derive(Copy, Clone, Event)]
-pub struct TweenCompleted {
+pub struct TweenCompletedEvent {
     /// The ID of the tween animation which completed.
     ///
     /// This is the ID of the top-level [`TweenAnim`] this tween is part of. It
-    /// can be used to retrieve the animation with [`TweenAnimator::get`].
+    /// can be used to retrieve the animation with [`TweenAnimator::get()`].
+    ///
+    /// [`TweenAnim`]: crate::TweenAnim
+    /// [`TweenAnimator::get()`]: crate::TweenAnimator::get
     pub id: TweenId,
     /// The [`Entity`] the tween which completed and the [`TweenAnim`] it's part
     /// of are attached to.
+    ///
+    /// [`TweenAnim`]: crate::TweenAnim
     pub target: AnimTarget,
     /// Current progress of the owner [`TweenAnim`].
+    ///
+    /// [`TweenAnim`]: crate::TweenAnim
     pub progress: f32,
 }
 
@@ -683,7 +690,7 @@ impl Tween {
 
     /// Enable raising a completed event on looping.
     ///
-    /// If enabled, the tween will raise a [`TweenCompleted`] event each time
+    /// If enabled, the tween will raise a [`TweenCompletedEvent`] each time
     /// the tween's progress reaches `1.`. In case of looping tweens (repeat
     /// count > 1), the event is raised once per loop. For mirrored repeats, a
     /// "loop" is one travel from start to end or end to start (so the full
@@ -704,14 +711,15 @@ impl Tween {
     /// #        end: Vec3::new(3.5, 0., 0.),
     /// #    },
     /// )
-    /// // Raise a TweenCompleted event each loop
+    /// // Raise a TweenCompletedEvent each loop
     /// .with_completed_event(true);
     ///
-    /// fn my_system(mut reader: EventReader<TweenCompleted>) {
+    /// fn my_system(mut reader: EventReader<TweenCompletedEvent>) {
     ///     for ev in reader.read() {
     ///         println!(
-    ///             "Tween animation {:?} raised TweenCompleted for target entity {:?}!",
-    ///             ev.id, ev.target.as_component().unwrap().entity
+    ///             "Tween animation {:?} raised TweenCompletedEvent for target entity {:?}!",
+    ///             ev.id,
+    ///             ev.target.as_component().unwrap().entity
     ///         );
     ///     }
     /// }
@@ -731,7 +739,7 @@ impl Tween {
     ///
     /// If enabled, the tween will run a system via a provided [`SystemId`] when
     /// the animation completes. This is similar to the
-    /// [`with_completed()`], but uses a system registered by
+    /// [`with_completed_event()`], but uses a system registered by
     /// [`register_system()`] instead of a callback.
     ///
     /// # Example
@@ -759,7 +767,8 @@ impl Tween {
     ///    }
     /// }
     /// ```
-    /// [`with_completed()`]: Tween::with_completed
+    ///
+    /// [`with_completed_event()`]: crate::Tween::with_completed_event
     /// [`register_system()`]: bevy::ecs::world::World::register_system
     #[must_use]
     pub fn with_completed_system(mut self, system_id: SystemId) -> Self {
@@ -1204,7 +1213,7 @@ impl Delay {
     ///
     /// If enabled, the tween will run a system via a provided [`SystemId`] when
     /// the animation completes. This is similar to the
-    /// [`with_completed()`], but uses a system registered by
+    /// [`with_completed_event()`], but uses a system registered by
     /// [`register_system()`] instead.
     ///
     /// # Example
@@ -1233,7 +1242,7 @@ impl Delay {
     /// }
     /// ```
     ///
-    /// [`with_completed()`]: Delay::with_completed
+    /// [`with_completed_event()`]: crate::Tween::with_completed_event
     /// [`register_system()`]: bevy::ecs::world::World::register_system
     #[must_use]
     pub fn with_completed_system(mut self, system_id: SystemId) -> Self {
@@ -1292,7 +1301,7 @@ impl Tweenable for Delay {
         // // If completed this frame, notify the user
         // if (state == TweenState::Completed) && !was_completed {
         //     if self.send_completed_events {
-        //         let event = TweenCompleted {
+        //         let event = TweenCompletedEvent {
         //             id: tween_id,
         //             entity,
         //             progress,
@@ -1463,7 +1472,7 @@ mod tests {
     /// Utility to create a test environment to tick a tween.
     fn make_test_env() -> (World, Entity, SystemId) {
         let mut world = World::new();
-        world.init_resource::<Events<TweenCompleted>>();
+        world.init_resource::<Events<TweenCompletedEvent>>();
         let entity = world.spawn(Transform::default()).id();
         let system_id = world.register_system(oneshot_test);
         (world, entity, system_id)
@@ -1482,7 +1491,7 @@ mod tests {
     ) -> TweenState {
         // Tick the given tween and apply its state to the given entity target
         let state = world.resource_scope(
-            |world: &mut World, mut events: Mut<Events<TweenCompleted>>| {
+            |world: &mut World, mut events: Mut<Events<TweenCompletedEvent>>| {
                 let component_id = world.component_id::<Transform>().unwrap();
                 let entity_mut = &mut world.get_entity_mut([entity]).unwrap()[0];
                 if let Ok(mut target) = entity_mut.get_mut_by_id(component_id) {
@@ -1492,7 +1501,7 @@ mod tests {
                     }
                     .into();
                     let mut notify_completed = |fraction: f32| {
-                        events.send(TweenCompleted {
+                        events.send(TweenCompletedEvent {
                             id: tween_id,
                             target: world_target,
                             progress: fraction,
@@ -1507,7 +1516,7 @@ mod tests {
 
         // Propagate events
         {
-            let mut events = world.resource_mut::<Events<TweenCompleted>>();
+            let mut events = world.resource_mut::<Events<TweenCompletedEvent>>();
             events.update();
         }
 
@@ -1618,7 +1627,7 @@ mod tests {
                 }
 
                 let (mut world, entity, system_id) = make_test_env();
-                let mut event_reader_system_state: SystemState<EventReader<TweenCompleted>> =
+                let mut event_reader_system_state: SystemState<EventReader<TweenCompletedEvent>> =
                     SystemState::new(&mut world);
 
                 // Activate oneshot system

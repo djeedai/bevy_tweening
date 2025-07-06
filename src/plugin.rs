@@ -1,42 +1,21 @@
 use bevy::prelude::*;
 
-use crate::{AnimCompletedEvent, TweenAnimator, TweenCompleted};
+use crate::{AnimCompletedEvent, TweenAnimator, TweenCompletedEvent};
 
-/// Plugin to add systems related to tweening of common components and assets.
+/// Plugin to register the [`TweenAnimator`] and the systme playing animations.
 ///
-/// This plugin adds systems for a predefined set of components and assets, to
-/// allow their respective animators to be updated each frame:
-/// - [`Transform`]
-/// - [`TextColor`]
-/// - [`Node`]
-/// - [`Sprite`]
-/// - [`ColorMaterial`]
-///
-/// This ensures that all predefined lenses work as intended, as well as any
-/// custom lens animating the same component or asset type.
-///
-/// For other components and assets, including custom ones, the relevant system
-/// needs to be added manually by the application:
-/// - For components, add [`component_animator_system::<T>`] where `T:
-///   Component`
-/// - For assets, add [`asset_animator_system::<T>`] where `T: Asset`
-///
-/// This plugin is entirely optional. If you want more control, you can instead
-/// add manually the relevant systems for the exact set of components and assets
-/// actually animated.
-///
-/// [`Transform`]: https://docs.rs/bevy/0.16.0/bevy/transform/components/struct.Transform.html
-/// [`TextColor`]: https://docs.rs/bevy/0.16.0/bevy/text/struct.TextColor.html
-/// [`Node`]: https://docs.rs/bevy/0.16.0/bevy/ui/struct.Node.html
-/// [`Sprite`]: https://docs.rs/bevy/0.16.0/bevy/sprite/struct.Sprite.html
-/// [`ColorMaterial`]: https://docs.rs/bevy/0.16.0/bevy/sprite/struct.ColorMaterial.html
+/// This plugin registers the common resources and events used by 🍃 Bevy
+/// Tweening as well as the core animation system which executes all pending
+/// tweenable animations. That system runs in the
+/// [`AnimationSystem::AnimationUpdate`] system set, during the [`Update`]
+/// schedule.
 #[derive(Debug, Clone, Copy)]
 pub struct TweeningPlugin;
 
 impl Plugin for TweeningPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<TweenAnimator>()
-            .add_event::<TweenCompleted>()
+            .add_event::<TweenCompletedEvent>()
             .add_event::<AnimCompletedEvent>()
             .add_systems(
                 Update,
@@ -47,16 +26,17 @@ impl Plugin for TweeningPlugin {
 
 /// Label enum for the systems relating to animations
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, SystemSet)]
+#[non_exhaustive]
 pub enum AnimationSystem {
-    /// Ticks animations
+    /// Ticks all animations. This executes during the [`Update`] schedule.
     AnimationUpdate,
 }
 
-/// TODO
-pub fn animator_system(world: &mut World) {
+/// Core animation systemt ticking the [`TweenAnimator`].
+pub(crate) fn animator_system(world: &mut World) {
     let delta_time = world.resource::<Time>().delta();
     // TODO: Use SystemState to cache all of that...
-    world.resource_scope(|world, events: Mut<Events<TweenCompleted>>| {
+    world.resource_scope(|world, events: Mut<Events<TweenCompletedEvent>>| {
         world.resource_scope(|world, anim_events: Mut<Events<AnimCompletedEvent>>| {
             world.resource_scope(|world, mut animator: Mut<TweenAnimator>| {
                 animator.play(world, delta_time, events, anim_events);
@@ -95,7 +75,7 @@ mod tests {
         pub fn new(tweenable: impl Tweenable + 'static) -> Self {
             let mut world = World::new();
             world.init_resource::<Time>();
-            world.init_resource::<Events<TweenCompleted>>();
+            world.init_resource::<Events<TweenCompletedEvent>>();
             world.init_resource::<Events<AnimCompletedEvent>>();
             world.init_resource::<TweenAnimator>();
 
@@ -140,7 +120,7 @@ mod tests {
             system.run((), &mut self.world);
 
             // Update events after system ticked, in case system emitted some events
-            let mut events = self.world.resource_mut::<Events<TweenCompleted>>();
+            let mut events = self.world.resource_mut::<Events<TweenCompletedEvent>>();
             events.update();
             let mut events = self.world.resource_mut::<Events<AnimCompletedEvent>>();
             events.update();
@@ -158,7 +138,7 @@ mod tests {
 
         /// Get the emitted event count since last tick.
         pub fn event_count(&self) -> usize {
-            let events = self.world.resource::<Events<TweenCompleted>>();
+            let events = self.world.resource::<Events<TweenCompletedEvent>>();
             events.get_cursor().len(events)
         }
     }
