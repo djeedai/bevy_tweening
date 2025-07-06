@@ -180,6 +180,9 @@
 //! rotation and scale unchanged.
 //!
 //! ```no_run
+//! # use bevy::{prelude::{Transform, Vec3}, ecs::change_detection::Mut};
+//! # use bevy_tweening::Lens;
+//! # struct TransformPositionLens { start: Vec3, end: Vec3 };
 //! impl Lens<Transform> for TransformPositionLens {
 //!     fn lerp(&mut self, mut target: Mut<Transform>, ratio: f32) {
 //!         target.translation = self.start.lerp(self.end, ratio);
