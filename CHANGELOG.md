@@ -29,6 +29,7 @@ and unifies all animations of all components and assets._
 
 ### Changed
 
+- The `bevy_asset` feature was removed; `bevy_tweening` now depends on `bevy/bevy_asset` always.
 - The `Lens<T>` trait now takes its target as `Mut<T>` instead of `&mut dyn Targetable<T>`.
 
   ```rust

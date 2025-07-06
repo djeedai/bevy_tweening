@@ -58,7 +58,7 @@
 //!
 //! commands
 //!     // Spawn an entity to animate the position of.
-//!     .spawn((Transform::default(),))
+//!     .spawn(Transform::default())
 //!     // Queue the tweenable animation
 //!     .tween(tween);
 //! # }
@@ -1055,43 +1055,6 @@ impl TweenAnimator {
     }
 }
 
-// /// Component to control the animation of an asset.
-// ///
-// /// The animated asset is the asset referenced by a [`Handle<T>`] component
-// /// located on the same entity as the [`AssetAnimator<T>`] itself.
-// #[cfg(feature = "bevy_asset")]
-// #[derive(Component)]
-// pub struct AssetAnimator<T: Asset> {
-//     /// Control if this animation is played or not.
-//     pub state: AnimatorState,
-//     tweenable: BoxedTweenable<T>,
-//     speed: f32,
-// }
-
-// #[cfg(feature = "bevy_asset")]
-// impl<T: Asset + std::fmt::Debug> std::fmt::Debug for AssetAnimator<T> {
-//     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-//         f.debug_struct("AssetAnimator")
-//             .field("state", &self.state)
-//             .finish()
-//     }
-// }
-
-// #[cfg(feature = "bevy_asset")]
-// impl<T: Asset> AssetAnimator<T> {
-//     /// Create a new asset animator component from a single tweenable.
-//     #[must_use]
-//     pub fn new(tween: impl Tweenable<T> + 'static) -> Self {
-//         Self {
-//             state: default(),
-//             tweenable: Box::new(tween),
-//             speed: 1.,
-//         }
-//     }
-
-//     //animator_impl!();
-// }
-
 /// Trait to interpolate between two values.
 /// Needed for color.
 #[allow(dead_code)]
@@ -1132,7 +1095,6 @@ mod tests {
         value: f32,
     }
 
-    #[cfg(feature = "bevy_asset")]
     #[derive(Asset, Debug, Default, Reflect)]
     struct DummyAsset {
         value: f32,
@@ -1171,14 +1133,12 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "bevy_asset")]
     impl Lens<DummyAsset> for DummyLens {
         fn lerp(&mut self, mut target: Mut<DummyAsset>, ratio: f32) {
             target.value = self.start.lerp(self.end, ratio);
         }
     }
 
-    #[cfg(feature = "bevy_asset")]
     #[test]
     fn dummy_lens_asset() {
         let mut assets = Assets::<DummyAsset>::default();

@@ -16,9 +16,7 @@ readme = "README.md"
 exclude = ["examples/*.gif", ".github", "release.md", "run_examples.bat"]
 
 [features]
-default = ["bevy_sprite", "bevy_ui", "bevy_asset", "bevy_text"]
-# Enable support for Asset animation
-bevy_asset = ["bevy/bevy_asset"]
+default = ["bevy_sprite", "bevy_ui", "bevy_text"]
 # Enable built-in lenses for Bevy sprites
 bevy_sprite = ["bevy/bevy_sprite", "bevy/bevy_render"]
 # Enable built-in lenses for Bevy UI
@@ -28,7 +26,7 @@ bevy_text = ["bevy/bevy_text", "bevy/bevy_render", "bevy/bevy_sprite"]
 
 [dependencies]
 # Note: abuse 'bevy_color' to force 'bevy_math/curve' feature, which defines EaseFunction
-bevy = { version = "0.16", default-features = false, features = [ "bevy_color" ]}
+bevy = { version = "0.16", default-features = false, features = [ "bevy_color", "bevy_asset" ]}
 slotmap = "1.0"
 
 [dev-dependencies]
@@ -40,7 +38,7 @@ required-features = ["bevy_ui", "bevy_text", "bevy/bevy_winit", "bevy/bevy_picki
 
 [[example]]
 name = "colormaterial_color"
-required-features = ["bevy_asset", "bevy_sprite", "bevy/bevy_winit", "bevy/bevy_picking"]
+required-features = ["bevy_sprite", "bevy/bevy_winit", "bevy/bevy_picking"]
 
 [[example]]
 name = "sprite_color"

@@ -334,7 +334,7 @@ impl Lens<BackgroundColor> for UiBackgroundColorLens {
 ///
 /// [`color`]: https://docs.rs/bevy/0.16.0/bevy/sprite/struct.ColorMaterial.html#structfield.color
 /// [`ColorMaterial`]: https://docs.rs/bevy/0.16.0/bevy/sprite/struct.ColorMaterial.html
-#[cfg(all(feature = "bevy_sprite", feature = "bevy_asset"))]
+#[cfg(feature = "bevy_sprite")]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct ColorMaterialColorLens {
     /// Start color.
@@ -343,7 +343,7 @@ pub struct ColorMaterialColorLens {
     pub end: Color,
 }
 
-#[cfg(all(feature = "bevy_sprite", feature = "bevy_asset"))]
+#[cfg(feature = "bevy_sprite")]
 impl Lens<ColorMaterial> for ColorMaterialColorLens {
     fn lerp(&mut self, mut target: Mut<ColorMaterial>, ratio: f32) {
         target.color = self.start.mix(&self.end, ratio);
@@ -971,7 +971,7 @@ mod tests {
         assert_eq!(node.bottom, Val::Percent(31.));
     }
 
-    #[cfg(all(feature = "bevy_sprite", feature = "bevy_asset"))]
+    #[cfg(feature = "bevy_sprite")]
     #[test]
     fn colormaterial_color() {
         let mut lens = ColorMaterialColorLens {

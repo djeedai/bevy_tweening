@@ -879,7 +879,6 @@ impl Tween {
     }
 }
 
-#[cfg(feature = "bevy_asset")]
 impl TweenAssetExtensions for Tween {
     #[must_use]
     fn new<A, L>(ease_function: impl Into<EaseMethod>, duration: Duration, mut lens: L) -> Self
