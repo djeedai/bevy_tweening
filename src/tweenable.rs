@@ -636,6 +636,7 @@ impl Tween {
     ///     },
     /// );
     /// ```
+    #[inline]
     #[must_use]
     pub fn new<C, L>(ease_method: impl Into<EaseMethod>, duration: Duration, mut lens: L) -> Self
     where

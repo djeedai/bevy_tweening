@@ -39,7 +39,7 @@ pub(crate) fn animator_system(world: &mut World) {
     world.resource_scope(|world, events: Mut<Events<TweenCompletedEvent>>| {
         world.resource_scope(|world, anim_events: Mut<Events<AnimCompletedEvent>>| {
             world.resource_scope(|world, mut animator: Mut<TweenAnimator>| {
-                animator.play(world, delta_time, events, anim_events);
+                animator.play_all(world, delta_time, events, anim_events);
             });
         });
     });
@@ -69,7 +69,7 @@ mod tests {
         _phantom: PhantomData<T>,
     }
 
-    impl<T: Component + Default> TestEnv<T> {
+    impl<T: Component<Mutability = Mutable> + Default> TestEnv<T> {
         /// Create a new test environment containing a single entity with a `T`
         /// component, and add the given animator on that same entity.
         pub fn new(tweenable: impl Tweenable + 'static) -> Self {
@@ -81,11 +81,8 @@ mod tests {
 
             let entity = world.spawn(T::default()).id();
             let tween_id = world.resource_scope(|world, mut animator: Mut<'_, TweenAnimator>| {
-                let target = ComponentTarget {
-                    component_id: world.component_id::<T>().unwrap(),
-                    entity,
-                };
-                animator.add(target, tweenable)
+                let target = world.get_component_target::<T>(entity).unwrap();
+                animator.add(target.into(), tweenable)
             });
 
             Self {
