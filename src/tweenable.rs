@@ -33,6 +33,7 @@ use crate::{
 /// # use bevy::prelude::*;
 /// # use bevy_tweening::{BoxedTweenable, Sequence, TweenId, Tweenable, TweenCompletedEvent, TweenState, TotalDuration};
 /// #
+/// # #[derive(Debug)]
 /// # struct MyTweenable;
 /// # impl Tweenable for MyTweenable {
 /// #     fn cycle_duration(&self) -> Duration  { unimplemented!() }
@@ -411,7 +412,7 @@ impl Ord for TotalDuration {
 }
 
 /// An animatable entity, either a single [`Tween`] or a collection of them.
-pub trait Tweenable: Send + Sync {
+pub trait Tweenable: std::fmt::Debug + Send + Sync {
     /// Get the duration of a single cycle of the animation.
     ///
     /// Note that for [`RepeatStrategy::MirroredRepeat`], this is the duration
@@ -575,7 +576,17 @@ enum TweenAction {
     Asset(Box<TargetAction>),
 }
 
+impl std::fmt::Debug for TweenAction {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TweenAction::Component(..) => write!(f, "TweenAction::Component"),
+            TweenAction::Asset(..) => write!(f, "TweenAction::Asset"),
+        }
+    }
+}
+
 /// Single tweening animation instance.
+#[derive(Debug)]
 pub struct Tween {
     ease_method: EaseMethod,
     clock: AnimClock,
@@ -981,6 +992,7 @@ impl Tweenable for Tween {
 }
 
 /// A sequence of tweens played back in order one after the other.
+#[derive(Debug)]
 pub struct Sequence {
     tweens: Vec<BoxedTweenable>,
     index: usize,
@@ -1182,6 +1194,7 @@ impl Tweenable for Sequence {
 /// and tracks, for example to delay the start of a tween in a track relative to
 /// another track. The `menu` example (`examples/menu.rs`) uses this technique
 /// to delay the animation of its buttons.
+#[derive(Debug)]
 pub struct Delay {
     timer: Timer,
     system_id: Option<SystemId>,

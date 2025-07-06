@@ -240,13 +240,13 @@
 //! [`Transform`]: https://docs.rs/bevy/0.16.0/bevy/transform/components/struct.Transform.html
 //! [`TransformPositionLens`]: crate::lens::TransformPositionLens
 
-use std::time::Duration;
+use std::{any::TypeId, time::Duration};
 
 use bevy::{
     asset::UntypedAssetId,
     ecs::{
         change_detection::MutUntyped,
-        component::{ComponentId, Mutable},
+        component::{ComponentId, Components, Mutable},
     },
     platform::collections::HashMap,
     prelude::*,
@@ -254,6 +254,7 @@ use bevy::{
 pub use lens::Lens;
 pub use plugin::{AnimationSystem, TweeningPlugin};
 use slotmap::{new_key_type, SlotMap};
+use thiserror::Error;
 pub use tweenable::{
     BoxedTweenable, Delay, Sequence, TotalDuration, Tween, TweenAssetExtensions,
     TweenCompletedEvent, TweenState, Tweenable,
@@ -370,7 +371,7 @@ impl std::ops::Not for PlaybackState {
 /// while the "shape" of the animation is controlled independently.
 ///
 /// Default: `EaseFunction::Linear`.
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 pub enum EaseMethod {
     /// Follow [`EaseFunction`].
     EaseFunction(EaseFunction),
@@ -875,6 +876,29 @@ pub struct AnimCompletedEvent {
     pub target: AnimTarget,
 }
 
+/// Errors returned by various animation functions.
+#[derive(Debug, Error)]
+pub enum TweeningError {
+    /// The component of the given type is not registered.
+    #[error("Component of type {0:?} is not registered in the World.")]
+    ComponentNotRegistered(TypeId),
+    /// The asset container for the given asset type is not registered.
+    #[error("Asset container Assets<A> for asset type A = {0:?} is not registered in the World.")]
+    AssetNotRegistered(TypeId),
+    /// The asset ID references a different type than expected.
+    #[error("Expected type of asset ID to be {expected:?} but got {actual:?} instead.")]
+    InvalidAssetIdType {
+        /// The expected asset type.
+        expected: TypeId,
+        /// The actual type the asset ID references.
+        actual: TypeId,
+    },
+    /// Expected [`Tweenable::type_id()`] to return a value, but it returned
+    /// `None`.
+    #[error("Expected a typed Tweenable, got {0:?} instead.")]
+    UntypedTweenable(BoxedTweenable),
+}
+
 /// Component animation target.
 ///
 /// References a component used as the target of a tweenable animation. The
@@ -892,6 +916,37 @@ pub struct ComponentTarget {
     pub entity: Entity,
 }
 
+impl ComponentTarget {
+    /// Create a new component target.
+    pub fn new<C: Component<Mutability = Mutable>>(
+        components: &Components,
+        entity: Entity,
+    ) -> Result<Self, TweeningError> {
+        let component_id = components
+            .component_id::<C>()
+            .ok_or(TweeningError::ComponentNotRegistered(TypeId::of::<C>()))?;
+        Ok(Self {
+            component_id,
+            entity,
+        })
+    }
+
+    /// Create a new component target from a component type ID.
+    pub fn new_untyped(
+        components: &Components,
+        type_id: TypeId,
+        entity: Entity,
+    ) -> Result<Self, TweeningError> {
+        let component_id = components
+            .get_id(type_id)
+            .ok_or(TweeningError::ComponentNotRegistered(type_id))?;
+        Ok(Self {
+            component_id,
+            entity,
+        })
+    }
+}
+
 /// Asset animation target.
 ///
 /// References an asset used as the target of a tweenable animation. The asset
@@ -907,6 +962,44 @@ pub struct AssetTarget {
     pub resource_id: ComponentId,
     /// Asset ID of the target asset being animated.
     pub asset_id: UntypedAssetId,
+}
+
+impl AssetTarget {
+    /// Create a new asset target.
+    pub fn new<A: Asset>(
+        components: &Components,
+        asset_id: impl Into<AssetId<A>>,
+    ) -> Result<Self, TweeningError> {
+        let resource_id = components
+            .resource_id::<Assets<A>>()
+            .ok_or(TweeningError::AssetNotRegistered(TypeId::of::<A>()))?;
+        Ok(Self {
+            resource_id,
+            asset_id: asset_id.into().untyped(),
+        })
+    }
+
+    /// Create a new asset target from an `Assets<A>` type ID.
+    pub fn new_untyped(
+        components: &Components,
+        type_id: TypeId,
+        asset_id: impl Into<UntypedAssetId>,
+    ) -> Result<Self, TweeningError> {
+        let asset_id = asset_id.into();
+        if asset_id.type_id() != type_id {
+            return Err(TweeningError::InvalidAssetIdType {
+                expected: type_id,
+                actual: asset_id.type_id(),
+            });
+        }
+        let resource_id = components
+            .get_resource_id(type_id)
+            .ok_or(TweeningError::AssetNotRegistered(type_id))?;
+        Ok(Self {
+            resource_id,
+            asset_id,
+        })
+    }
 }
 
 /// Animation target.
@@ -1169,6 +1262,79 @@ impl Default for TweenAnimator {
 }
 
 impl TweenAnimator {
+    /// Add a new animation to the animator queue.
+    ///
+    /// This is the lowest level animation queueing function. In general you
+    /// don't need to call this directly. Instead, you have a few more
+    /// convenient options:
+    /// - use the extensions provided by [`EntityCommandsTweeningExtensions`] to
+    ///   directly create and queue tweenable animations on a given
+    ///   [`EntityCommands`], like this:
+    ///
+    ///   ```
+    ///   # use bevy::prelude::*;
+    ///   # use bevy_tweening::{lens::*, *};
+    ///   # use std::time::Duration;
+    ///   # let mut world = World::default();
+    ///   # world.register_component::<Transform>();
+    ///   # world.register_resource::<TweenAnimator>();
+    ///   # world.init_resource::<TweenAnimator>();
+    ///   # let entity = world.spawn_empty().id();
+    ///   let tween = Tween::new(
+    ///       EaseFunction::QuadraticInOut,
+    ///       Duration::from_secs(1),
+    ///       TransformPositionLens {
+    ///           start: Vec3::ZERO,
+    ///           end: Vec3::new(3.5, 0., 0.),
+    ///       },
+    ///   );
+    ///   world.entity_mut(entity).tween(tween);
+    ///   ```
+    ///
+    /// - use [`add_component()`] or [`add_asset()`], which take care of
+    ///   creating the [`AnimTarget`] for you.
+    ///
+    /// To create a component target, you can either use:
+    /// - [`get_component_target()`] if you have access to the [`World`]; or
+    /// - [`ComponentTarget::new()`] or [`ComponentTarget::new_untyped()`]
+    ///   otherwise.
+    ///
+    /// To create an asset target, you can either use:
+    /// - [`get_asset_target()`] if you have access to the [`World`]; or
+    /// - [`AssetTarget::new()`] or [`AssetTarget::new_untyped()`] otherwise.
+    ///
+    /// ```
+    /// # use bevy::prelude::*;
+    /// # use bevy_tweening::{lens::*, *};
+    /// # use std::time::Duration;
+    /// # fn xxx() -> Option<()> {
+    /// # let mut world = World::default();
+    /// # world.register_component::<Transform>();
+    /// # world.register_resource::<TweenAnimator>();
+    /// # world.init_resource::<TweenAnimator>();
+    /// # fn make_tween() -> Tween { unimplemented!() }
+    /// # let tween = make_tween();
+    /// let entity = world.spawn(Transform::default()).id();
+    /// let target = world.get_component_target::<Transform>(entity)?;
+    /// let mut animator = world.resource_mut::<TweenAnimator>();
+    /// let tween_id = animator.add(target.into(), tween);
+    /// // Later, possibly from different system, modify the playback:
+    /// animator.get_mut(tween_id)?.speed = 1.2; // 120% playback speed
+    /// # None }
+    /// ```
+    ///
+    /// [`add_component()`]: Self::add_component
+    /// [`add_asset()`]: Self::add_asset
+    /// [`get_component_target()`]: WorldTargetExtensions::get_component_target
+    /// [`get_asset_target()`]: WorldTargetExtensions::get_asset_target
+    #[inline]
+    pub fn add<T>(&mut self, target: AnimTarget, tweenable: T) -> TweenId
+    where
+        T: Tweenable + 'static,
+    {
+        self.anims.insert(TweenAnim::new(target, tweenable))
+    }
+
     /// Add a new component animation to the animator queue.
     ///
     /// In general you don't need to call this directly. Instead, use the
@@ -1198,48 +1364,130 @@ impl TweenAnimator {
     ///
     /// This function is still useful if you want to store the [`TweenId`] of
     /// the new animation, to later access it to dynamically modify the playback
-    /// (e.g. speed). To create the target, you can use
-    /// [`WorldTargetExtensions::get_component_target()`].
+    /// (e.g. speed).
     ///
     /// ```
-    /// # use bevy::prelude::*;
+    /// # use bevy::{prelude::*, ecs::component::Components};
     /// # use bevy_tweening::{lens::*, *};
     /// # use std::time::Duration;
-    /// # fn xxx() -> Option<()> {
-    /// # let mut world = World::default();
-    /// # world.register_component::<Transform>();
-    /// # world.register_resource::<TweenAnimator>();
-    /// # world.init_resource::<TweenAnimator>();
     /// # fn make_tween() -> Tween { unimplemented!() }
-    /// # let tween = make_tween();
-    /// let entity = world.spawn(Transform::default()).id();
-    /// let target = world.get_component_target::<Transform>(entity)?;
-    /// let mut animator = world.resource_mut::<TweenAnimator>();
-    /// let tween_id = animator.add(target.into(), tween);
-    /// // Later, possibly from different system, modify the playback:
-    /// animator.get_mut(tween_id)?.speed = 1.2; // 120% playback speed
-    /// # None }
+    /// // Helper component to store a TweenId
+    /// #[derive(Component)]
+    /// struct MyTweenId(pub TweenId);
+    ///
+    /// // System which spawns the component and its animation
+    /// fn my_spawn_system(
+    ///     mut commands: Commands,
+    ///     components: &Components,
+    ///     mut animator: ResMut<TweenAnimator>,
+    /// ) -> Result<()> {
+    ///     # let tween = make_tween();
+    ///     let entity = commands.spawn(Transform::default()).id();
+    ///     // The component type is deducted from `tween` here
+    ///     let tween_id = animator.add_component(components, entity, tween)?;
+    ///     // Save the new TweenId for later use
+    ///     commands.entity(entity).insert(MyTweenId(tween_id));
+    ///     Ok(())
+    /// }
+    ///
+    /// // System which modifies the animation playback
+    /// fn my_use_system(mut animator: ResMut<TweenAnimator>, query: Query<&MyTweenId>) -> Option<()> {
+    ///     let tween_id = query.single().ok()?.0;
+    ///     animator.get_mut(tween_id)?.speed = 1.2; // 120% playback speed
+    ///     Some(())
+    /// }
     /// ```
+    ///
+    /// [`add()`]: Self::add
     #[inline]
-    pub fn add<T>(&mut self, target: AnimTarget, tweenable: T) -> TweenId
+    pub fn add_component<T>(
+        &mut self,
+        components: &Components,
+        entity: Entity,
+        tweenable: T,
+    ) -> Result<TweenId, TweeningError>
     where
         T: Tweenable + 'static,
     {
-        self.anims.insert(TweenAnim::new(target, tweenable))
+        let Some(type_id) = tweenable.type_id() else {
+            return Err(TweeningError::UntypedTweenable(Box::new(tweenable)));
+        };
+        let target = ComponentTarget::new_untyped(components, type_id, entity)?.into();
+        Ok(self.add(target, tweenable))
     }
 
-    /// Get a tweenable from its ID.
+    /// Add a new asset animation to the animator queue.
     ///
-    /// This fails and returns `None` if the tweenable has completed and was
+    /// ```
+    /// # use bevy::{prelude::*, ecs::component::Components};
+    /// # use bevy_tweening::{lens::*, *};
+    /// # use std::time::Duration;
+    /// # fn make_tween() -> Tween { unimplemented!() }
+    /// #[derive(Asset, TypePath)]
+    /// struct MyAsset;
+    ///
+    /// // Helper component to store a TweenId
+    /// #[derive(Resource)]
+    /// struct MyTweenId(pub TweenId);
+    ///
+    /// // System which spawns the asset animation
+    /// fn my_spawn_system(
+    ///     mut assets: ResMut<Assets<MyAsset>>,
+    ///     components: &Components,
+    ///     mut animator: ResMut<TweenAnimator>,
+    ///     mut my_tween_id: ResMut<MyTweenId>,
+    /// ) -> Result<()> {
+    ///     # let tween = make_tween();
+    ///     let handle = assets.add(MyAsset);
+    ///     // The asset type is deducted from `tween` here
+    ///     let tween_id = animator.add_asset(components, handle.id().untyped(), tween)?;
+    ///     // Save the new TweenId for later use
+    ///     my_tween_id.0 = tween_id;
+    ///     Ok(())
+    /// }
+    ///
+    /// // System which modifies the animation playback
+    /// fn my_use_system(
+    ///     mut animator: ResMut<TweenAnimator>,
+    ///     my_tween_id: Res<MyTweenId>,
+    /// ) -> Option<()> {
+    ///     let tween_id = my_tween_id.0;
+    ///     animator.get_mut(tween_id)?.speed = 1.2; // 120% playback speed
+    ///     Some(())
+    /// }
+    /// ```
+    ///
+    /// [`get_asset_target()`]: WorldTargetExtensions::get_asset_target
+    /// [`add()`]: Self::add
+    #[inline]
+    pub fn add_asset<T>(
+        &mut self,
+        components: &Components,
+        asset_id: UntypedAssetId,
+        tweenable: T,
+    ) -> Result<TweenId, TweeningError>
+    where
+        T: Tweenable + 'static,
+    {
+        let Some(type_id) = tweenable.type_id() else {
+            return Err(TweeningError::UntypedTweenable(Box::new(tweenable)));
+        };
+        let target = AssetTarget::new_untyped(components, type_id, asset_id)?.into();
+        Ok(self.add(target, tweenable))
+    }
+
+    /// Get a queued tweenable animation from its ID.
+    ///
+    /// This fails and returns `None` if the animation has completed and was
     /// removed from the animator's internal queue.
     #[inline]
     pub fn get(&self, id: TweenId) -> Option<&TweenAnim> {
         self.anims.get(id)
     }
 
-    /// Get a tweenable from its ID.
+    /// Get a queued tweenable animation from its ID.
     ///
-    /// This fails and returns `None` if the tweenable has completed and was
+    /// This fails and returns `None` if the animation has completed and was
     /// removed from the animator's internal queue.
     #[inline]
     pub fn get_mut(&mut self, id: TweenId) -> Option<&mut TweenAnim> {
@@ -1258,17 +1506,17 @@ impl TweenAnimator {
         self.anims.iter_mut()
     }
 
-    /// Play all queued animations.
+    /// Step all queued animations.
     ///
     /// Loop over the internal queue of tweenable animations, apply them to
-    /// their respective target [`Entity`], and prune all the completed
-    /// ones (the ones returning [`TweenState::Completed`]). In the later case,
-    /// send [`TweenCompletedEvent`]s if enabled on each individual tweenable.
+    /// their respective target, and prune all the completed ones (the ones
+    /// returning [`TweenState::Completed`]). In the later case, send
+    /// [`TweenCompletedEvent`]s if enabled on each individual tweenable.
     ///
     /// If you use the [`TweeningPlugin`], this is automatically called by the
     /// animation system the plugin registers. See the
     /// [`AnimationSystem::AnimationUpdate`] system set.
-    pub fn play_all(
+    pub fn step_all(
         &mut self,
         world: &mut World,
         delta_time: Duration,

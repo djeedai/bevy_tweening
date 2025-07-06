@@ -54,6 +54,7 @@ struct ProgressValue;
 fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
+    components: &Components,
     mut animator: ResMut<TweenAnimator>,
 ) {
     commands.spawn(Camera2d::default());
@@ -170,8 +171,9 @@ fn setup(
         // Because we want to monitor the progress of the animations, we need to fetch
         // their TweenId. This requires inserting them manually in the TweenAnimator
         // resource, instead of using the extensions of EntityCommands.
-        let path_tween_id = animator.add(entity, anim_move_along_path);
-        let rotate_tween_id = animator.add(entity, anim_rotate_back_and_forth);
+        let target = ComponentTarget::new::<Transform>(components, entity).into();
+        let path_tween_id = animator.add(target, anim_move_along_path);
+        let rotate_tween_id = animator.add(target, anim_rotate_back_and_forth);
         commands.entity(entity).insert(RedSprite {
             path_tween_id,
             rotate_tween_id,

@@ -39,7 +39,7 @@ pub(crate) fn animator_system(world: &mut World) {
     world.resource_scope(|world, events: Mut<Events<TweenCompletedEvent>>| {
         world.resource_scope(|world, anim_events: Mut<Events<AnimCompletedEvent>>| {
             world.resource_scope(|world, mut animator: Mut<TweenAnimator>| {
-                animator.play_all(world, delta_time, events, anim_events);
+                animator.step_all(world, delta_time, events, anim_events);
             });
         });
     });
