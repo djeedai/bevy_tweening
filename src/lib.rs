@@ -1203,30 +1203,40 @@ impl TweenAnim {
 /// animation. Use this resource to lookup animations by ID and modify their
 /// runtime data, for example their playback speed.
 ///
+/// # Animation pruning
+///
+/// Animations queued into the [`TweenAnimator`] by default are pruned
+/// automatically on completion.
+///
+/// # Lookup without `TweenId`
+///
 /// If you don't know the [`TweenId`] of an animation, you can also lookup the
 /// set of animations for a given target, either component on an entity or an
 /// asset.
 ///
 /// ```
-/// # use bevy::prelude::*;
+/// # use bevy::{prelude::*, ecs::component::Components};
 /// # use bevy_tweening::*;
-/// # fn xxx() -> Option<()> {
-/// # let mut animator = TweenAnimator::default();
+/// fn my_system(components: &Components, animator: Res<TweenAnimator>) -> Result<()> {
 /// # let entity = Entity::PLACEHOLDER;
-/// # let world = World::default();
-/// # fn make_tween() -> Tween { unimplemented!() }
-/// let target = world.get_component_target::<Transform>(entity)?;
-/// let animations = animator
-///     .iter()
-///     .filter_map(|(_, anim)| {
-///         if anim.target == target {
-///             Some(anim)
-///         } else {
-///             None
-///         }
-///     })
-///     .collect::<Vec<&TweenAnim>>();
-/// # None }
+///     // Create an AnimTarget::Component() from an Entity and a component type
+///     // let entity = ...
+///     let target = ComponentTarget::new::<Transform>(components, entity)?.into();
+///
+///     // Lookup all active animations and filter by target
+///     let animations: Vec<&TweenAnim> = animator
+///         .iter()
+///         .filter_map(|(_id, anim)| {
+///             if anim.target == target {
+///                 Some(anim)
+///             } else {
+///                 None
+///             }
+///         })
+///         .collect::<_>();
+///
+///     Ok(())
+/// }
 /// ```
 #[derive(Resource)]
 pub struct TweenAnimator {
@@ -1435,7 +1445,7 @@ impl TweenAnimator {
     ///     # let tween = make_tween();
     ///     let handle = assets.add(MyAsset);
     ///     // The asset type is deducted from `tween` here
-    ///     let tween_id = animator.add_asset(components, handle.id().untyped(), tween)?;
+    ///     let tween_id = animator.add_asset(components, handle.id(), tween)?;
     ///     // Save the new TweenId for later use
     ///     my_tween_id.0 = tween_id;
     ///     Ok(())
