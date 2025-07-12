@@ -82,7 +82,7 @@ mod tests {
             let entity = world.spawn(T::default()).id();
             let tween_id = world.resource_scope(|world, mut animator: Mut<'_, TweenAnimator>| {
                 let target = world.get_component_target::<T>(entity).unwrap();
-                animator.add(target.into(), tweenable)
+                animator.add_component_impl(target, tweenable)
             });
 
             Self {
