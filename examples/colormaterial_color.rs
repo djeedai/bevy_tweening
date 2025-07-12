@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use bevy::{color::palettes::css::*, prelude::*};
+use bevy::{color::palettes::css::*, ecs::component::Components, prelude::*};
 use bevy_tweening::{lens::*, *};
 
 mod utils;
@@ -23,6 +23,7 @@ fn main() {
 }
 
 fn setup(
+    components: &Components,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
@@ -89,7 +90,9 @@ fn setup(
         .with_repeat_count(RepeatCount::Infinite)
         .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
-        animator.add_asset(unique_material.id(), tween);
+        if let Err(err) = animator.add_asset(components, unique_material.id(), tween) {
+            println!("Failed to add asset animation: {err:?}");
+        }
 
         commands.spawn((
             Mesh2d(quad_mesh.clone()),

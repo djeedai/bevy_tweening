@@ -986,12 +986,7 @@ impl AssetTarget {
         asset_id: impl Into<UntypedAssetId>,
     ) -> Result<Self, TweeningError> {
         let asset_id = asset_id.into();
-        if asset_id.type_id() != type_id {
-            return Err(TweeningError::InvalidAssetIdType {
-                expected: type_id,
-                actual: asset_id.type_id(),
-            });
-        }
+        // Note: asset_id.type_id() is A, whereas type_id is Assets<A>
         let resource_id = components
             .get_resource_id(type_id)
             .ok_or(TweeningError::AssetNotRegistered(type_id))?;
@@ -1244,7 +1239,7 @@ pub struct TweenAnimator {
     asset_resolver: HashMap<
         ComponentId,
         Box<
-            dyn for<'w> Fn(MutUntyped<'w>, UntypedAssetId) -> MutUntyped<'w>
+            dyn for<'w> Fn(MutUntyped<'w>, UntypedAssetId) -> Option<MutUntyped<'w>>
                 + Send
                 + Sync
                 + 'static,
@@ -1460,10 +1455,10 @@ impl TweenAnimator {
     /// [`get_asset_target()`]: WorldTargetExtensions::get_asset_target
     /// [`add()`]: Self::add
     #[inline]
-    pub fn add_asset<T>(
+    pub fn add_asset<T, A: Asset>(
         &mut self,
         components: &Components,
-        asset_id: UntypedAssetId,
+        asset_id: impl Into<AssetId<A>>,
         tweenable: T,
     ) -> Result<TweenId, TweeningError>
     where
@@ -1472,8 +1467,29 @@ impl TweenAnimator {
         let Some(type_id) = tweenable.type_id() else {
             return Err(TweeningError::UntypedTweenable(Box::new(tweenable)));
         };
-        let target = AssetTarget::new_untyped(components, type_id, asset_id)?.into();
-        Ok(self.add(target, tweenable))
+        if type_id != TypeId::of::<Assets<A>>() {
+            return Err(TweeningError::InvalidAssetIdType {
+                expected: TypeId::of::<Assets<A>>(),
+                actual: type_id,
+            });
+        }
+        let asset_id = asset_id.into();
+        let target = AssetTarget::new_untyped(components, type_id, asset_id.untyped())?;
+        self.asset_resolver.insert(
+            target.resource_id,
+            Box::new(
+                |assets: MutUntyped, asset_id: UntypedAssetId| -> Option<MutUntyped> {
+                    // SAFETY: The correct type is captured from the outer function
+                    #[allow(unsafe_code)]
+                    let assets = unsafe { assets.with_type::<Assets<A>>() };
+                    let asset_id = asset_id.try_typed::<A>().ok()?;
+                    assets
+                        .filter_map_unchanged(|assets| assets.get_mut(asset_id))
+                        .map(Into::into)
+                },
+            ),
+        );
+        Ok(self.add(target.into(), tweenable))
     }
 
     /// Get a queued tweenable animation from its ID.
@@ -1545,7 +1561,7 @@ impl TweenAnimator {
                 }) => {
                     if let Some(assets) = world.get_resource_mut_by_id(*resource_id) {
                         if let Some(resolver) = self.asset_resolver.get(resource_id) {
-                            Some(resolver(assets, *asset_id))
+                            resolver(assets, *asset_id)
                         } else {
                             None
                         }

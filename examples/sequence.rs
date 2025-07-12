@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use bevy::{color::palettes::css::*, prelude::*};
+use bevy::{color::palettes::css::*, ecs::component::Components, prelude::*};
 use bevy_tweening::{lens::*, *};
 
 mod utils;
@@ -56,7 +56,7 @@ fn setup(
     asset_server: Res<AssetServer>,
     components: &Components,
     mut animator: ResMut<TweenAnimator>,
-) {
+) -> Result<()> {
     commands.spawn(Camera2d::default());
 
     let font = asset_server.load("fonts/FiraMono-Regular.ttf");
@@ -171,9 +171,9 @@ fn setup(
         // Because we want to monitor the progress of the animations, we need to fetch
         // their TweenId. This requires inserting them manually in the TweenAnimator
         // resource, instead of using the extensions of EntityCommands.
-        let target = ComponentTarget::new::<Transform>(components, entity).into();
-        let path_tween_id = animator.add(target, anim_move_along_path);
-        let rotate_tween_id = animator.add(target, anim_rotate_back_and_forth);
+        let path_tween_id = animator.add_component(components, entity, anim_move_along_path)?;
+        let rotate_tween_id =
+            animator.add_component(components, entity, anim_rotate_back_and_forth)?;
         commands.entity(entity).insert(RedSprite {
             path_tween_id,
             rotate_tween_id,
@@ -249,13 +249,15 @@ fn setup(
         // Because we want to monitor the progress of the animations, we need to fetch
         // their TweenId. This requires inserting them manually in the TweenAnimator
         // resource, instead of using the extensions of EntityCommands.
-        let move_and_rotate_tween_id = animator.add(entity, seq1);
-        let scale_tween_id = animator.add(entity, seq2);
+        let move_and_rotate_tween_id = animator.add_component(components, entity, seq1)?;
+        let scale_tween_id = animator.add_component(components, entity, seq2)?;
         commands.entity(entity).insert(BlueSprite {
             move_and_rotate_tween_id,
             scale_tween_id,
         });
     }
+
+    Ok(())
 }
 
 fn update_text(
@@ -289,8 +291,8 @@ fn update_text(
 
     for ev in q_event_completed.read() {
         println!(
-            "Event: TweenCompletedEvent tween_id={:?} entity={:?}",
-            ev.id, ev.entity
+            "Event: TweenCompletedEvent tween_id={:?} target={:?}",
+            ev.id, ev.target
         );
     }
 }
