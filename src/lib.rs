@@ -761,7 +761,7 @@ impl<'a> EntityCommandsTweeningExtensions<'a> for EntityWorldMut<'a> {
         self.world_scope(|world: &mut World| {
             world
                 .resource_mut::<TweenAnimator>()
-                .add_component_impl(target.into(), tweenable);
+                .add_component_target(target.into(), tweenable);
         });
         self
     }
@@ -781,7 +781,7 @@ impl<'a> EntityCommandsTweeningExtensions<'a> for EntityWorldMut<'a> {
         self.world_scope(|world: &mut World| {
             world
                 .resource_mut::<TweenAnimator>()
-                .add_component_impl(target.into(), tween);
+                .add_component_target(target.into(), tween);
         });
         self
     }
@@ -801,7 +801,7 @@ impl<'a> EntityCommandsTweeningExtensions<'a> for EntityWorldMut<'a> {
         self.world_scope(|world: &mut World| {
             world
                 .resource_mut::<TweenAnimator>()
-                .add_component_impl(target.into(), tween);
+                .add_component_target(target.into(), tween);
         });
         self
     }
@@ -819,7 +819,7 @@ impl<'a> EntityCommandsTweeningExtensions<'a> for EntityWorldMut<'a> {
         self.world_scope(|world: &mut World| {
             world
                 .resource_mut::<TweenAnimator>()
-                .add_component_impl(target.into(), tween);
+                .add_component_target(target.into(), tween);
         });
         self
     }
@@ -837,7 +837,7 @@ impl<'a> EntityCommandsTweeningExtensions<'a> for EntityWorldMut<'a> {
         self.world_scope(|world: &mut World| {
             world
                 .resource_mut::<TweenAnimator>()
-                .add_component_impl(target.into(), tween);
+                .add_component_target(target.into(), tween);
         });
         self
     }
@@ -1147,9 +1147,27 @@ pub struct TweenAnim {
     /// Animation description.
     pub tweenable: BoxedTweenable,
     /// Control if the animation is played or not.
-    pub state: PlaybackState,
-    /// Relative playback speed. Defaults to `1.` (normal speed).
-    pub speed: f32,
+    pub playback_state: PlaybackState,
+    /// Relative playback speed. Defaults to `1.` (normal speed; 100%).
+    ///
+    /// # Time precision
+    ///
+    /// _This note is an implementation detail which can usually be ignored._
+    ///
+    /// Despite the use of `f64`, setting a playback speed different from `1.`
+    /// (100% speed) may produce small inaccuracies in durations, especially
+    /// for longer animations. However those are often negligible.
+    /// This is due to the very large precision of `Duration` (typically 96
+    /// bits or more), even compared to `f64` (64 bits), and the fact this speed
+    /// factor is a multiplier whereas most other time quantities are added or
+    /// subtracted.
+    pub speed: f64,
+    /// Destroy the animation once completed. This defaults to `true`, and makes
+    /// [`TweenAnimator::step_all()`] destroy this [`TweenAnim`] once it
+    /// completed. To keep the animation queued, set this to `false`.
+    pub destroy_on_completion: bool,
+    /// Current tweening completion state.
+    tween_state: TweenState,
 }
 
 impl TweenAnim {
@@ -1167,8 +1185,10 @@ impl TweenAnim {
         Self {
             target,
             tweenable: Box::new(tweenable),
-            state: PlaybackState::Playing,
+            playback_state: PlaybackState::Playing,
             speed: 1.,
+            destroy_on_completion: true,
+            tween_state: TweenState::Active,
         }
     }
 
@@ -1183,8 +1203,20 @@ impl TweenAnim {
     /// direction is [`PlaybackDirection::Backward`] and the animation is
     /// infinitely repeating.
     pub fn stop(&mut self) {
-        self.state = PlaybackState::Paused;
+        self.playback_state = PlaybackState::Paused;
         self.tweenable.rewind();
+        self.tween_state = TweenState::Active;
+    }
+
+    /// Get the tweening completion state.
+    ///
+    /// In general this is [`TweenState::Active`], unless the animation
+    /// completed and [`destroy_on_completion`] is `false`.
+    ///
+    /// [`destroy_on_completion`]: Self::destroy_on_completion
+    #[inline]
+    pub fn tween_state(&self) -> TweenState {
+        self.tween_state
     }
 }
 
@@ -1262,14 +1294,6 @@ impl Default for TweenAnimator {
 }
 
 impl TweenAnimator {
-    #[inline]
-    fn add_component_impl<T>(&mut self, target: ComponentTarget, tweenable: T) -> TweenId
-    where
-        T: Tweenable + 'static,
-    {
-        self.anims.insert(TweenAnim::new(target.into(), tweenable))
-    }
-
     /// Add a new component animation to the animator queue.
     ///
     /// In general you don't need to call this directly. Instead, use the
@@ -1332,8 +1356,6 @@ impl TweenAnimator {
     ///     Some(())
     /// }
     /// ```
-    ///
-    /// [`add()`]: Self::add
     #[inline]
     pub fn add_component<T>(
         &mut self,
@@ -1348,7 +1370,22 @@ impl TweenAnimator {
             return Err(TweeningError::UntypedTweenable(Box::new(tweenable)));
         };
         let target = ComponentTarget::new_untyped(components, type_id, entity)?.into();
-        Ok(self.anims.insert(TweenAnim::new(target, tweenable)))
+        Ok(self.add_component_target(target, tweenable))
+    }
+
+    /// Add a new component animation via an existing component target.
+    ///
+    /// See [`add_component()`] for details. This variant is useful when you can
+    /// build in advance a [`ComponentTarget`], but at the same time don't have
+    /// readily access to the [`Components`] of the world.
+    ///
+    /// [`add_component()`]: Self::add_component
+    #[inline]
+    pub fn add_component_target<T>(&mut self, target: ComponentTarget, tweenable: T) -> TweenId
+    where
+        T: Tweenable + 'static,
+    {
+        self.anims.insert(TweenAnim::new(target.into(), tweenable))
     }
 
     /// Add a new asset animation to the animator queue.
@@ -1392,8 +1429,13 @@ impl TweenAnimator {
     /// }
     /// ```
     ///
+    /// Note that unlike [`add_component()`], this function depends on the asset
+    /// type. This is required to allow registering some internal resolver to
+    /// extract the typed animation from its typed `Assets<A>`, as this can't be
+    /// done via untyped references (unlike for components).
+    ///
     /// [`get_asset_target()`]: WorldTargetExtensions::get_asset_target
-    /// [`add()`]: Self::add
+    /// [`add_component()`]: Self::add_component
     #[inline]
     pub fn add_asset<T, A: Asset>(
         &mut self,
@@ -1462,6 +1504,15 @@ impl TweenAnimator {
         self.anims.iter_mut()
     }
 
+    /// Remove a queued tweenable animation and return it.
+    ///
+    /// After the animation is removed, the `id` is invalid and will never be
+    /// reused.
+    #[inline]
+    pub fn remove(&mut self, id: TweenId) -> Option<TweenAnim> {
+        self.anims.remove(id)
+    }
+
     /// Step all queued animations.
     ///
     /// Loop over the internal queue of tweenable animations, apply them to
@@ -1482,14 +1533,17 @@ impl TweenAnimator {
         // Loop over active animations, tick them, and retain those which are still
         // active after that
         self.anims.retain(|tween_id, anim| {
-            // Note: we use get_entity_mut([Entity; 1]) with an array of a single element to
-            // get an EntityMut instead of an EntityWorldMut, as the former is
-            // enough. This can allow optimizing by parallelizing tweening of
-            // separate entities (which can't be done with EntityWorldMut has it
-            // has exclusive World access). For now this has no consequence except
-            // simplifying some borrow checker complications with World.
-            //let ent_mut = &mut world.get_entity_mut([anim.target]).unwrap()[0];
+            // Retain completed animations only if requested
+            if anim.tween_state == TweenState::Completed {
+                return !anim.destroy_on_completion;
+            }
 
+            // Skip paused animations (but retain them)
+            if anim.playback_state == PlaybackState::Paused {
+                return true;
+            }
+
+            // Resolve the (untyped) target as a MutUntyped<T>
             let Some(mut mut_untyped) = (match &anim.target {
                 AnimTarget::Component(ComponentTarget {
                     entity,
@@ -1515,8 +1569,10 @@ impl TweenAnimator {
 
             // Scale delta time by this animation's speed. Reject negative speeds; use
             // backward playback to play in reverse direction.
-            let delta_time = delta_time.mul_f32(anim.speed.max(0.));
+            // Note: must use f64 for precision; f32 produces visible roundings.
+            let delta_time = delta_time.mul_f64(anim.speed.max(0.));
 
+            // Step the tweenable animation
             let mut notify_completed = |fraction: f32| {
                 events.send(TweenCompletedEvent {
                     id: tween_id,
@@ -1524,14 +1580,13 @@ impl TweenAnimator {
                     progress: fraction,
                 });
             };
-
-            // Apply the animation tweenable
             let state = anim.tweenable.step(
                 tween_id,
                 delta_time,
                 mut_untyped.reborrow(),
                 &mut notify_completed,
             );
+            anim.tween_state = state;
 
             // Raise completed event
             if state == TweenState::Completed {
@@ -1541,13 +1596,21 @@ impl TweenAnimator {
                 });
             }
 
-            state == TweenState::Active
+            state == TweenState::Active || !anim.destroy_on_completion
         });
     }
 }
 
-/// Trait to interpolate between two values.
-/// Needed for color.
+/// Extension trait to interpolate between two colors.
+///
+/// This adds a [`Color::lerp()`] function which linearly interpolates the
+/// `LinearRgba` values component-wise.
+///
+/// Note that this is a convenience helper with naive color interpolation. In
+/// general, to get more accurrate colors, you should create your own [`Lens`]
+/// and apply a better interpolation, for example based on luminosity. There's
+/// no "canonical" color interpolation, and the best answer varies depending on
+/// the context.
 #[allow(dead_code)]
 #[cfg(any(feature = "bevy_sprite", feature = "bevy_ui", feature = "bevy_text"))]
 trait ColorLerper {
@@ -1719,27 +1782,46 @@ mod tests {
         assert!(animator.get(TweenId::null()).is_none());
         assert!(animator.iter().next().is_none());
         assert!(animator.iter_mut().next().is_none());
+        assert!(animator.remove(TweenId::null()).is_none());
     }
 
-    // #[test]
-    // fn animator_with_state() {
-    //     for state in [AnimatorState::Playing, AnimatorState::Paused] {
-    //         let tween = Tween::<DummyComponent>::new(
-    //             EaseFunction::QuadraticInOut,
-    //             Duration::from_secs(1),
-    //             DummyLens { start: 0., end: 1. },
-    //         );
-    //         let animator = Animator::new(tween).with_state(state);
-    //         assert_eq!(animator.state, state);
+    // TweenAnim::playback_state is entirely user-controlled
+    #[test]
+    fn animator_with_state() {
+        for state in [PlaybackState::Playing, PlaybackState::Paused] {
+            let tween = Tween::new::<DummyComponent, DummyLens>(
+                EaseFunction::QuadraticInOut,
+                Duration::from_secs(1),
+                DummyLens { start: 0., end: 1. },
+            );
+            let mut env = TestEnv::<DummyComponent>::new(tween);
+            env.anim_scope(|anim| {
+                anim.playback_state = state;
+                anim.destroy_on_completion = false;
+            });
 
-    //         // impl Debug
-    //         let debug_string = format!("{:?}", animator);
-    //         assert_eq!(
-    //             debug_string,
-    //             format!("Animator {{ state: {:?} }}", animator.state)
-    //         );
-    //     }
-    // }
+            // Tick once
+            let dt = Duration::from_millis(100);
+            env.step_all(dt);
+            assert_eq!(env.anim().unwrap().tween_state(), TweenState::Active);
+            assert_eq!(env.anim().unwrap().playback_state, state);
+
+            // Check elapsed
+            let elapsed = match state {
+                PlaybackState::Playing => dt,
+                PlaybackState::Paused => Duration::ZERO,
+            };
+            assert_eq!(env.anim().unwrap().tweenable.elapsed(), elapsed);
+
+            // Force playback, otherwise we can't complete
+            env.anim_scope(|anim| anim.playback_state = PlaybackState::Playing);
+
+            // Even after completion, the playback state is untouched
+            env.step_all(Duration::from_secs(10) - elapsed);
+            assert_eq!(env.anim().unwrap().tween_state(), TweenState::Completed);
+            assert_eq!(env.anim().unwrap().playback_state, PlaybackState::Playing);
+        }
+    }
 
     // #[test]
     // fn animator_controls() {
@@ -1778,29 +1860,29 @@ mod tests {
     //     assert_approx_eq!(animator.tweenable().progress(), 0.);
     // }
 
-    // #[test]
-    // fn animator_speed() {
-    //     let tween = Tween::<DummyComponent>::new(
-    //         EaseFunction::QuadraticInOut,
-    //         Duration::from_secs(1),
-    //         DummyLens { start: 0., end: 1. },
-    //     );
+    #[test]
+    fn animation_speed() {
+        let tween = Tween::new::<DummyComponent, DummyLens>(
+            EaseFunction::QuadraticInOut,
+            Duration::from_secs(1),
+            DummyLens { start: 0., end: 1. },
+        );
 
-    //     let mut animator = Animator::new(tween);
-    //     assert_approx_eq!(animator.speed(), 1.); // default speed
+        let mut env = TestEnv::<DummyComponent>::new(tween);
 
-    //     animator.set_speed(2.4);
-    //     assert_approx_eq!(animator.speed(), 2.4);
+        assert_approx_eq!(env.anim().unwrap().speed, 1.); // default speed
 
-    //     let tween = Tween::<DummyComponent>::new(
-    //         EaseFunction::QuadraticInOut,
-    //         Duration::from_secs(1),
-    //         DummyLens { start: 0., end: 1. },
-    //     );
+        env.anim_scope(|anim| anim.speed = 2.4);
+        assert_approx_eq!(env.anim().unwrap().speed, 2.4);
 
-    //     let animator = Animator::new(tween).with_speed(3.5);
-    //     assert_approx_eq!(animator.speed(), 3.5);
-    // }
+        env.step_all(Duration::from_millis(100));
+        // Here we have enough precision for exact equality, but that may not always be
+        // the case for larger durations or speed values.
+        assert_eq!(
+            env.anim().unwrap().tweenable.elapsed(),
+            Duration::from_millis(240)
+        );
+    }
 
     // #[test]
     // fn animator_set_tweenable() {

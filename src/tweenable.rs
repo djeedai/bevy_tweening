@@ -631,9 +631,12 @@ impl Tween {
         Sequence::with_capacity(2).then(self).then(tween)
     }
 
-    /// Create a new tween animation.
+    /// Create a new tween animation for a [`Component`].
+    ///
+    /// The target component type is implicitly determined by the [`Lens`].
     ///
     /// # Example
+    ///
     /// ```
     /// # use bevy_tweening::{lens::*, *};
     /// # use bevy::math::{Vec3, curve::EaseFunction};
@@ -672,7 +675,25 @@ impl Tween {
         }
     }
 
+    /// Create a new tween animation for an [`Asset`].
     ///
+    /// The target asset type is implicitly determined by the [`Lens`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use bevy_tweening::{lens::*, *};
+    /// # use bevy::{prelude::Color, math::{Vec3, curve::EaseFunction}};
+    /// # use std::time::Duration;
+    /// let tween = Tween::new_asset(
+    ///     EaseFunction::QuadraticInOut,
+    ///     Duration::from_secs(1),
+    ///     ColorMaterialColorLens {
+    ///         start: Color::BLACK,
+    ///         end: Color::WHITE,
+    ///     },
+    /// );
+    /// ```
     #[must_use]
     pub fn new_asset<A, L>(
         ease_function: impl Into<EaseMethod>,
@@ -684,7 +705,8 @@ impl Tween {
         L: Lens<A> + Send + Sync + 'static,
     {
         let action = move |ptr: MutUntyped, ratio: f32| {
-            // SAFETY: ptr was obtained from the same component type.
+            // SAFETY: ptr was obtained from the captured asset type, through the Assets<A>
+            // resource type saved in type_id below.
             #[allow(unsafe_code)]
             let asset = unsafe { ptr.with_type::<A>() };
             lens.lerp(asset, ratio);
@@ -700,13 +722,14 @@ impl Tween {
         }
     }
 
-    /// Enable raising a completed event on looping.
+    /// Enable raising a event on cycle completion.
     ///
     /// If enabled, the tween will raise a [`TweenCompletedEvent`] each time
-    /// the tween's progress reaches `1.`. In case of looping tweens (repeat
-    /// count > 1), the event is raised once per loop. For mirrored repeats, a
-    /// "loop" is one travel from start to end or end to start (so the full
-    /// cycle start -> end -> start counts as 2 loops and raises 2 events).
+    /// the tween completes a cycle (reaches or passes its cycle duration). In
+    /// case of repeating tweens (repeat count > 1), the event is raised once
+    /// per cycle. For mirrored repeats, a cycle is one travel from start to
+    /// end **or** end to start, so the full loop start -> end -> start counts
+    /// as 2 cycles and raises 2 events.
     ///
     /// # Example
     ///
@@ -723,7 +746,7 @@ impl Tween {
     /// #        end: Vec3::new(3.5, 0., 0.),
     /// #    },
     /// )
-    /// // Raise a TweenCompletedEvent each loop
+    /// // Raise a TweenCompletedEvent each cycle
     /// .with_completed_event(true);
     ///
     /// fn my_system(mut reader: EventReader<TweenCompletedEvent>) {
