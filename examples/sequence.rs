@@ -271,14 +271,14 @@ fn update_text(
 ) {
     let anim_red = q_anim_red.single().unwrap();
     let progress_red = if let Some(anim) = animator.get(anim_red.path_tween_id) {
-        anim.tweenable.cycle_fraction()
+        anim.tweenable().cycle_fraction()
     } else {
         1.
     };
 
     let anim_blue = q_anim_blue.single().unwrap();
     let progress_blue = if let Some(anim) = animator.get(anim_blue.move_and_rotate_tween_id) {
-        anim.tweenable.cycle_fraction()
+        anim.tweenable().cycle_fraction()
     } else {
         1.
     };

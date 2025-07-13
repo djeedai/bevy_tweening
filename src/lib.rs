@@ -306,6 +306,17 @@ impl From<Duration> for RepeatCount {
     }
 }
 
+impl RepeatCount {
+    /// Calculate the total duration for this repeat count.
+    pub fn total_duration(&self, cycle_duration: Duration) -> TotalDuration {
+        match self {
+            RepeatCount::Finite(count) => TotalDuration::Finite(cycle_duration * *count),
+            RepeatCount::For(duration) => TotalDuration::Finite(*duration),
+            RepeatCount::Infinite => TotalDuration::Infinite,
+        }
+    }
+}
+
 /// Repeat strategy for animation cycles.
 ///
 /// Only applicable when [`RepeatCount`] is greater than the total duration of
@@ -896,6 +907,18 @@ pub enum TweeningError {
     /// `None`.
     #[error("Expected a typed Tweenable, got {0:?} instead.")]
     UntypedTweenable(BoxedTweenable),
+    /// Invalid [`TweenId`].
+    #[error("Invalid TweenId {0:?}.")]
+    InvalidTweenId(TweenId),
+    /// Cannot change target kind.
+    #[error("Unexpected target kind: was component={0}, now component={1}")]
+    MismatchingTargetKind(bool, bool),
+    /// Cannot change component type.
+    #[error("Cannot change component type: was component_id={0:?}, now component_id={1:?}")]
+    MismatchingComponentId(ComponentId, ComponentId),
+    /// Cannot change asset type.
+    #[error("Cannot change asset type: was component_id={0:?}, now component_id={1:?}")]
+    MismatchingAssetResourceId(ComponentId, ComponentId),
 }
 
 /// Component animation target.
@@ -1143,9 +1166,9 @@ impl WorldTargetExtensions for World {
 /// A [`Tweenable`]-based animation.
 pub struct TweenAnim {
     /// Target [`Entity`] containing the component to animate, or target asset.
-    pub target: AnimTarget,
+    target: AnimTarget,
     /// Animation description.
-    pub tweenable: BoxedTweenable,
+    tweenable: BoxedTweenable,
     /// Control if the animation is played or not.
     pub playback_state: PlaybackState,
     /// Relative playback speed. Defaults to `1.` (normal speed; 100%).
@@ -1206,6 +1229,22 @@ impl TweenAnim {
         self.playback_state = PlaybackState::Paused;
         self.tweenable.rewind();
         self.tween_state = TweenState::Active;
+    }
+
+    /// Get the target this animation is mutating.
+    ///
+    /// To change the target, use [`TweenAnimator::set_target()`].
+    #[inline]
+    pub fn target(&self) -> &AnimTarget {
+        &self.target
+    }
+
+    /// Get the tweenable describing this animation.
+    ///
+    /// To change the tweenable, use [`TweenAnimator::set_tweenable()`].
+    #[inline]
+    pub fn tweenable(&self) -> &dyn Tweenable {
+        self.tweenable.as_ref()
     }
 
     /// Get the tweening completion state.
@@ -1474,6 +1513,18 @@ impl TweenAnimator {
         Ok(self.anims.insert(TweenAnim::new(target.into(), tweenable)))
     }
 
+    /// Check if the animation with the given ID is queued.
+    ///
+    /// # Returns
+    ///
+    /// Returns `true` if the animation is queued, either because it's playing,
+    /// or because it's completed but [`TweenAnim::destroy_on_completion`] was
+    /// set to `false`.
+    #[inline]
+    pub fn contains(&self, id: TweenId) -> bool {
+        self.anims.contains_key(id)
+    }
+
     /// Get a queued tweenable animation from its ID.
     ///
     /// This fails and returns `None` if the animation has completed and was
@@ -1490,6 +1541,28 @@ impl TweenAnimator {
     #[inline]
     pub fn get_mut(&mut self, id: TweenId) -> Option<&mut TweenAnim> {
         self.anims.get_mut(id)
+    }
+
+    /// Get a queued tweenable animation from its ID.
+    ///
+    /// This fails and returns [`TweeningError::InvalidTweenId`] if the
+    /// animation has completed and was removed from the animator's internal
+    /// queue.
+    #[inline]
+    pub fn try_get(&self, id: TweenId) -> Result<&TweenAnim, TweeningError> {
+        self.anims.get(id).ok_or(TweeningError::InvalidTweenId(id))
+    }
+
+    /// Get a queued tweenable animation from its ID.
+    ///
+    /// This fails and returns [`TweeningError::InvalidTweenId`] if the
+    /// animation has completed and was removed from the animator's internal
+    /// queue.
+    #[inline]
+    pub fn try_get_mut(&mut self, id: TweenId) -> Result<&mut TweenAnim, TweeningError> {
+        self.anims
+            .get_mut(id)
+            .ok_or(TweeningError::InvalidTweenId(id))
     }
 
     /// Get an iterator over the queued tweenable animations.
@@ -1511,6 +1584,222 @@ impl TweenAnimator {
     #[inline]
     pub fn remove(&mut self, id: TweenId) -> Option<TweenAnim> {
         self.anims.remove(id)
+    }
+
+    /// Retarget a queued animation.
+    ///
+    /// Attempt to change the target of a tweening animation already enqueued,
+    /// and possibly already playing.
+    ///
+    /// This function performs a number of checks on the new target to ensure
+    /// it's compatible with the previous target. In particular, the new target
+    /// needs to have:
+    /// - the same kind (component or asset);
+    /// - the same type (component type or asset resource type).
+    ///
+    /// # Returns
+    ///
+    /// On success, returns the previous target which has been replaced.
+    pub fn set_target(
+        &mut self,
+        id: TweenId,
+        target: AnimTarget,
+    ) -> Result<AnimTarget, TweeningError> {
+        let anim = self
+            .anims
+            .get_mut(id)
+            .ok_or(TweeningError::InvalidTweenId(id))?;
+        match (anim.target, target) {
+            (AnimTarget::Component(old_component), AnimTarget::Component(new_component)) => {
+                if old_component.component_id != new_component.component_id {
+                    return Err(TweeningError::MismatchingComponentId(
+                        old_component.component_id,
+                        new_component.component_id,
+                    ));
+                }
+            }
+            (AnimTarget::Asset(old_asset), AnimTarget::Asset(new_asset)) => {
+                if old_asset.resource_id != new_asset.resource_id {
+                    return Err(TweeningError::MismatchingAssetResourceId(
+                        old_asset.resource_id,
+                        new_asset.resource_id,
+                    ));
+                }
+            }
+            _ => {
+                return Err(TweeningError::MismatchingTargetKind(
+                    anim.target.is_component(),
+                    target.is_component(),
+                ))
+            }
+        }
+        let old_target = anim.target;
+        anim.target = target;
+        Ok(old_target)
+    }
+
+    /// Swap a queued animation.
+    ///
+    /// Attempt to change the tweenable of an animation already enqueued, and
+    /// possibly already playing.
+    ///
+    /// If the tweenable is successfully swapped, this resets the
+    /// [`TweenAnim::tween_state()`] to [`TweenState::Active`], even if the
+    /// tweenable would otherwise be completed _e.g._ because its elapsed time
+    /// is past its total duration. Conversely, this doesn't update the target,
+    /// as this function doesn't have mutable access to it.
+    ///
+    /// To ensure the old and new animations have the same elapsed time (for
+    /// example if they need to be synchronized), call [`set_elapsed()`] first
+    ///   on the input `tweenable`, with the duration value of the old
+    ///   tweenable as returned by [`elapsed()`].
+    ///
+    /// ```
+    /// #fn sys(mut animator: ResMut<TweenAnimator>) {
+    /// #let id = TweenId::null();
+    /// let elapsed = animator.get(id).unwrap().elapsed();
+    /// tweenable.set_elapsed(elapsed);
+    /// animator.set_tweenable(id, tweenable);
+    /// #}
+    /// ```
+    ///
+    /// To recompute the actual tweenable animation state and force a target
+    /// update, use [`step_one()`] with a [`Duration::ZERO`].
+    ///
+    /// # Returns
+    ///
+    /// On success, returns the previous tweenable which has been swapped out.
+    ///
+    /// [`set_elapsed()`]: crate::Tweenable::set_elapsed
+    /// [`elapsed()`]: crate::Tweenable::elapsed
+    /// [`step_one()`]: Self::step_one
+    pub fn set_tweenable<T>(
+        &mut self,
+        id: TweenId,
+        tweenable: T,
+    ) -> Result<BoxedTweenable, TweeningError>
+    where
+        T: Tweenable + 'static,
+    {
+        let anim = self
+            .anims
+            .get_mut(id)
+            .ok_or(TweeningError::InvalidTweenId(id))?;
+        let mut old_tweenable: BoxedTweenable = Box::new(tweenable);
+        std::mem::swap(&mut anim.tweenable, &mut old_tweenable);
+        // Reset tweening state, the new tweenable is at t=0
+        anim.tween_state = TweenState::Active;
+        Ok(old_tweenable)
+    }
+
+    /// Step the given queued animation.
+    ///
+    /// In general all animations are stepped automatically via [`step_all()`],
+    /// which is called from a system added by the [`TweeningPlugin`]. This
+    /// function can be used to step a single animation, either in addition or
+    /// in place of that system or any call to [`step_all()`]. If the `id` is
+    /// invalid, this function does nothing.
+    ///
+    /// # Returns
+    ///
+    /// If the animation completed and was destroyed, returns a copy of that
+    /// animation. Otherwise if the animation is still queued, returns `None`.
+    ///
+    /// [`step_all()`]: Self::step_all
+    #[inline]
+    pub fn step_one(
+        &mut self,
+        id: TweenId,
+        world: &mut World,
+        delta_time: Duration,
+        events: Mut<Events<TweenCompletedEvent>>,
+        anim_events: Mut<Events<AnimCompletedEvent>>,
+    ) -> Option<TweenAnim> {
+        if let Ok(retain) = self.step_impl(id, world, delta_time, events, anim_events) {
+            if !retain {
+                return Some(self.anims.remove(id).unwrap());
+            }
+        }
+        None
+    }
+
+    fn step_impl(
+        &mut self,
+        id: TweenId,
+        world: &mut World,
+        delta_time: Duration,
+        mut events: Mut<Events<TweenCompletedEvent>>,
+        mut anim_events: Mut<Events<AnimCompletedEvent>>,
+    ) -> Result<bool, TweeningError> {
+        let anim = self
+            .anims
+            .get_mut(id)
+            .ok_or(TweeningError::InvalidTweenId(id))?;
+
+        // Retain completed animations only if requested
+        if anim.tween_state == TweenState::Completed {
+            return Ok(!anim.destroy_on_completion);
+        }
+
+        // Skip paused animations (but retain them)
+        if anim.playback_state == PlaybackState::Paused {
+            return Ok(true);
+        }
+
+        // Resolve the (untyped) target as a MutUntyped<T>
+        let Some(mut mut_untyped) = (match &anim.target {
+            AnimTarget::Component(ComponentTarget {
+                entity,
+                component_id,
+            }) => world.get_mut_by_id(*entity, *component_id),
+            AnimTarget::Asset(AssetTarget {
+                resource_id,
+                asset_id,
+            }) => {
+                if let Some(assets) = world.get_resource_mut_by_id(*resource_id) {
+                    if let Some(resolver) = self.asset_resolver.get(resource_id) {
+                        resolver(assets, *asset_id)
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            }
+        }) else {
+            return Ok(false);
+        };
+
+        // Scale delta time by this animation's speed. Reject negative speeds; use
+        // backward playback to play in reverse direction.
+        // Note: must use f64 for precision; f32 produces visible roundings.
+        let delta_time = delta_time.mul_f64(anim.speed.max(0.));
+
+        // Step the tweenable animation
+        let mut notify_completed = |fraction: f32| {
+            events.send(TweenCompletedEvent {
+                id,
+                target: anim.target,
+                progress: fraction,
+            });
+        };
+        let state = anim.tweenable.step(
+            id,
+            delta_time,
+            mut_untyped.reborrow(),
+            &mut notify_completed,
+        );
+        anim.tween_state = state;
+
+        // Raise completed event
+        if state == TweenState::Completed {
+            anim_events.send(AnimCompletedEvent {
+                id,
+                target: anim.target,
+            });
+        }
+
+        Ok(state == TweenState::Active || !anim.destroy_on_completion)
     }
 
     /// Step all queued animations.
@@ -1721,8 +2010,29 @@ mod tests {
 
     #[test]
     fn repeat_count() {
-        let count = RepeatCount::default();
-        assert_eq!(count, RepeatCount::Finite(1));
+        let cycle_duration = Duration::from_millis(100);
+
+        let repeat = RepeatCount::default();
+        assert_eq!(repeat, RepeatCount::Finite(1));
+        assert_eq!(
+            repeat.total_duration(cycle_duration),
+            TotalDuration::Finite(cycle_duration)
+        );
+
+        let repeat: RepeatCount = 3u32.into();
+        assert_eq!(repeat, RepeatCount::Finite(3));
+        assert_eq!(
+            repeat.total_duration(cycle_duration),
+            TotalDuration::Finite(cycle_duration * 3)
+        );
+
+        let duration = Duration::from_secs(5);
+        let repeat: RepeatCount = duration.into();
+        assert_eq!(repeat, RepeatCount::For(duration));
+        assert_eq!(
+            repeat.total_duration(cycle_duration),
+            TotalDuration::Finite(duration)
+        );
     }
 
     #[test]
@@ -1732,13 +2042,13 @@ mod tests {
     }
 
     #[test]
-    fn tweening_direction() {
+    fn playback_direction() {
         let tweening_direction = PlaybackDirection::default();
         assert_eq!(tweening_direction, PlaybackDirection::Forward);
     }
 
     #[test]
-    fn animator_state() {
+    fn playback_state() {
         let mut state = PlaybackState::default();
         assert_eq!(state, PlaybackState::Playing);
         state = !state;
@@ -1785,9 +2095,10 @@ mod tests {
         assert!(animator.remove(TweenId::null()).is_none());
     }
 
-    // TweenAnim::playback_state is entirely user-controlled
+    // TweenAnim::playback_state is entirely user-controlled; stepping animations
+    // won't change it.
     #[test]
-    fn animator_with_state() {
+    fn animation_playback_state() {
         for state in [PlaybackState::Playing, PlaybackState::Paused] {
             let tween = Tween::new::<DummyComponent, DummyLens>(
                 EaseFunction::QuadraticInOut,
@@ -1884,101 +2195,130 @@ mod tests {
         );
     }
 
-    // #[test]
-    // fn animator_set_tweenable() {
-    //     let tween = Tween::<DummyComponent>::new(
-    //         EaseFunction::QuadraticInOut,
-    //         Duration::from_secs(1),
-    //         DummyLens { start: 0., end: 1. },
-    //     );
-    //     let mut animator = Animator::new(tween);
+    #[test]
+    fn animator_set_tweenable() {
+        let tween = Tween::new::<DummyComponent, DummyLens>(
+            EaseFunction::QuadraticInOut,
+            Duration::from_secs(1),
+            DummyLens { start: 0., end: 1. },
+        );
+        let tween2 = Tween::new::<DummyComponent, DummyLens>(
+            EaseFunction::SmoothStep,
+            Duration::from_secs(2),
+            DummyLens { start: 2., end: 3. },
+        );
 
-    //     let tween2 = Tween::<DummyComponent>::new(
-    //         EaseFunction::QuadraticInOut,
-    //         Duration::from_secs(2),
-    //         DummyLens { start: 0., end: 1. },
-    //     );
-    //     animator.set_tweenable(tween2);
+        let mut env = TestEnv::<DummyComponent>::new(tween);
+        env.anim_scope(|anim| anim.destroy_on_completion = false);
+        let id = env.tween_id;
+        assert!(env.animator().contains(id));
 
-    //     assert_eq!(animator.tweenable().duration(), Duration::from_secs(2));
-    // }
+        let dt = Duration::from_millis(1500);
 
-    // #[cfg(feature = "bevy_asset")]
-    // #[test]
-    // fn asset_animator_with_state() {
-    //     for state in [AnimatorState::Playing, AnimatorState::Paused] {
-    //         let tween = Tween::new(
-    //             EaseFunction::QuadraticInOut,
-    //             Duration::from_secs(1),
-    //             DummyLens { start: 0., end: 1. },
-    //         );
-    //         let animator = AssetAnimator::new(tween).with_state(state);
-    //         assert_eq!(animator.state, state);
+        env.step_all(dt);
+        assert_eq!(env.component().value, 1.);
+        assert_eq!(env.anim().unwrap().tween_state(), TweenState::Completed);
 
-    //         // impl Debug
-    //         let debug_string = format!("{:?}", animator);
-    //         assert_eq!(
-    //             debug_string,
-    //             format!("AssetAnimator {{ state: {:?} }}", animator.state)
-    //         );
-    //     }
-    // }
+        // Swap tweens
+        let old_tweenable = env.animator_mut().set_tweenable(id, tween2).unwrap();
+        let id2 = env.tween_id;
+        assert_eq!(id, id2); // the ID doesn't change, the tweenable is swapped in-place
+        assert!(env.animator().contains(id2));
 
-    // #[cfg(feature = "bevy_asset")]
-    // #[test]
-    // fn asset_animator_controls() {
-    //     let tween = Tween::new(
-    //         EaseFunction::QuadraticInOut,
-    //         Duration::from_secs(1),
-    //         DummyLens { start: 0., end: 1. },
-    //     );
-    //     let mut animator = AssetAnimator::new(tween);
-    //     assert_eq!(animator.state, AnimatorState::Playing);
-    //     assert_approx_eq!(animator.tweenable().progress(), 0.);
+        assert_eq!(env.anim().unwrap().tween_state(), TweenState::Active);
+        // The elapsed is stored inside the tweenable
+        assert_eq!(old_tweenable.elapsed(), Duration::from_secs(1)); // capped at total_duration()
+        assert_eq!(env.anim().unwrap().tweenable.elapsed(), Duration::ZERO);
 
-    //     animator.stop();
-    //     assert_eq!(animator.state, AnimatorState::Paused);
-    //     assert_approx_eq!(animator.tweenable().progress(), 0.);
+        env.step_all(dt);
+        assert!(env.component().value >= 2. && env.component().value <= 3.);
+    }
 
-    //     animator.tweenable_mut().set_progress(0.5);
-    //     assert_eq!(animator.state, AnimatorState::Paused);
-    //     assert_approx_eq!(animator.tweenable().progress(), 0.5);
+    #[test]
+    fn animator_set_target() {
+        let tween = Tween::new::<DummyComponent, DummyLens>(
+            EaseFunction::QuadraticInOut,
+            Duration::from_secs(1),
+            DummyLens { start: 0., end: 1. },
+        );
+        let mut env = TestEnv::<DummyComponent>::new(tween);
 
-    //     animator.tweenable_mut().rewind();
-    //     assert_eq!(animator.state, AnimatorState::Paused);
-    //     assert_approx_eq!(animator.tweenable().progress(), 0.);
+        // Register our custom asset type
+        env.world.init_resource::<Assets<DummyAsset>>();
 
-    //     animator.tweenable_mut().set_progress(0.5);
-    //     animator.state = AnimatorState::Playing;
-    //     assert_eq!(animator.state, AnimatorState::Playing);
-    //     assert_approx_eq!(animator.tweenable().progress(), 0.5);
+        // Invalid ID
+        {
+            let entity = env.entity;
+            let target =
+                ComponentTarget::new::<DummyComponent>(env.world.components(), entity).unwrap();
+            let err = env
+                .animator_mut()
+                .set_target(TweenId::null(), target.into())
+                .err()
+                .unwrap();
+            let TweeningError::InvalidTweenId(err_id) = err else {
+                panic!();
+            };
+            assert_eq!(err_id, TweenId::null());
+        }
 
-    //     animator.tweenable_mut().rewind();
-    //     assert_eq!(animator.state, AnimatorState::Playing);
-    //     assert_approx_eq!(animator.tweenable().progress(), 0.);
+        // Spawn a second entity without any animation
+        let entity1 = env.entity;
+        let entity2 = env.world_mut().spawn(DummyComponent { value: 0. }).id();
+        assert_ne!(entity1, entity2);
+        assert_eq!(env.component().value, 0.);
 
-    //     animator.stop();
-    //     assert_eq!(animator.state, AnimatorState::Paused);
-    //     assert_approx_eq!(animator.tweenable().progress(), 0.);
-    // }
+        // Step the current target
+        let dt = Duration::from_millis(100);
+        env.step_all(dt);
+        assert!(env.component().value > 0.);
+        assert_eq!(
+            env.world
+                .entity(entity2)
+                .get_components::<&DummyComponent>()
+                .unwrap()
+                .value,
+            0.
+        );
 
-    // #[cfg(feature = "bevy_asset")]
-    // #[test]
-    // fn asset_animator_set_tweenable() {
-    //     let tween = Tween::new(
-    //         EaseFunction::QuadraticInOut,
-    //         Duration::from_secs(1),
-    //         DummyLens { start: 0., end: 1. },
-    //     );
-    //     let mut animator = AssetAnimator::new(tween);
+        // Now retarget
+        let id = env.tween_id;
+        let target2 =
+            ComponentTarget::new::<DummyComponent>(env.world.components(), entity2).unwrap();
+        let target1 = env.animator_mut().set_target(id, target2.into()).unwrap();
+        assert!(target1.is_component());
+        let comp1 = target1.as_component().unwrap();
+        assert_eq!(comp1.entity, entity1);
+        assert_eq!(
+            comp1.component_id,
+            env.world.component_id::<DummyComponent>().unwrap()
+        );
 
-    //     let tween2 = Tween::new(
-    //         EaseFunction::QuadraticInOut,
-    //         Duration::from_secs(2),
-    //         DummyLens { start: 0., end: 1. },
-    //     );
-    //     animator.set_tweenable(tween2);
+        // Step the new target
+        env.step_all(dt);
+        assert!(env.component().value > 0.);
+        assert!(
+            env.world
+                .entity(entity1)
+                .get_components::<&DummyComponent>()
+                .unwrap()
+                .value
+                > 0.
+        );
 
-    //     assert_eq!(animator.tweenable().duration(), Duration::from_secs(2));
-    // }
+        // Invalid target
+        {
+            let target3 =
+                AssetTarget::new(env.world.components(), Handle::<DummyAsset>::default().id())
+                    .unwrap();
+            let err3 = env.animator_mut().set_target(id, target3.into());
+            assert!(err3.is_err());
+            let err3 = err3.err().unwrap();
+            let TweeningError::MismatchingTargetKind(oc, nc) = err3 else {
+                panic!();
+            };
+            assert_eq!(oc, true);
+            assert_eq!(nc, false);
+        }
+    }
 }

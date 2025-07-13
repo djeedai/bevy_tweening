@@ -217,6 +217,11 @@ impl<T: Component<Mutability = Mutable>> TestEnv<T> {
     }
 
     /// Get the component.
+    pub fn component(&self) -> &T {
+        self.world.get::<T>(self.entity).unwrap()
+    }
+
+    /// Get the component.
     pub fn component_mut(&mut self) -> Mut<T> {
         self.world.get_mut::<T>(self.entity).unwrap()
     }
