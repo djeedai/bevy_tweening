@@ -109,7 +109,7 @@ mod tests {
 
         env.step_all(Duration::from_millis(500));
 
-        assert_eq!(env.event_count(), 0);
+        assert_eq!(env.event_count::<TweenCompletedEvent>(), 0);
         let animator = env.animator();
         let anim = animator.get(env.tween_id).unwrap();
         assert_eq!(anim.playback_state, PlaybackState::Playing);
@@ -124,7 +124,7 @@ mod tests {
         // The final state was still applied before deleting the animation,
         // so the component is changed.
 
-        assert_eq!(env.event_count(), 1);
+        assert_eq!(env.event_count::<TweenCompletedEvent>(), 1);
         let animator = env.animator();
         assert!(animator.get(env.tween_id).is_none()); // done and deleted
         let transform = env.component_mut();
@@ -134,7 +134,7 @@ mod tests {
         // We can continue to tick as much as we want, this doesn't change anything
         env.step_all(Duration::from_millis(100));
 
-        assert_eq!(env.event_count(), 0);
+        assert_eq!(env.event_count::<TweenCompletedEvent>(), 0);
         let animator = env.animator();
         assert!(animator.get(env.tween_id).is_none()); // done and deleted
         let transform = env.component_mut();

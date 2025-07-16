@@ -5,12 +5,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-_This change introduces a major API redesign, which removes the need for generics,
-and unifies all animations of all components and assets._
+_This change introduces a major API redesign compared to v0.13.
+It removes the need for generics,
+and unifies all animations of all components and assets,
+executing them from a single exclusive system._
 
 ### Added
 
+- Added `TweenAnimator`, a resource acting as a container for all active animations.
 - Added `TweenId`, a unique identifier for a currently active animation.
+- Added `TweenAnim`, a representation of the runtime parameters of an active animation.
+- Added `AnimTarget`, an enum describing the target mutated by an animation.
+  Also added two structs `ComponentAnimTarget` and `AssetAnimTarget` as its enum variants.
 - Added `TotalDuration::from_cycles()` to simply creating an animation duration
   from a number of individual cycles and their duration.
 - Added `TotalDuration::is_finite()` helper to check an animation duration is finite.
@@ -36,7 +42,10 @@ and unifies all animations of all components and assets._
   fn lerp(&mut self, target: Mut<T>, ratio: f32)
   ```
 
-- The following types lost their generic parameter:
+  The functioning is the same, but this removes one level of indirection.
+  The use of `Mut<T>` should be familiar to most Bevy users.
+
+- The following types lost their generic parameter `<T>`:
   - `Tweenable`
   - `Tween`
   - `Sequence`

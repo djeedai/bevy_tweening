@@ -1378,7 +1378,7 @@ mod tests {
     use slotmap::Key as _;
 
     use super::*;
-    use crate::{lens::*, test_utils::assert_approx_eq, ComponentTarget};
+    use crate::{lens::*, test_utils::assert_approx_eq, ComponentAnimTarget};
 
     // #[derive(Default, Copy, Clone)]
     // struct CallbackMonitor {
@@ -1531,7 +1531,7 @@ mod tests {
                 let component_id = world.component_id::<Transform>().unwrap();
                 let entity_mut = &mut world.get_entity_mut([entity]).unwrap()[0];
                 if let Ok(mut target) = entity_mut.get_mut_by_id(component_id) {
-                    let world_target = ComponentTarget {
+                    let world_target = ComponentAnimTarget {
                         entity,
                         component_id,
                     }

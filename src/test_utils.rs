@@ -5,7 +5,7 @@ use bevy::{
         change_detection::DetectChanges as _,
         component::{Component, Mutable},
         entity::Entity,
-        event::Events,
+        event::{Event, Events},
         system::{IntoSystem, System},
         world::{Mut, World},
     },
@@ -227,8 +227,8 @@ impl<T: Component<Mutability = Mutable>> TestEnv<T> {
     }
 
     /// Get the emitted event count since last tick.
-    pub fn event_count(&self) -> usize {
-        let events = self.world.resource::<Events<TweenCompletedEvent>>();
+    pub fn event_count<E: Event>(&self) -> usize {
+        let events = self.world.resource::<Events<E>>();
         events.get_cursor().len(events)
     }
 }
