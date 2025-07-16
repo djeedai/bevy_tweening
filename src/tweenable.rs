@@ -1,7 +1,7 @@
 use std::{any::TypeId, cmp::Ordering, time::Duration};
 
 use bevy::{
-    ecs::{change_detection::MutUntyped, component::Mutable, system::SystemId},
+    ecs::{change_detection::MutUntyped, system::SystemId},
     prelude::*,
 };
 
@@ -31,7 +31,7 @@ use crate::{
 /// # use std::{any::TypeId, time::Duration};
 /// # use bevy::ecs::{system::{Commands, SystemId}, change_detection::MutUntyped};
 /// # use bevy::prelude::*;
-/// # use bevy_tweening::{BoxedTweenable, Sequence, TweenId, Tweenable, TweenCompletedEvent, TweenState, TotalDuration};
+/// # use bevy_tweening::{BoxedTweenable, Sequence, TweenId, Tweenable, CycleCompletedEvent, TweenState, TotalDuration};
 /// #
 /// # #[derive(Debug)]
 /// # struct MyTweenable;
@@ -40,7 +40,7 @@ use crate::{
 /// #     fn total_duration(&self) -> TotalDuration  { unimplemented!() }
 /// #     fn set_elapsed(&mut self, elapsed: Duration)  { unimplemented!() }
 /// #     fn elapsed(&self) -> Duration  { unimplemented!() }
-/// #     fn step(&mut self, _tween_id: TweenId, delta: Duration, target: MutUntyped, notify_completed: &mut dyn FnMut(f32), queue_system: &mut dyn FnMut(SystemId)) -> TweenState  { unimplemented!() }
+/// #     fn step(&mut self, _tween_id: TweenId, delta: Duration, target: MutUntyped, notify_completed: &mut dyn FnMut(), queue_system: &mut dyn FnMut(SystemId)) -> TweenState  { unimplemented!() }
 /// #     fn rewind(&mut self) { unimplemented!() }
 /// #     fn cycles_completed(&self) -> u32 { unimplemented!() }
 /// #     fn cycle_fraction(&self) -> f32 { unimplemented!() }
@@ -77,41 +77,38 @@ pub enum TweenState {
     Completed,
 }
 
-/// Event raised when a [`Tween`] completed.
+/// Event raised when an animation completed a single cycle.
 ///
-/// This event is raised when a [`Tween`] completed. When looping, this is
-/// raised once per iteration. In case the animation direction changes
-/// ([`RepeatStrategy::MirroredRepeat`]), an iteration corresponds to a single
-/// progress from one endpoint to the other, whatever the direction. Therefore a
-/// complete cycle start -> end -> start counts as 2 iterations and raises 2
-/// events (one when reaching the end, one when reaching back the start).
+/// This event is raised when a [`Tweenable`] animation completed a single
+/// cycle. In case the animation direction changes each cycle
+/// ([`RepeatStrategy::MirroredRepeat`]), a cycle corresponds to a single
+/// progress from one endpoint value of the lens to the other, whatever the
+/// direction. Therefore a complete loop start -> end -> start counts as 2
+/// cycles and raises 2 events (one when reaching the end value, one when
+/// reaching back the start value).
 ///
 /// # Note
 ///
-/// The semantic is slightly different from [`TweenState::Completed`], which
-/// indicates that the tweenable has finished ticking and do not need to be
-/// updated anymore, a state which is never reached for looping animation. Here
-/// the [`TweenCompletedEvent`] instead marks the end of a single loop
-/// iteration.
+/// The semantic is different from [`TweenState::Completed`], which indicates
+/// that the tweenable has finished stepping and do not need to be updated
+/// anymore, a state which is never reached for looping animation. Here the
+/// [`CycleCompletedEvent`] instead marks the end of a single cycle.
 #[derive(Copy, Clone, Event)]
-pub struct TweenCompletedEvent {
-    /// The ID of the tween animation which completed.
+pub struct CycleCompletedEvent {
+    /// The ID of the tweenable animation which completed.
     ///
-    /// This is the ID of the top-level [`TweenAnim`] this tween is part of. It
-    /// can be used to retrieve the animation with [`TweenAnimator::get()`].
+    /// This is the ID of the top-level [`TweenAnim`] this tweenable is part of.
+    /// It can be used to retrieve the entire animation with
+    /// [`TweenAnimator::get()`].
     ///
     /// [`TweenAnim`]: crate::TweenAnim
     /// [`TweenAnimator::get()`]: crate::TweenAnimator::get
     pub id: TweenId,
-    /// The [`Entity`] the tween which completed and the [`TweenAnim`] it's part
-    /// of are attached to.
+    /// The target the tweenable which completed and the [`TweenAnim`] it's
+    /// part of are mutating.
     ///
     /// [`TweenAnim`]: crate::TweenAnim
     pub target: AnimTarget,
-    /// Current progress of the owner [`TweenAnim`].
-    ///
-    /// [`TweenAnim`]: crate::TweenAnim
-    pub progress: f32,
 }
 
 #[derive(Debug)]
@@ -412,7 +409,7 @@ impl Ord for TotalDuration {
 }
 
 /// An animatable entity, either a single [`Tween`] or a collection of them.
-pub trait Tweenable: std::fmt::Debug + Send + Sync {
+pub trait Tweenable: Send + Sync {
     /// Get the duration of a single cycle of the animation.
     ///
     /// Note that for [`RepeatStrategy::MirroredRepeat`], this is the duration
@@ -486,7 +483,7 @@ pub trait Tweenable: std::fmt::Debug + Send + Sync {
         tween_id: TweenId,
         delta: Duration,
         target: MutUntyped,
-        notify_completed: &mut dyn FnMut(f32),
+        notify_completed: &mut dyn FnMut(),
         queue_system: &mut dyn FnMut(SystemId),
     ) -> TweenState;
 
@@ -563,78 +560,26 @@ impl_boxed!(Delay);
 
 type TargetAction = dyn FnMut(MutUntyped, f32) + Send + Sync + 'static;
 
-/// TODO
-pub trait TweenAssetExtensions {
-    /// TODO
-    fn new<A, L>(ease_function: impl Into<EaseMethod>, duration: Duration, lens: L) -> Self
-    where
-        A: Asset,
-        L: Lens<A> + Send + Sync + 'static;
-}
-
-enum TweenAction {
-    Component(Box<TargetAction>),
-    Asset(Box<TargetAction>),
-}
-
-impl std::fmt::Debug for TweenAction {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            TweenAction::Component(..) => write!(f, "TweenAction::Component"),
-            TweenAction::Asset(..) => write!(f, "TweenAction::Asset"),
-        }
-    }
-}
-
-/// Single tweening animation instance.
-#[derive(Debug)]
+/// Single tweening animation description.
+///
+/// A _tween_ is the basic building block of an animation. It describes a single
+/// tweening animation between two values, accessed through a given [`Lens`].
 pub struct Tween {
     ease_method: EaseMethod,
     clock: AnimClock,
     /// Direction of playback the user asked for.
     playback_direction: PlaybackDirection,
-    action: TweenAction,
+    action: Box<TargetAction>,
     system_id: Option<SystemId>,
     send_completed_event: bool,
-    /// Type ID of the target component or `Assets<A>` resource.
+    /// Type ID of the target.
     type_id: TypeId,
 }
 
 impl Tween {
-    /// Chain another [`Tweenable`] after this tween, making a [`Sequence`] with
-    /// the two.
+    /// Create a new tween animation.
     ///
-    /// # Example
-    /// ```
-    /// # use bevy_tweening::{lens::*, *};
-    /// # use bevy::math::{*,curve::EaseFunction};
-    /// # use std::time::Duration;
-    /// let tween1 = Tween::new(
-    ///     EaseFunction::QuadraticInOut,
-    ///     Duration::from_secs(1),
-    ///     TransformPositionLens {
-    ///         start: Vec3::ZERO,
-    ///         end: Vec3::new(3.5, 0., 0.),
-    ///     },
-    /// );
-    /// let tween2 = Tween::new(
-    ///     EaseFunction::QuadraticInOut,
-    ///     Duration::from_secs(1),
-    ///     TransformRotationLens {
-    ///         start: Quat::IDENTITY,
-    ///         end: Quat::from_rotation_x(90.0_f32.to_radians()),
-    ///     },
-    /// );
-    /// let seq = tween1.then(tween2);
-    /// ```
-    #[must_use]
-    pub fn then(self, tween: impl Tweenable + 'static) -> Sequence {
-        Sequence::with_capacity(2).then(self).then(tween)
-    }
-
-    /// Create a new tween animation for a [`Component`].
-    ///
-    /// The target component type is implicitly determined by the [`Lens`].
+    /// The target type is implicitly determined by the [`Lens`].
     ///
     /// # Example
     ///
@@ -653,79 +598,31 @@ impl Tween {
     /// ```
     #[inline]
     #[must_use]
-    pub fn new<C, L>(ease_method: impl Into<EaseMethod>, duration: Duration, mut lens: L) -> Self
+    pub fn new<T, L>(ease_method: impl Into<EaseMethod>, duration: Duration, mut lens: L) -> Self
     where
-        C: Component<Mutability = Mutable>,
-        L: Lens<C> + Send + Sync + 'static,
+        T: 'static,
+        L: Lens<T> + Send + Sync + 'static,
     {
         let action = move |ptr: MutUntyped, ratio: f32| {
-            // SAFETY: ptr was obtained from the same component type, via the type_id saved
-            // below.
+            // SAFETY: ptr was obtained from the same type, via the type_id saved below.
             #[allow(unsafe_code)]
-            let comp = unsafe { ptr.with_type::<C>() };
-            lens.lerp(comp, ratio);
+            let target = unsafe { ptr.with_type::<T>() };
+            lens.lerp(target, ratio);
         };
         Self {
             ease_method: ease_method.into(),
             clock: AnimClock::new(duration),
             playback_direction: PlaybackDirection::Forward,
-            action: TweenAction::Component(Box::new(action)),
+            action: Box::new(action),
             system_id: None,
             send_completed_event: false,
-            type_id: TypeId::of::<C>(),
-        }
-    }
-
-    /// Create a new tween animation for an [`Asset`].
-    ///
-    /// The target asset type is implicitly determined by the [`Lens`].
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use bevy_tweening::{lens::*, *};
-    /// # use bevy::{prelude::Color, math::{Vec3, curve::EaseFunction}};
-    /// # use std::time::Duration;
-    /// let tween = Tween::new_asset(
-    ///     EaseFunction::QuadraticInOut,
-    ///     Duration::from_secs(1),
-    ///     ColorMaterialColorLens {
-    ///         start: Color::BLACK,
-    ///         end: Color::WHITE,
-    ///     },
-    /// );
-    /// ```
-    #[must_use]
-    pub fn new_asset<A, L>(
-        ease_function: impl Into<EaseMethod>,
-        duration: Duration,
-        mut lens: L,
-    ) -> Self
-    where
-        A: Asset,
-        L: Lens<A> + Send + Sync + 'static,
-    {
-        let action = move |ptr: MutUntyped, ratio: f32| {
-            // SAFETY: ptr was obtained from the captured asset type, through the Assets<A>
-            // resource type saved in type_id below.
-            #[allow(unsafe_code)]
-            let asset = unsafe { ptr.with_type::<A>() };
-            lens.lerp(asset, ratio);
-        };
-        Self {
-            ease_method: ease_function.into(),
-            clock: AnimClock::new(duration),
-            playback_direction: PlaybackDirection::Forward,
-            action: TweenAction::Asset(Box::new(action)),
-            system_id: None,
-            send_completed_event: false,
-            type_id: TypeId::of::<Assets<A>>(),
+            type_id: TypeId::of::<T>(),
         }
     }
 
     /// Enable raising a event on cycle completion.
     ///
-    /// If enabled, the tween will raise a [`TweenCompletedEvent`] each time
+    /// If enabled, the tween will raise a [`CycleCompletedEvent`] each time
     /// the tween completes a cycle (reaches or passes its cycle duration). In
     /// case of repeating tweens (repeat count > 1), the event is raised once
     /// per cycle. For mirrored repeats, a cycle is one travel from start to
@@ -747,13 +644,13 @@ impl Tween {
     /// #        end: Vec3::new(3.5, 0., 0.),
     /// #    },
     /// )
-    /// // Raise a TweenCompletedEvent each cycle
+    /// // Raise a CycleCompletedEvent each cycle
     /// .with_completed_event(true);
     ///
-    /// fn my_system(mut reader: EventReader<TweenCompletedEvent>) {
+    /// fn my_system(mut reader: EventReader<CycleCompletedEvent>) {
     ///     for ev in reader.read() {
     ///         println!(
-    ///             "Tween animation {:?} raised TweenCompletedEvent for target entity {:?}!",
+    ///             "Tween animation {:?} raised CycleCompletedEvent for target entity {:?}!",
     ///             ev.id,
     ///             ev.target.as_component().unwrap().entity
     ///         );
@@ -857,6 +754,37 @@ impl Tween {
         self.playback_direction
     }
 
+    /// Chain another [`Tweenable`] after this tween, making a [`Sequence`] with
+    /// the two.
+    ///
+    /// # Example
+    /// ```
+    /// # use bevy_tweening::{lens::*, *};
+    /// # use bevy::math::{*,curve::EaseFunction};
+    /// # use std::time::Duration;
+    /// let tween1 = Tween::new(
+    ///     EaseFunction::QuadraticInOut,
+    ///     Duration::from_secs(1),
+    ///     TransformPositionLens {
+    ///         start: Vec3::ZERO,
+    ///         end: Vec3::new(3.5, 0., 0.),
+    ///     },
+    /// );
+    /// let tween2 = Tween::new(
+    ///     EaseFunction::QuadraticInOut,
+    ///     Duration::from_secs(1),
+    ///     TransformRotationLens {
+    ///         start: Quat::IDENTITY,
+    ///         end: Quat::from_rotation_x(90.0_f32.to_radians()),
+    ///     },
+    /// );
+    /// let seq = tween1.then(tween2);
+    /// ```
+    #[must_use]
+    pub fn then(self, tween: impl Tweenable + 'static) -> Sequence {
+        Sequence::with_capacity(2).then(self).then(tween)
+    }
+
     /// Get the elapsed cycle index (numbered from 0), accounting for finite
     /// endpoint.
     ///
@@ -915,31 +843,6 @@ impl Tween {
     }
 }
 
-impl TweenAssetExtensions for Tween {
-    #[must_use]
-    fn new<A, L>(ease_function: impl Into<EaseMethod>, duration: Duration, mut lens: L) -> Self
-    where
-        A: Asset,
-        L: Lens<A> + Send + Sync + 'static,
-    {
-        let action = move |ptr: MutUntyped, ratio: f32| {
-            // SAFETY: ptr was obtained from the same asset type.
-            #[allow(unsafe_code)]
-            let asset = unsafe { ptr.with_type::<A>() };
-            lens.lerp(asset, ratio);
-        };
-        Self {
-            ease_method: ease_function.into(),
-            clock: AnimClock::new(duration),
-            playback_direction: PlaybackDirection::Forward,
-            action: TweenAction::Asset(Box::new(action)),
-            system_id: None,
-            send_completed_event: false,
-            type_id: TypeId::of::<Assets<A>>(),
-        }
-    }
-}
-
 impl Tweenable for Tween {
     fn cycle_duration(&self) -> Duration {
         self.clock.cycle_duration
@@ -962,7 +865,7 @@ impl Tweenable for Tween {
         _tween_id: TweenId,
         delta: Duration,
         target: MutUntyped,
-        notify_completed: &mut dyn FnMut(f32),
+        notify_completed: &mut dyn FnMut(),
         queue_system: &mut dyn FnMut(SystemId),
     ) -> TweenState {
         if self.clock.state(self.playback_direction) == TweenState::Completed {
@@ -980,19 +883,12 @@ impl Tweenable for Tween {
         // consistent.
         let fraction = self.clock.mirrored_cycle_fraction();
         let fraction = self.ease_method.sample(fraction);
-        match &mut self.action {
-            TweenAction::Component(action) => {
-                action(target, fraction);
-            }
-            TweenAction::Asset(action) => {
-                action(target, fraction);
-            }
-        };
+        (self.action)(target, fraction);
 
         // If completed at least once this frame, notify the user
         if times_completed != 0 {
             if self.send_completed_event {
-                notify_completed(fraction);
+                notify_completed();
             }
 
             if let Some(system_id) = &self.system_id {
@@ -1013,7 +909,6 @@ impl Tweenable for Tween {
 }
 
 /// A sequence of tweens played back in order one after the other.
-#[derive(Debug)]
 pub struct Sequence {
     tweens: Vec<BoxedTweenable>,
     index: usize,
@@ -1150,7 +1045,7 @@ impl Tweenable for Sequence {
         tween_id: TweenId,
         mut delta: Duration,
         mut target: MutUntyped,
-        notify_completed: &mut dyn FnMut(f32),
+        notify_completed: &mut dyn FnMut(),
         queue_system: &mut dyn FnMut(SystemId),
     ) -> TweenState {
         // Calculate the new elapsed time at the end of this tick
@@ -1331,18 +1226,17 @@ impl Tweenable for Delay {
         _tween_id: TweenId,
         delta: Duration,
         _target: MutUntyped,
-        _notify_completed: &mut dyn FnMut(f32),
+        _notify_completed: &mut dyn FnMut(),
         _queue_system: &mut dyn FnMut(SystemId),
     ) -> TweenState {
         self.timer.tick(delta);
 
-        let _progress = self.elapsed().div_duration_f64(self.cycle_duration());
         let state = self.state();
 
         // // If completed this frame, notify the user
         // if (state == TweenState::Completed) && !was_completed {
         //     if self.send_completed_events {
-        //         let event = TweenCompletedEvent {
+        //         let event = CycleCompletedEvent {
         //             id: tween_id,
         //             entity,
         //             progress,
@@ -1513,7 +1407,7 @@ mod tests {
     /// Utility to create a test environment to tick a tween.
     fn make_test_env() -> (World, Entity, SystemId) {
         let mut world = World::new();
-        world.init_resource::<Events<TweenCompletedEvent>>();
+        world.init_resource::<Events<CycleCompletedEvent>>();
         let entity = world.spawn(Transform::default()).id();
         let system_id = world.register_system(oneshot_test);
         (world, entity, system_id)
@@ -1532,7 +1426,7 @@ mod tests {
     ) -> TweenState {
         // Tick the given tween and apply its state to the given entity target
         let state = world.resource_scope(
-            |world: &mut World, mut events: Mut<Events<TweenCompletedEvent>>| {
+            |world: &mut World, mut events: Mut<Events<CycleCompletedEvent>>| {
                 let component_id = world.component_id::<Transform>().unwrap();
                 let entity_mut = &mut world.get_entity_mut([entity]).unwrap()[0];
                 if let Ok(mut target) = entity_mut.get_mut_by_id(component_id) {
@@ -1541,11 +1435,10 @@ mod tests {
                         component_id,
                     }
                     .into();
-                    let mut notify_completed = |fraction: f32| {
-                        events.send(TweenCompletedEvent {
+                    let mut notify_completed = || {
+                        events.send(CycleCompletedEvent {
                             id: tween_id,
                             target: world_target,
-                            progress: fraction,
                         });
                     };
                     let mut queue_system = |_: SystemId| {};
@@ -1564,7 +1457,7 @@ mod tests {
 
         // Propagate events
         {
-            let mut events = world.resource_mut::<Events<TweenCompletedEvent>>();
+            let mut events = world.resource_mut::<Events<CycleCompletedEvent>>();
             events.update();
         }
 
@@ -1675,7 +1568,7 @@ mod tests {
                 }
 
                 let (mut world, entity, system_id) = make_test_env();
-                let mut event_reader_system_state: SystemState<EventReader<TweenCompletedEvent>> =
+                let mut event_reader_system_state: SystemState<EventReader<CycleCompletedEvent>> =
                     SystemState::new(&mut world);
 
                 // Activate oneshot system

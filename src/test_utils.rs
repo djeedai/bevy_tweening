@@ -118,7 +118,7 @@ macro_rules! assert_approx_eq {
 pub(crate) use assert_approx_eq;
 
 use crate::{
-    AnimCompletedEvent, TweenAnim, TweenAnimator, TweenCompletedEvent, TweenId, Tweenable,
+    AnimCompletedEvent, CycleCompletedEvent, TweenAnim, TweenAnimator, TweenId, Tweenable,
     WorldTargetExtensions as _,
 };
 
@@ -138,7 +138,7 @@ impl<T: Component<Mutability = Mutable> + Default> TestEnv<T> {
     pub fn new(tweenable: impl Tweenable + 'static) -> Self {
         let mut world = World::new();
         world.init_resource::<Time>();
-        world.init_resource::<Events<TweenCompletedEvent>>();
+        world.init_resource::<Events<CycleCompletedEvent>>();
         world.init_resource::<Events<AnimCompletedEvent>>();
         world.init_resource::<TweenAnimator>();
 
@@ -185,7 +185,7 @@ impl<T: Component<Mutability = Mutable>> TestEnv<T> {
         self.system.run((), &mut self.world);
 
         // Update events after system ticked, in case system emitted some events
-        let mut events = self.world.resource_mut::<Events<TweenCompletedEvent>>();
+        let mut events = self.world.resource_mut::<Events<CycleCompletedEvent>>();
         events.update();
         let mut events = self.world.resource_mut::<Events<AnimCompletedEvent>>();
         events.update();

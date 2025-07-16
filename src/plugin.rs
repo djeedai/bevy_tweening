@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::{AnimCompletedEvent, TweenAnimator, TweenCompletedEvent};
+use crate::{AnimCompletedEvent, CycleCompletedEvent, TweenAnimator};
 
 /// Plugin to register the [`TweenAnimator`] and the systme playing animations.
 ///
@@ -15,7 +15,7 @@ pub struct TweeningPlugin;
 impl Plugin for TweeningPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<TweenAnimator>()
-            .add_event::<TweenCompletedEvent>()
+            .add_event::<CycleCompletedEvent>()
             .add_event::<AnimCompletedEvent>()
             .add_systems(
                 Update,
@@ -36,7 +36,7 @@ pub enum AnimationSystem {
 pub(crate) fn animator_system(world: &mut World) {
     let delta_time = world.resource::<Time>().delta();
     // TODO: Use SystemState to cache all of that...
-    world.resource_scope(|world, events: Mut<Events<TweenCompletedEvent>>| {
+    world.resource_scope(|world, events: Mut<Events<CycleCompletedEvent>>| {
         world.resource_scope(|world, anim_events: Mut<Events<AnimCompletedEvent>>| {
             world.resource_scope(|world, mut animator: Mut<TweenAnimator>| {
                 animator.step_all(world, delta_time, events, anim_events);
@@ -109,7 +109,7 @@ mod tests {
 
         env.step_all(Duration::from_millis(500));
 
-        assert_eq!(env.event_count::<TweenCompletedEvent>(), 0);
+        assert_eq!(env.event_count::<CycleCompletedEvent>(), 0);
         let animator = env.animator();
         let anim = animator.get(env.tween_id).unwrap();
         assert_eq!(anim.playback_state, PlaybackState::Playing);
@@ -124,7 +124,7 @@ mod tests {
         // The final state was still applied before deleting the animation,
         // so the component is changed.
 
-        assert_eq!(env.event_count::<TweenCompletedEvent>(), 1);
+        assert_eq!(env.event_count::<CycleCompletedEvent>(), 1);
         let animator = env.animator();
         assert!(animator.get(env.tween_id).is_none()); // done and deleted
         let transform = env.component_mut();
@@ -134,7 +134,7 @@ mod tests {
         // We can continue to tick as much as we want, this doesn't change anything
         env.step_all(Duration::from_millis(100));
 
-        assert_eq!(env.event_count::<TweenCompletedEvent>(), 0);
+        assert_eq!(env.event_count::<CycleCompletedEvent>(), 0);
         let animator = env.animator();
         assert!(animator.get(env.tween_id).is_none()); // done and deleted
         let transform = env.component_mut();

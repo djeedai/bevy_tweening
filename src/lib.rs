@@ -45,7 +45,7 @@
 //! let tween = Tween::new(
 //!     // Use a quadratic easing on both endpoints.
 //!     EaseFunction::QuadraticInOut,
-//!     // Animation time.
+//!     // It takes 1 second to go from start to end points.
 //!     Duration::from_secs(1),
 //!     // The lens gives access to the Transform component of the Entity,
 //!     // for the TweenAnimator to animate it. It also contains the start and
@@ -86,15 +86,19 @@
 //! # }
 //! ```
 //!
-//! See the [`EntityWorldMutTweeningExtensions`] extension trait for details.
+//! See the [`EntityWorldMutTweeningExtensions`] extension trait for the various
+//! helpers provided for common animations.
 //!
 //! # Ready to animate
 //!
-//! Unlike previous versions of 🍃 Bevy Tweening, you don't need any particular
-//! setup aside from adding the [`TweeningPlugin`] to your [`App`].
-//! In particular, per-component-type systems are gone. Instead, the
-//! [`TweenAnimator`] updates all tweenable animations for all components and
-//! assets at once, even for custom component and asset types.
+//! Unlike previous versions of 🍃 Bevy Tweening, **you don't need any
+//! particular system setup** aside from adding the [`TweeningPlugin`] to your
+//! [`App`]. In particular, per-component-type and per-asset-type systems are
+//! gone. Instead, the plugin adds a single system executing during the
+//! [`Update`] schedule, which calls [`TweenAnimator::step_all()`]. The
+//! [`TweenAnimator`] acts as a central hub for all queued animations, and
+//! updates them all for all components and assets at once, even for custom
+//! component and asset types.
 //!
 //! # Tweenables
 //!
@@ -107,8 +111,10 @@
 //!   other.
 //! - [`Delay`] - A time delay. This doesn't animate anything.
 //!
-//! To execute multiple animations in parallel, simply enqueue each animation
-//! independently. This require careful selection of timings.
+//! To execute multiple animations in parallel (like the `Tracks` tweenable used
+//! to do in older versions), simply enqueue each animation independently.
+//! This require careful selection of timings if you want to synchronize
+//! animations.
 //!
 //! ## Chaining animations
 //!
@@ -143,16 +149,17 @@
 //!
 //! Note that some tweenable animations can be of infinite duration; this is the
 //! case for example when using [`RepeatCount::Infinite`]. If you add such an
-//! infinite animation in a sequence, and append more tweenable after it, those
-//! tweenable will never play because playback will be stuck forever repeating
+//! infinite animation in a sequence, and append more tweenables after it, those
+//! tweenables will never play because playback will be stuck forever repeating
 //! the first animation. You're responsible for creating sequences that make
 //! sense. In general, only use infinite tweenable animations alone or as the
-//! last element of a sequence.
+//! last element of a sequence (for example, move to position and then rotate
+//! forever on self).
 //!
 //! # `TweenAnimator`
 //!
 //! Bevy components and assets are animated with the [`TweenAnimator`] resource.
-//! The animator determine the component or asset to animate via an
+//! The animator determines the component or asset to animate via an
 //! [`AnimTarget`], and accesses its field(s) using a [`Lens`].
 //!
 //! - Components are animated via the [`ComponentAnimTarget`], which identifies
@@ -160,20 +167,20 @@
 //!   [`ComponentId`] of the registered component type.
 //! - Assets are animated in a similar way to component, via the
 //!   [`AssetAnimTarget`] which identifies an asset via the type of its
-//!   [`Assets`] collection and the [`AssetId`] referencing that asset inside
-//!   the collection.
+//!   [`Assets`] collection (and so indirectly the type of asset itself) and the
+//!   [`AssetId`] referencing that asset inside the collection.
 //!
 //! Because assets are typically shared, and the animation applies to the asset
 //! itself, all users of the asset see the animation. For example, animating the
 //! color of a [`ColorMaterial`] will change the color of all the
 //! 2D meshes using that material. If you want to animate the color of a single
-//! mesh, you have to duplicate the asset and assign a unique copy to that mesh,
+//! mesh, you need to duplicate the asset and assign a unique copy to that mesh,
 //! then animate that copy alone.
 //!
 //! Although you generally should prefer using the various extensions on
-//! commands, like the `.tween()` function on entity commands, under the hood
+//! commands, like the [`.tween()`] function on entity commands, under the hood
 //! the manual process of queuing a new animation involves calling
-//! `TweenAnimator::add_component()` or `TweenAnimator::add_asset()`.
+//! [`TweenAnimator::add_component()`] or [`TweenAnimator::add_asset()`].
 //!
 //! ```no_run
 //! # use bevy::prelude::*;
@@ -195,15 +202,17 @@
 //!
 //! ```no_run
 //! # use bevy_tweening::*;
+//! # fn xxx() -> Option<()> {
 //! # let mut animator = TweenAnimator::default();
 //! # let tween_id = TweenId::default();
-//! animator.get_mut(tween_id).unwrap().speed = 0.8; // 80% playback speed
+//! animator.get_mut(tween_id)?.speed = 0.8; // 80% playback speed
+//! # None }
 //! ```
 //!
 //! ## Lenses
 //!
 //! The [`AnimTarget`] references the container (component or asset) being
-//! animated. However only a part of that component or asset is generally
+//! animated. However, only a part of that component or asset is generally
 //! animated. To that end, the [`TweenAnimator`] accesses the field(s) to
 //! animate via a _lens_, a type that implements the [`Lens`] trait and allows
 //! mapping a container to the actual value(s) animated.
@@ -239,6 +248,7 @@
 //! [`TextColor`]: https://docs.rs/bevy/0.16.0/bevy/text/struct.TextColor.html
 //! [`Transform`]: https://docs.rs/bevy/0.16.0/bevy/transform/components/struct.Transform.html
 //! [`TransformPositionLens`]: crate::lens::TransformPositionLens
+//! [`.tween()`]: crate::EntityWorldMutTweeningExtensions::tween
 
 use std::{any::TypeId, time::Duration};
 
@@ -257,8 +267,8 @@ pub use plugin::{AnimationSystem, TweeningPlugin};
 use slotmap::{new_key_type, SlotMap};
 use thiserror::Error;
 pub use tweenable::{
-    BoxedTweenable, Delay, Sequence, TotalDuration, Tween, TweenAssetExtensions,
-    TweenCompletedEvent, TweenState, Tweenable,
+    BoxedTweenable, CycleCompletedEvent, Delay, Sequence, TotalDuration, Tween, TweenState,
+    Tweenable,
 };
 
 pub mod lens;
@@ -915,7 +925,7 @@ pub struct AnimCompletedEvent {
 }
 
 /// Errors returned by various animation functions.
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Clone, Copy)]
 pub enum TweeningError {
     /// The component of the given type is not registered.
     #[error("Component of type {0:?} is not registered in the World.")]
@@ -933,8 +943,8 @@ pub enum TweeningError {
     },
     /// Expected [`Tweenable::type_id()`] to return a value, but it returned
     /// `None`.
-    #[error("Expected a typed Tweenable, got {0:?} instead.")]
-    UntypedTweenable(BoxedTweenable),
+    #[error("Expected a typed Tweenable.")]
+    UntypedTweenable,
     /// Invalid [`TweenId`].
     #[error("Invalid TweenId {0:?}.")]
     InvalidTweenId(TweenId),
@@ -1032,14 +1042,14 @@ impl AssetAnimTarget {
     /// Create a new asset target from an `Assets<A>` type ID.
     pub fn new_untyped(
         components: &Components,
-        type_id: TypeId,
+        assets_type_id: TypeId,
         asset_id: impl Into<UntypedAssetId>,
     ) -> Result<Self, TweeningError> {
         let asset_id = asset_id.into();
-        // Note: asset_id.type_id() is A, whereas type_id is Assets<A>
+        // Note: asset_id.type_id() is A, whereas assets_type_id is Assets<A>
         let resource_id = components
-            .get_resource_id(type_id)
-            .ok_or(TweeningError::AssetNotRegistered(type_id))?;
+            .get_resource_id(assets_type_id)
+            .ok_or(TweeningError::AssetNotRegistered(assets_type_id))?;
         Ok(Self {
             resource_id,
             asset_id,
@@ -1440,7 +1450,7 @@ impl TweenAnimator {
         T: Tweenable + 'static,
     {
         let Some(type_id) = tweenable.type_id() else {
-            return Err(TweeningError::UntypedTweenable(Box::new(tweenable)));
+            return Err(TweeningError::UntypedTweenable);
         };
         let target = ComponentAnimTarget::new_untyped(components, type_id, entity)?.into();
         Ok(self.add_component_target(target, tweenable))
@@ -1521,16 +1531,16 @@ impl TweenAnimator {
         T: Tweenable + 'static,
     {
         let Some(type_id) = tweenable.type_id() else {
-            return Err(TweeningError::UntypedTweenable(Box::new(tweenable)));
+            return Err(TweeningError::UntypedTweenable);
         };
-        if type_id != TypeId::of::<Assets<A>>() {
+        if type_id != TypeId::of::<A>() {
             return Err(TweeningError::InvalidAssetIdType {
-                expected: TypeId::of::<Assets<A>>(),
+                expected: TypeId::of::<A>(),
                 actual: type_id,
             });
         }
         let asset_id = asset_id.into();
-        let target = AssetAnimTarget::new_untyped(components, type_id, asset_id.untyped())?;
+        let target = AssetAnimTarget::new(components, asset_id)?;
         self.asset_resolver.insert(
             target.resource_id,
             Box::new(
@@ -1754,7 +1764,7 @@ impl TweenAnimator {
         id: TweenId,
         world: &mut World,
         delta_time: Duration,
-        events: Mut<Events<TweenCompletedEvent>>,
+        events: Mut<Events<CycleCompletedEvent>>,
         anim_events: Mut<Events<AnimCompletedEvent>>,
     ) -> Option<TweenAnim> {
         let anim = self.anims.get_mut(id)?;
@@ -1787,7 +1797,7 @@ impl TweenAnimator {
         asset_resolver: &HashMap<ComponentId, Resolver>,
         world: &mut World,
         delta_time: Duration,
-        mut events: Mut<Events<TweenCompletedEvent>>,
+        mut events: Mut<Events<CycleCompletedEvent>>,
         mut anim_events: Mut<Events<AnimCompletedEvent>>,
     ) -> Result<StepResult, TweeningError> {
         let mut queued_systems = Vec::with_capacity(8);
@@ -1847,12 +1857,11 @@ impl TweenAnimator {
 
         // Step the tweenable animation
         let entity = anim.target.as_component().map(|comp| comp.entity);
-        let mut notify_completed = |fraction: f32| {
+        let mut notify_completed = || {
             completed_events.push((
-                TweenCompletedEvent {
+                CycleCompletedEvent {
                     id: tween_id,
                     target: anim.target,
-                    progress: fraction,
                 },
                 entity,
             ));
@@ -1921,7 +1930,7 @@ impl TweenAnimator {
     /// Loop over the internal queue of tweenable animations, apply them to
     /// their respective target, and prune all the completed ones (the ones
     /// returning [`TweenState::Completed`]). In the later case, send
-    /// [`TweenCompletedEvent`]s if enabled on each individual tweenable.
+    /// [`CycleCompletedEvent`]s if enabled on each individual tweenable.
     ///
     /// If you use the [`TweeningPlugin`], this is automatically called by the
     /// animation system the plugin registers. See the
@@ -1930,7 +1939,7 @@ impl TweenAnimator {
         &mut self,
         world: &mut World,
         delta_time: Duration,
-        mut events: Mut<Events<TweenCompletedEvent>>,
+        mut events: Mut<Events<CycleCompletedEvent>>,
         mut anim_events: Mut<Events<AnimCompletedEvent>>,
     ) {
         let mut sent_commands = false;
@@ -2224,7 +2233,7 @@ mod tests {
         assert_eq!(env.anim().unwrap().tween_state(), TweenState::Active);
 
         // Check events
-        assert_eq!(env.event_count::<TweenCompletedEvent>(), 1);
+        assert_eq!(env.event_count::<CycleCompletedEvent>(), 1);
         assert_eq!(env.event_count::<AnimCompletedEvent>(), 0);
 
         // Tick until completion
@@ -2234,7 +2243,7 @@ mod tests {
 
         // Check events (note that we didn't clear previous events, so that's a
         // cumulative count).
-        assert_eq!(env.event_count::<TweenCompletedEvent>(), 1);
+        assert_eq!(env.event_count::<CycleCompletedEvent>(), 1);
         assert_eq!(env.event_count::<AnimCompletedEvent>(), 1);
     }
 
@@ -2257,14 +2266,14 @@ mod tests {
     fn animation_oneshot() {
         let dummy = Delay::new(Duration::from_secs(1));
         let mut env = TestEnv::<DummyComponent>::new(dummy);
-        env.world.init_resource::<Count<TweenCompletedEvent>>();
+        env.world.init_resource::<Count<CycleCompletedEvent>>();
 
-        fn sys_tween(mut count: ResMut<Count<TweenCompletedEvent>>) {
+        fn sys_tween(mut count: ResMut<Count<CycleCompletedEvent>>) {
             count.count += 1;
         }
         let sys_id = env.world.register_system(sys_tween);
 
-        assert_eq!(env.world.resource::<Count<TweenCompletedEvent>>().count, 0);
+        assert_eq!(env.world.resource::<Count<CycleCompletedEvent>>().count, 0);
 
         let tween = Tween::new::<DummyComponent, DummyLens>(
             EaseFunction::QuadraticInOut,
@@ -2282,7 +2291,7 @@ mod tests {
         assert_eq!(env.anim().unwrap().tween_state(), TweenState::Active);
 
         // Check one-shot system
-        assert_eq!(env.world.resource::<Count<TweenCompletedEvent>>().count, 1);
+        assert_eq!(env.world.resource::<Count<CycleCompletedEvent>>().count, 1);
 
         // Tick until completion
         let dt = Duration::from_millis(1000);
@@ -2291,7 +2300,7 @@ mod tests {
 
         // Check one-shot systems (note that we didn't clear previous events, so that's
         // a cumulative count).
-        assert_eq!(env.world.resource::<Count<TweenCompletedEvent>>().count, 2);
+        assert_eq!(env.world.resource::<Count<CycleCompletedEvent>>().count, 2);
     }
 
     // #[test]
