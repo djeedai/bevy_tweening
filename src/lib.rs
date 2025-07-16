@@ -1477,6 +1477,17 @@ impl TweenAnimator {
     ///     Some(())
     /// }
     /// ```
+    ///
+    /// Note in the above that at the time when the animation is queued into the
+    /// animator, the component doesn't yet exist in the world, because the
+    /// spawning is deffered via [`Commands`]. This is not an error; the
+    /// [`TweenAnimator`] doesn't perform any check when this function is
+    /// called, on purpose to allow patterns like inserting the returned
+    /// [`TweenId`] into a component or resource from within the same system
+    /// which spawned the target, without having to apply deferred commands
+    /// first. When the animation steps however, the target is validated, and if
+    /// invalid (either because the entity doesn't exist or it doesn't have the
+    /// target component) then the animation instance is destroyed.
     #[inline]
     pub fn add_component<T>(
         &mut self,
@@ -1604,11 +1615,18 @@ impl TweenAnimator {
 
     /// Check if the animation with the given ID is queued.
     ///
+    /// If this returns `false` then any animation which might have existed with
+    /// this ID was destroyed, and this ID will forever be invalid and
+    /// unused.
+    ///
     /// # Returns
     ///
     /// Returns `true` if the animation is queued, either because it's playing,
     /// or because it's completed but [`TweenAnim::destroy_on_completion`] was
-    /// set to `false`.
+    /// set to `false`. In that case the [`TweenAnim`] can be accessed by the
+    /// likes of [`get()`].
+    ///
+    /// [`get()`]: Self::get
     #[inline]
     pub fn contains(&self, id: TweenId) -> bool {
         self.anims.contains_key(id)
@@ -1617,7 +1635,8 @@ impl TweenAnimator {
     /// Get a queued tweenable animation from its ID.
     ///
     /// This fails and returns `None` if the animation has completed and was
-    /// removed from the animator's internal queue.
+    /// removed from the animator's internal queue, or if the ID is invalid
+    /// (notably, `TweenId::null()`).
     #[inline]
     pub fn get(&self, id: TweenId) -> Option<&TweenAnim> {
         self.anims.get(id)
@@ -1626,7 +1645,8 @@ impl TweenAnimator {
     /// Get a queued tweenable animation from its ID.
     ///
     /// This fails and returns `None` if the animation has completed and was
-    /// removed from the animator's internal queue.
+    /// removed from the animator's internal queue, or if the ID is invalid
+    /// (notably, `TweenId::null()`).
     #[inline]
     pub fn get_mut(&mut self, id: TweenId) -> Option<&mut TweenAnim> {
         self.anims.get_mut(id)
@@ -1636,7 +1656,7 @@ impl TweenAnimator {
     ///
     /// This fails and returns [`TweeningError::InvalidTweenId`] if the
     /// animation has completed and was removed from the animator's internal
-    /// queue.
+    /// queue, or if the ID is invalid (notably, `TweenId::null()`).
     #[inline]
     pub fn try_get(&self, id: TweenId) -> Result<&TweenAnim, TweeningError> {
         self.anims.get(id).ok_or(TweeningError::InvalidTweenId(id))
@@ -1646,7 +1666,7 @@ impl TweenAnimator {
     ///
     /// This fails and returns [`TweeningError::InvalidTweenId`] if the
     /// animation has completed and was removed from the animator's internal
-    /// queue.
+    /// queue, or if the ID is invalid (notably, `TweenId::null()`).
     #[inline]
     pub fn try_get_mut(&mut self, id: TweenId) -> Result<&mut TweenAnim, TweeningError> {
         self.anims
@@ -1655,12 +1675,22 @@ impl TweenAnimator {
     }
 
     /// Get an iterator over the queued tweenable animations.
+    ///
+    /// # Returns
+    ///
+    /// An iterator over pairs of (ID, animation) for all animations still in
+    /// the internal queue.
     #[inline]
     pub fn iter(&self) -> impl Iterator<Item = (TweenId, &TweenAnim)> {
         self.anims.iter()
     }
 
     /// Get a mutable iterator over the queued tweenable animations.
+    ///
+    /// # Returns
+    ///
+    /// An iterator over pairs of (ID, animation) for all animations still in
+    /// the internal queue.
     #[inline]
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (TweenId, &mut TweenAnim)> {
         self.anims.iter_mut()
@@ -1668,8 +1698,19 @@ impl TweenAnimator {
 
     /// Remove a queued tweenable animation and return it.
     ///
-    /// After the animation is removed, the `id` is invalid and will never be
-    /// reused.
+    /// This immediately removes the animation, if it exists, without modifying
+    /// further its target. After the animation is removed, the `id` is
+    /// invalid and will never be reused. The animation cannot be re-queued;
+    /// instead, a new animation sould be created with [`add_component()`] or
+    /// [`add_asset()`], which will generate a different ID.
+    ///
+    /// # Returns
+    ///
+    /// If the ID was valid and an animation with this ID was removed, returns
+    /// that animation. Otherwise returns `None`.
+    ///
+    /// [`add_component()`]: Self::add_component
+    /// [`add_asset()`]: Self::add_asset
     #[inline]
     pub fn remove(&mut self, id: TweenId) -> Option<TweenAnim> {
         self.anims.remove(id)
@@ -1678,17 +1719,19 @@ impl TweenAnimator {
     /// Retarget a queued animation.
     ///
     /// Attempt to change the target of a tweening animation already enqueued,
-    /// and possibly already playing.
-    ///
-    /// This function performs a number of checks on the new target to ensure
-    /// it's compatible with the previous target. In particular, the new target
-    /// needs to have:
+    /// and possibly already playing. This function performs a number of checks
+    /// on the new target to ensure it's compatible with the previous
+    /// target. In particular, the new target needs to have:
     /// - the same kind (component or asset);
-    /// - the same type (component type or asset resource type).
+    /// - the same type.
     ///
     /// # Returns
     ///
     /// On success, returns the previous target which has been replaced.
+    ///
+    /// [`add_component()`]: Self::add_component
+    /// [`add_asset()`]: Self::add_asset
+    /// [`set_target()`]: Self::set_target
     pub fn set_target(
         &mut self,
         id: TweenId,
@@ -1794,6 +1837,13 @@ impl TweenAnimator {
     /// in place of that system or any call to [`step_all()`]. If the `id` is
     /// invalid, this function does nothing.
     ///
+    /// One useful use of this function is to force a mutation on the target,
+    /// for example because some specific animation change was made which
+    /// couldn't directly mutate it. By passing [`Duration::ZERO`], this
+    /// function effectively forces the target state to the current animation
+    /// "position" without playing back the animation itself (the elapsed time
+    /// is not modified).
+    ///
     /// # Returns
     ///
     /// If the animation completed and was destroyed, returns a copy of that
@@ -1803,34 +1853,36 @@ impl TweenAnimator {
     #[inline]
     pub fn step_one(
         &mut self,
-        id: TweenId,
         world: &mut World,
+        id: TweenId,
         delta_time: Duration,
-        events: Mut<Events<CycleCompletedEvent>>,
-        anim_events: Mut<Events<AnimCompletedEvent>>,
     ) -> Option<TweenAnim> {
-        let anim = self.anims.get_mut(id)?;
+        world.resource_scope(|world, events: Mut<Events<CycleCompletedEvent>>| {
+            world.resource_scope(|world, anim_events: Mut<Events<AnimCompletedEvent>>| {
+                let anim = self.anims.get_mut(id)?;
 
-        let ret = Self::step_impl(
-            id,
-            anim,
-            &self.asset_resolver,
-            world,
-            delta_time,
-            events,
-            anim_events,
-        );
+                let ret = Self::step_impl(
+                    id,
+                    anim,
+                    &self.asset_resolver,
+                    world,
+                    delta_time,
+                    events,
+                    anim_events,
+                );
 
-        if let Ok(ret) = ret {
-            if ret.sent_commands {
-                world.flush();
-            }
+                if let Ok(ret) = ret {
+                    if ret.sent_commands {
+                        world.flush();
+                    }
 
-            if !ret.retain {
-                return Some(self.anims.remove(id).unwrap());
-            }
-        }
-        None
+                    if !ret.retain {
+                        return Some(self.anims.remove(id).unwrap());
+                    }
+                }
+                None
+            })
+        })
     }
 
     fn step_impl(
@@ -1975,48 +2027,47 @@ impl TweenAnimator {
     /// Loop over the internal queue of tweenable animations, apply them to
     /// their respective target, and prune all the completed ones (the ones
     /// returning [`TweenState::Completed`]). In the later case, send
-    /// [`CycleCompletedEvent`]s if enabled on each individual tweenable.
+    /// [`AnimCompletedEvent`]s.
     ///
     /// If you use the [`TweeningPlugin`], this is automatically called by the
     /// animation system the plugin registers. See the
     /// [`AnimationSystem::AnimationUpdate`] system set.
     ///
     /// Note that the order in which the animations are iterated over and
-    /// played, and therefore also any event is raised or any one-shot system is
-    /// executed, is an unspecfied implementation detail. There is no guarantee
-    /// on that order nor its stability frame to frame.
-    pub fn step_all(
-        &mut self,
-        world: &mut World,
-        delta_time: Duration,
-        mut events: Mut<Events<CycleCompletedEvent>>,
-        mut anim_events: Mut<Events<AnimCompletedEvent>>,
-    ) {
-        let mut sent_commands = false;
+    /// played, and therefore also the order in which any event is raised or any
+    /// one-shot system is executed, is an unspecified implementation detail.
+    /// There is no guarantee on that order nor its stability frame to
+    /// frame.
+    pub fn step_all(&mut self, world: &mut World, delta_time: Duration) {
+        world.resource_scope(|world, mut events: Mut<Events<CycleCompletedEvent>>| {
+            world.resource_scope(|world, mut anim_events: Mut<Events<AnimCompletedEvent>>| {
+                let mut sent_commands = false;
 
-        // Loop over active animations, tick them, and retain those which are still
-        // active after that
-        self.anims.retain(|tween_id, anim| {
-            let ret = Self::step_impl(
-                tween_id,
-                anim,
-                &self.asset_resolver,
-                world,
-                delta_time,
-                events.reborrow(),
-                anim_events.reborrow(),
-            );
-            if let Ok(ret) = ret {
-                sent_commands = sent_commands || ret.sent_commands;
-                return ret.retain;
-            }
-            false
+                // Loop over active animations, tick them, and retain those which are still
+                // active after that
+                self.anims.retain(|tween_id, anim| {
+                    let ret = Self::step_impl(
+                        tween_id,
+                        anim,
+                        &self.asset_resolver,
+                        world,
+                        delta_time,
+                        events.reborrow(),
+                        anim_events.reborrow(),
+                    );
+                    if let Ok(ret) = ret {
+                        sent_commands = sent_commands || ret.sent_commands;
+                        return ret.retain;
+                    }
+                    false
+                });
+
+                // Flush commands
+                if sent_commands {
+                    world.flush();
+                }
+            });
         });
-
-        // Flush commands
-        if sent_commands {
-            world.flush();
-        }
     }
 }
 

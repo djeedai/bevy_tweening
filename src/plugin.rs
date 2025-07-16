@@ -35,13 +35,8 @@ pub enum AnimationSystem {
 /// Core animation systemt ticking the [`TweenAnimator`].
 pub(crate) fn animator_system(world: &mut World) {
     let delta_time = world.resource::<Time>().delta();
-    // TODO: Use SystemState to cache all of that...
-    world.resource_scope(|world, events: Mut<Events<CycleCompletedEvent>>| {
-        world.resource_scope(|world, anim_events: Mut<Events<AnimCompletedEvent>>| {
-            world.resource_scope(|world, mut animator: Mut<TweenAnimator>| {
-                animator.step_all(world, delta_time, events, anim_events);
-            });
-        });
+    world.resource_scope(|world, mut animator: Mut<TweenAnimator>| {
+        animator.step_all(world, delta_time);
     });
 }
 

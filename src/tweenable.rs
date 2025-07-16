@@ -797,7 +797,7 @@ impl Tween {
     ///
     /// ```
     /// # use bevy_tweening::{lens::*, *};
-    /// # use bevy::{ecs::event::EventReader, math::{Vec3, curve::EaseFunction}, ecs::world::World, ecs::system::Query, ecs::entity::Entity, ecs::query::With};
+    /// # use bevy::{ecs::event::EventReader, math::{Vec3, curve::EaseFunction}, ecs::world::World, ecs::system::Query, ecs::entity::Entity, ecs::query::With, prelude::Res};
     /// # use std::time::Duration;
     /// # let mut world = World::new();
     /// let test_system_id = world.register_system(test_system);
