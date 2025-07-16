@@ -1219,9 +1219,21 @@ pub struct TweenAnim {
     target: AnimTarget,
     /// Animation description.
     tweenable: BoxedTweenable,
-    /// Control if the animation is played or not.
+    /// Control if the animation is played or not. Defaults to
+    /// [`PlaybackState::Playing`].
+    ///
+    /// Pausing an animation with [`PlaybackState::Paused`] is functionaly
+    /// equivalent to setting its [`speed`] to zero. The two fields remain
+    /// independent though, for convenience.
+    ///
+    /// [`speed`]: Self::speed
     pub playback_state: PlaybackState,
     /// Relative playback speed. Defaults to `1.` (normal speed; 100%).
+    ///
+    /// Setting a negative or zero speed value effectively pauses the animation
+    /// (although the [`playback_state`] remains unchanged). Negative values may
+    /// be clamped to 0. when the animation is stepped, but positive or zero
+    /// values are never modified by the [`TweenAnimator`].
     ///
     /// # Time precision
     ///
@@ -1234,10 +1246,16 @@ pub struct TweenAnim {
     /// bits or more), even compared to `f64` (64 bits), and the fact this speed
     /// factor is a multiplier whereas most other time quantities are added or
     /// subtracted.
+    ///
+    /// [`playback_state`]: Self::playback_state
     pub speed: f64,
     /// Destroy the animation once completed. This defaults to `true`, and makes
-    /// [`TweenAnimator::step_all()`] destroy this [`TweenAnim`] once it
-    /// completed. To keep the animation queued, set this to `false`.
+    /// [`TweenAnimator::step_one()`] and [`TweenAnimator::step_all()`]
+    /// destroy this [`TweenAnim`] once it completed. To keep the animation
+    /// queued, and allow access after it completed, set this to `false`. Note
+    /// however that you should avoid leaving all animations queued if they're
+    /// unused, as this wastes memory and may degrade performances if too many
+    /// completed animations are kept around for no good reason.
     pub destroy_on_completion: bool,
     /// Current tweening completion state.
     tween_state: TweenState,
@@ -1254,7 +1272,7 @@ impl TweenAnim {
     /// that you can't insert a single [`Delay`]. You can however use a
     /// [`Delay`] or other typeless tweenables as part of a [`Sequence`],
     /// provided there's at least one other typed tweenable in the sequence.
-    pub fn new(target: AnimTarget, tweenable: BoxedTweenable) -> Self {
+    fn new(target: AnimTarget, tweenable: BoxedTweenable) -> Self {
         Self {
             target,
             tweenable,
@@ -1480,7 +1498,11 @@ impl TweenAnimator {
     ///
     /// See [`add_component()`] for details. This variant is useful when you can
     /// build in advance a [`ComponentAnimTarget`], but at the same time don't
-    /// have readily access to the [`Components`] of the world.
+    /// readily have access to the [`Components`] of the world.
+    ///
+    /// Note that there's no equivalent for assets, because asset animations
+    /// need to register some internal type-dependent resolver due to assets
+    /// being only accessible through the typed [`Assets<A>`] API.
     ///
     /// [`add_component()`]: Self::add_component
     #[inline]
@@ -1824,6 +1846,9 @@ impl TweenAnimator {
         let mut completed_events = Vec::with_capacity(8);
         let mut sent_commands = false;
 
+        // Sanity checks on fields which can be freely modified by the user
+        anim.speed = anim.speed.max(0.);
+
         // Retain completed animations only if requested
         if anim.tween_state == TweenState::Completed {
             let ret = StepResult {
@@ -1834,7 +1859,7 @@ impl TweenAnimator {
         }
 
         // Skip paused animations (but retain them)
-        if anim.playback_state == PlaybackState::Paused {
+        if anim.playback_state == PlaybackState::Paused || anim.speed <= 0. {
             let ret = StepResult {
                 retain: true,
                 sent_commands: false,
@@ -1873,7 +1898,7 @@ impl TweenAnimator {
         // Scale delta time by this animation's speed. Reject negative speeds; use
         // backward playback to play in reverse direction.
         // Note: must use f64 for precision; f32 produces visible roundings.
-        let delta_time = delta_time.mul_f64(anim.speed.max(0.));
+        let delta_time = delta_time.mul_f64(anim.speed);
 
         // Step the tweenable animation
         let entity = anim.target.as_component().map(|comp| comp.entity);
@@ -2383,6 +2408,16 @@ mod tests {
         env.step_all(Duration::from_millis(100));
         // Here we have enough precision for exact equality, but that may not always be
         // the case for larger durations or speed values.
+        assert_eq!(
+            env.anim().unwrap().tweenable.elapsed(),
+            Duration::from_millis(240)
+        );
+
+        env.anim_scope(|anim| anim.speed = -1.);
+        env.step_all(Duration::from_millis(100));
+        // Safety: invalid negative speed clamped to 0.
+        assert_eq!(env.anim().unwrap().speed, 0.);
+        // At zero speed, step is a no-op so elapse() didn't change
         assert_eq!(
             env.anim().unwrap().tweenable.elapsed(),
             Duration::from_millis(240)
