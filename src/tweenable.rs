@@ -29,7 +29,7 @@ use crate::{
 ///
 /// ```no_run
 /// # use std::{any::TypeId, time::Duration};
-/// # use bevy::ecs::{system::Commands, change_detection::MutUntyped};
+/// # use bevy::ecs::{system::{Commands, SystemId}, change_detection::MutUntyped};
 /// # use bevy::prelude::*;
 /// # use bevy_tweening::{BoxedTweenable, Sequence, TweenId, Tweenable, TweenCompletedEvent, TweenState, TotalDuration};
 /// #
@@ -40,7 +40,7 @@ use crate::{
 /// #     fn total_duration(&self) -> TotalDuration  { unimplemented!() }
 /// #     fn set_elapsed(&mut self, elapsed: Duration)  { unimplemented!() }
 /// #     fn elapsed(&self) -> Duration  { unimplemented!() }
-/// #     fn step(&mut self, _tween_id: TweenId, delta: Duration, target: MutUntyped, notify_completed: &mut dyn FnMut(f32),) -> TweenState  { unimplemented!() }
+/// #     fn step(&mut self, _tween_id: TweenId, delta: Duration, target: MutUntyped, notify_completed: &mut dyn FnMut(f32), queue_system: &mut dyn FnMut(SystemId)) -> TweenState  { unimplemented!() }
 /// #     fn rewind(&mut self) { unimplemented!() }
 /// #     fn cycles_completed(&self) -> u32 { unimplemented!() }
 /// #     fn cycle_fraction(&self) -> f32 { unimplemented!() }
@@ -487,6 +487,7 @@ pub trait Tweenable: std::fmt::Debug + Send + Sync {
         delta: Duration,
         target: MutUntyped,
         notify_completed: &mut dyn FnMut(f32),
+        queue_system: &mut dyn FnMut(SystemId),
     ) -> TweenState;
 
     /// Rewind the animation to its starting state.
@@ -962,6 +963,7 @@ impl Tweenable for Tween {
         delta: Duration,
         target: MutUntyped,
         notify_completed: &mut dyn FnMut(f32),
+        queue_system: &mut dyn FnMut(SystemId),
     ) -> TweenState {
         if self.clock.state(self.playback_direction) == TweenState::Completed {
             return TweenState::Completed;
@@ -993,13 +995,9 @@ impl Tweenable for Tween {
                 notify_completed(fraction);
             }
 
-            // Trigger all entity-scoped observers
-            //commands.trigger_targets(event, entity);
-
-            // Run one-shot completion system
-            // if let Some(system_id) = &self.system_id {
-            //     commands.run_system(*system_id);
-            // }
+            if let Some(system_id) = &self.system_id {
+                queue_system(*system_id);
+            }
         }
 
         state
@@ -1153,6 +1151,7 @@ impl Tweenable for Sequence {
         mut delta: Duration,
         mut target: MutUntyped,
         notify_completed: &mut dyn FnMut(f32),
+        queue_system: &mut dyn FnMut(SystemId),
     ) -> TweenState {
         // Calculate the new elapsed time at the end of this tick
         self.elapsed = self.elapsed.saturating_add(delta);
@@ -1167,8 +1166,13 @@ impl Tweenable for Sequence {
 
             let prev_elapsed = tween.elapsed();
 
-            if tween.step(tween_id, delta, target.reborrow(), notify_completed)
-                == TweenState::Active
+            if tween.step(
+                tween_id,
+                delta,
+                target.reborrow(),
+                notify_completed,
+                queue_system,
+            ) == TweenState::Active
             {
                 return TweenState::Active;
             }
@@ -1328,6 +1332,7 @@ impl Tweenable for Delay {
         delta: Duration,
         _target: MutUntyped,
         _notify_completed: &mut dyn FnMut(f32),
+        _queue_system: &mut dyn FnMut(SystemId),
     ) -> TweenState {
         self.timer.tick(delta);
 
@@ -1543,7 +1548,14 @@ mod tests {
                             progress: fraction,
                         });
                     };
-                    tween.step(tween_id, duration, target.reborrow(), &mut notify_completed)
+                    let mut queue_system = |_: SystemId| {};
+                    tween.step(
+                        tween_id,
+                        duration,
+                        target.reborrow(),
+                        &mut notify_completed,
+                        &mut queue_system,
+                    )
                 } else {
                     TweenState::Completed
                 }

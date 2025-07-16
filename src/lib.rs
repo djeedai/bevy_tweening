@@ -247,6 +247,7 @@ use bevy::{
     ecs::{
         change_detection::MutUntyped,
         component::{ComponentId, Components, Mutable},
+        system::SystemId,
     },
     platform::collections::HashMap,
     prelude::*,
@@ -1287,6 +1288,18 @@ impl TweenAnim {
     }
 }
 
+type Resolver = Box<
+    dyn for<'w> Fn(MutUntyped<'w>, UntypedAssetId) -> Option<MutUntyped<'w>>
+        + Send
+        + Sync
+        + 'static,
+>;
+
+struct StepResult {
+    pub retain: bool,
+    pub sent_commands: bool,
+}
+
 /// Animator for tween-based animations.
 ///
 /// This resource stores all the active tweening animations for the entire
@@ -1341,15 +1354,7 @@ pub struct TweenAnimator {
     /// Bevy. The TypeId key must be the type of the `Assets<A>` type itself.
     /// The resolver is allowed to fail (return `None`), for example when the
     /// asset ID doesn't reference a valid asset.
-    asset_resolver: HashMap<
-        ComponentId,
-        Box<
-            dyn for<'w> Fn(MutUntyped<'w>, UntypedAssetId) -> Option<MutUntyped<'w>>
-                + Send
-                + Sync
-                + 'static,
-        >,
-    >,
+    asset_resolver: HashMap<ComponentId, Resolver>,
 }
 
 impl Default for TweenAnimator {
@@ -1752,8 +1757,24 @@ impl TweenAnimator {
         events: Mut<Events<TweenCompletedEvent>>,
         anim_events: Mut<Events<AnimCompletedEvent>>,
     ) -> Option<TweenAnim> {
-        if let Ok(retain) = self.step_impl(id, world, delta_time, events, anim_events) {
-            if !retain {
+        let anim = self.anims.get_mut(id)?;
+
+        let ret = Self::step_impl(
+            id,
+            anim,
+            &self.asset_resolver,
+            world,
+            delta_time,
+            events,
+            anim_events,
+        );
+
+        if let Ok(ret) = ret {
+            if ret.sent_commands {
+                world.flush();
+            }
+
+            if !ret.retain {
                 return Some(self.anims.remove(id).unwrap());
             }
         }
@@ -1761,26 +1782,34 @@ impl TweenAnimator {
     }
 
     fn step_impl(
-        &mut self,
-        id: TweenId,
+        tween_id: TweenId,
+        anim: &mut TweenAnim,
+        asset_resolver: &HashMap<ComponentId, Resolver>,
         world: &mut World,
         delta_time: Duration,
         mut events: Mut<Events<TweenCompletedEvent>>,
         mut anim_events: Mut<Events<AnimCompletedEvent>>,
-    ) -> Result<bool, TweeningError> {
-        let anim = self
-            .anims
-            .get_mut(id)
-            .ok_or(TweeningError::InvalidTweenId(id))?;
+    ) -> Result<StepResult, TweeningError> {
+        let mut queued_systems = Vec::with_capacity(8);
+        let mut completed_events = Vec::with_capacity(8);
+        let mut sent_commands = false;
 
         // Retain completed animations only if requested
         if anim.tween_state == TweenState::Completed {
-            return Ok(!anim.destroy_on_completion);
+            let ret = StepResult {
+                retain: !anim.destroy_on_completion,
+                sent_commands: false,
+            };
+            return Ok(ret);
         }
 
         // Skip paused animations (but retain them)
         if anim.playback_state == PlaybackState::Paused {
-            return Ok(true);
+            let ret = StepResult {
+                retain: true,
+                sent_commands: false,
+            };
+            return Ok(ret);
         }
 
         // Resolve the (untyped) target as a MutUntyped<T>
@@ -1794,7 +1823,7 @@ impl TweenAnimator {
                 asset_id,
             }) => {
                 if let Some(assets) = world.get_resource_mut_by_id(*resource_id) {
-                    if let Some(resolver) = self.asset_resolver.get(resource_id) {
+                    if let Some(resolver) = asset_resolver.get(resource_id) {
                         resolver(assets, *asset_id)
                     } else {
                         None
@@ -1804,7 +1833,11 @@ impl TweenAnimator {
                 }
             }
         }) else {
-            return Ok(false);
+            let ret = StepResult {
+                retain: false,
+                sent_commands: false,
+            };
+            return Ok(ret);
         };
 
         // Scale delta time by this animation's speed. Reject negative speeds; use
@@ -1813,30 +1846,74 @@ impl TweenAnimator {
         let delta_time = delta_time.mul_f64(anim.speed.max(0.));
 
         // Step the tweenable animation
+        let entity = anim.target.as_component().map(|comp| comp.entity);
         let mut notify_completed = |fraction: f32| {
-            events.send(TweenCompletedEvent {
-                id,
-                target: anim.target,
-                progress: fraction,
-            });
+            completed_events.push((
+                TweenCompletedEvent {
+                    id: tween_id,
+                    target: anim.target,
+                    progress: fraction,
+                },
+                entity,
+            ));
+        };
+        let mut queue_system = |system_id: SystemId| {
+            queued_systems.push(system_id);
         };
         let state = anim.tweenable.step(
-            id,
+            tween_id,
             delta_time,
             mut_untyped.reborrow(),
             &mut notify_completed,
+            &mut queue_system,
         );
         anim.tween_state = state;
 
-        // Raise completed event
-        if state == TweenState::Completed {
-            anim_events.send(AnimCompletedEvent {
-                id,
-                target: anim.target,
-            });
+        // Send tween completed events once we reclaimed mut access to world and can get
+        // a Commands.
+        if !completed_events.is_empty() {
+            let mut commands = world.commands();
+            sent_commands = true;
+
+            for (event, entity) in completed_events.drain(..) {
+                // Send buffered event
+                events.send(event);
+
+                // Trigger all entity-scoped observers
+                if let Some(entity) = entity {
+                    commands.trigger_targets(event, entity);
+                }
+            }
         }
 
-        Ok(state == TweenState::Active || !anim.destroy_on_completion)
+        // Execute one-shot systems
+        for sys_id in queued_systems.drain(..) {
+            let _ = world.run_system(sys_id);
+        }
+
+        // Raise animation completed event
+        if state == TweenState::Completed {
+            let event = AnimCompletedEvent {
+                id: tween_id,
+                target: anim.target,
+            };
+
+            // Send buffered event
+            anim_events.send(event);
+
+            // Trigger all entity-scoped observers
+            if let Some(entity) = entity {
+                let mut commands = world.commands();
+                sent_commands = true;
+                commands.trigger_targets(event, entity);
+            }
+        }
+
+        let ret = StepResult {
+            retain: state == TweenState::Active || !anim.destroy_on_completion,
+            sent_commands,
+        };
+        Ok(ret)
     }
 
     /// Step all queued animations.
@@ -1856,104 +1933,25 @@ impl TweenAnimator {
         mut events: Mut<Events<TweenCompletedEvent>>,
         mut anim_events: Mut<Events<AnimCompletedEvent>>,
     ) {
-        let mut delayed_events = Vec::with_capacity(8);
         let mut sent_commands = false;
 
         // Loop over active animations, tick them, and retain those which are still
         // active after that
         self.anims.retain(|tween_id, anim| {
-            // Retain completed animations only if requested
-            if anim.tween_state == TweenState::Completed {
-                return !anim.destroy_on_completion;
+            let ret = Self::step_impl(
+                tween_id,
+                anim,
+                &self.asset_resolver,
+                world,
+                delta_time,
+                events.reborrow(),
+                anim_events.reborrow(),
+            );
+            if let Ok(ret) = ret {
+                sent_commands = sent_commands || ret.sent_commands;
+                return ret.retain;
             }
-
-            // Skip paused animations (but retain them)
-            if anim.playback_state == PlaybackState::Paused {
-                return true;
-            }
-
-            // Resolve the (untyped) target as a MutUntyped<T>
-            let Some(mut mut_untyped) = (match &anim.target {
-                AnimTarget::Component(ComponentAnimTarget {
-                    entity,
-                    component_id,
-                }) => world.get_mut_by_id(*entity, *component_id),
-                AnimTarget::Asset(AssetAnimTarget {
-                    resource_id,
-                    asset_id,
-                }) => {
-                    if let Some(assets) = world.get_resource_mut_by_id(*resource_id) {
-                        if let Some(resolver) = self.asset_resolver.get(resource_id) {
-                            resolver(assets, *asset_id)
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    }
-                }
-            }) else {
-                return false;
-            };
-            let mut_untyped = mut_untyped.reborrow();
-
-            // Scale delta time by this animation's speed. Reject negative speeds; use
-            // backward playback to play in reverse direction.
-            // Note: must use f64 for precision; f32 produces visible roundings.
-            let delta_time = delta_time.mul_f64(anim.speed.max(0.));
-
-            // Step the tweenable animation
-            let entity = anim.target.as_component().map(|comp| comp.entity);
-            let mut notify_completed = |fraction: f32| {
-                delayed_events.push((
-                    TweenCompletedEvent {
-                        id: tween_id,
-                        target: anim.target,
-                        progress: fraction,
-                    },
-                    entity,
-                ));
-            };
-            let state =
-                anim.tweenable
-                    .step(tween_id, delta_time, mut_untyped, &mut notify_completed);
-            anim.tween_state = state;
-
-            // Send events once we reclaimed mut access to world
-            if !delayed_events.is_empty() {
-                let mut commands = world.commands();
-                sent_commands = true;
-
-                for (event, entity) in delayed_events.drain(..) {
-                    // Send buffered event
-                    events.send(event);
-
-                    // Trigger all entity-scoped observers
-                    if let Some(entity) = entity {
-                        commands.trigger_targets(event, entity);
-                    }
-                }
-            }
-
-            // Record completed event
-            if state == TweenState::Completed {
-                let event = AnimCompletedEvent {
-                    id: tween_id,
-                    target: anim.target,
-                };
-
-                // Send buffered event
-                anim_events.send(event);
-
-                // Trigger all entity-scoped observers
-                if let Some(entity) = entity {
-                    let mut commands = world.commands();
-                    sent_commands = true;
-                    commands.trigger_targets(event, entity);
-                }
-            }
-
-            state == TweenState::Active || !anim.destroy_on_completion
+            false
         });
 
         // Flush commands
@@ -1995,6 +1993,8 @@ impl ColorLerper for Color {
 
 #[cfg(test)]
 mod tests {
+    use std::marker::PhantomData;
+
     use bevy::ecs::{change_detection::MaybeLocation, component::Tick};
     use slotmap::Key as _;
 
@@ -2236,6 +2236,62 @@ mod tests {
         // cumulative count).
         assert_eq!(env.event_count::<TweenCompletedEvent>(), 1);
         assert_eq!(env.event_count::<AnimCompletedEvent>(), 1);
+    }
+
+    #[derive(Debug, Resource)]
+    struct Count<E: Event> {
+        pub count: i32,
+        pub phantom: PhantomData<E>,
+    }
+
+    impl<E: Event> Default for Count<E> {
+        fn default() -> Self {
+            Self {
+                count: 0,
+                phantom: PhantomData,
+            }
+        }
+    }
+
+    #[test]
+    fn animation_oneshot() {
+        let dummy = Delay::new(Duration::from_secs(1));
+        let mut env = TestEnv::<DummyComponent>::new(dummy);
+        env.world.init_resource::<Count<TweenCompletedEvent>>();
+
+        fn sys_tween(mut count: ResMut<Count<TweenCompletedEvent>>) {
+            count.count += 1;
+        }
+        let sys_id = env.world.register_system(sys_tween);
+
+        assert_eq!(env.world.resource::<Count<TweenCompletedEvent>>().count, 0);
+
+        let tween = Tween::new::<DummyComponent, DummyLens>(
+            EaseFunction::QuadraticInOut,
+            Duration::from_secs(1),
+            DummyLens { start: 0., end: 1. },
+        )
+        .with_repeat_count(2)
+        .with_completed_system(sys_id);
+        let id = env.tween_id;
+        env.animator_mut().set_tweenable(id, tween).unwrap();
+
+        // Tick until one cycle is completed, but not the entire animation
+        let dt = Duration::from_millis(1200);
+        env.step_all(dt);
+        assert_eq!(env.anim().unwrap().tween_state(), TweenState::Active);
+
+        // Check one-shot system
+        assert_eq!(env.world.resource::<Count<TweenCompletedEvent>>().count, 1);
+
+        // Tick until completion
+        let dt = Duration::from_millis(1000);
+        env.step_all(dt);
+        assert!(env.anim().is_none());
+
+        // Check one-shot systems (note that we didn't clear previous events, so that's
+        // a cumulative count).
+        assert_eq!(env.world.resource::<Count<TweenCompletedEvent>>().count, 2);
     }
 
     // #[test]
