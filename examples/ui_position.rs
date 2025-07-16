@@ -34,7 +34,7 @@ fn main() {
 #[reflect(InspectorOptions)]
 struct Options {
     #[inspector(min = 0.01, max = 100.)]
-    speed: f32,
+    speed: f64,
 }
 
 impl Default for Options {
