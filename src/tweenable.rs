@@ -564,6 +564,87 @@ type TargetAction = dyn FnMut(MutUntyped, f32) + Send + Sync + 'static;
 ///
 /// A _tween_ is the basic building block of an animation. It describes a single
 /// tweening animation between two values, accessed through a given [`Lens`].
+/// The animation is composed of one or more cycles, and can be played forward
+/// or backward. On completion, you can be notified via events, observers, or
+/// the execution of a one-shot system.
+///
+/// # Cycles
+///
+/// A tween can be configured to repeat multiple, or even an infinity, of times.
+/// Each repeat iteration is called a _cycle_. The duration of a single cycle is
+/// the _cycle duration_, and the duration of the entire tween animation
+/// including all cycles is the _total duration_.
+#[doc = include_str!("../images/tween_cycles.svg")]
+///
+/// _An example tween with 5 cycles._
+///
+/// The number of cycles is configured through the [`RepeatCount`].
+///
+/// - [`RepeatCount::Finite`] directly sets a number of cycles. The total
+///   duration is inferred from the cycle duration and number of cycles.
+/// - [`RepeatCount::For`] selects a total duration for the animation, from
+///   which a number of cycles is derived. In that case, the number of cycles
+///   may be a fractional number; the last cycle is only partial, and may not
+///   reach the endpoint of the lens.
+/// - [`RepeatCount::Infinite`] enables infinitely-repeating cycles. In that
+///   case the total duration of the animation is infinite, and the animation
+///   itself is said to be infinite.
+///
+/// The _repeat strategy_ determines whether cycles are mirrored when they
+/// repeat. By default, all cycles produce a linear _ratio_ monotonically
+/// increasing from `0` to `1`. When mirrored, every other cycle instead
+/// produces a _decreasing_ ratio from `1` to `0`. The repeat strategy is
+/// configured with [`RepeatStrategy`].
+#[doc = include_str!("../images/tween_mirrored.svg")]
+///
+/// _A tween with 5 cycles, using the mirrored repeat strategy._
+///
+/// Once the ratio in `[0:1]` has been calculated, it's passed through the
+/// easing function to obtain the final interpolation factor that
+/// [`Lens::lerp()`] receives.
+///
+/// # Elapsed time and playback direction
+///
+/// The _elapsed time_ of an animation represents the current time since the
+/// start of the animation. This includes all cycles, and is bound by the total
+/// duration of the animation. This is a property of an active animation, and is
+/// available per instance from the [`TweenAnim`] representing the instance. So
+/// a tween itself, which describes an animation without a specific target to
+/// animate, doesn't have an elapsed time.
+///
+/// The tween however has a _playback direction_. By default, the playback
+/// direction is [`PlaybackDirection::Forward`], and the animation plays forward
+/// as described above. By instead using [`PlaybackDirection::Backward`], the
+/// tween plays in reverse from end to start. Practically, this means that the
+/// elapsed time _decreases_ from its current value back to zero, and the
+/// animation completes at `t=0`. Note that as a result, because infinite
+/// animations ([`RepeatCount::Infinite`]) don't have an end time, they cannot
+/// be rewinded when the playback direction is backward.
+///
+/// # Completion events and one-shot systems
+///
+/// Sometimes, you want to be notified of the completion of an animation cycle,
+/// or the completion of the entire animation itself. To that end, the [`Tween`]
+/// supports several mechanisms:
+///
+/// - Each time a _single_ cycle is completed, the tween can emit a
+///   [`CycleCompletedEvent`]. The event is emitted as a buffered event, to be
+///   read by another system through an [`EventReader`]. For component targets,
+///   entity-scoped observers are also triggered. Both of these are enabled
+///   through [`with_completed_event()`] and [`set_completed_event()`].
+///   Alternatively, or in addition, a custom one-shot system can be executed,
+///   enabled through [`with_completed_system()`] and
+///   [`set_completed_system()`]. Per-cycle events are disabled by default, and
+///   no one-shot system is registered by default.
+/// - At the end of all cycles, when the animation itself completes, the tween
+///   emits an [`AnimCompletedEvent`]. This event is always emitted.
+///
+/// [`TweenAnim`]: crate::TweenAnim
+/// [`with_completed_event()`]: Self::with_completed_event
+/// [`set_completed_event()`]: Self::set_completed_event
+/// [`with_completed_system()`]: Self::with_completed_system
+/// [`set_completed_system()`]: Self::set_completed_system
+/// [`AnimCompletedEvent`]: crate::AnimCompletedEvent
 pub struct Tween {
     ease_method: EaseMethod,
     clock: AnimClock,
@@ -579,7 +660,11 @@ pub struct Tween {
 impl Tween {
     /// Create a new tween animation.
     ///
-    /// The target type is implicitly determined by the [`Lens`].
+    /// The new animation is described by a given cycle duration, a repeat count
+    /// which determines its total duration, as well as an easing function and a
+    /// lens describing how the cycles affect the animation target. The target
+    /// type is implicitly determined by the type `T` of the [`Lens<T>`]
+    /// argument.
     ///
     /// # Example
     ///
@@ -598,7 +683,11 @@ impl Tween {
     /// ```
     #[inline]
     #[must_use]
-    pub fn new<T, L>(ease_method: impl Into<EaseMethod>, duration: Duration, mut lens: L) -> Self
+    pub fn new<T, L>(
+        ease_method: impl Into<EaseMethod>,
+        cycle_duration: Duration,
+        mut lens: L,
+    ) -> Self
     where
         T: 'static,
         L: Lens<T> + Send + Sync + 'static,
@@ -611,13 +700,38 @@ impl Tween {
         };
         Self {
             ease_method: ease_method.into(),
-            clock: AnimClock::new(duration),
+            clock: AnimClock::new(cycle_duration),
             playback_direction: PlaybackDirection::Forward,
             action: Box::new(action),
             system_id: None,
             send_completed_event: false,
             type_id: TypeId::of::<T>(),
         }
+    }
+
+    /// Set the number of times to repeat the animation.
+    ///
+    /// The repeat count determines the number of cycles of the animation. See
+    /// [the top-level `Tween` documentation] for details.
+    ///
+    /// [the top-level `Tween` documentation]: crate::Tween#cycles
+    #[must_use]
+    pub fn with_repeat_count(mut self, count: impl Into<RepeatCount>) -> Self {
+        self.clock.total_duration =
+            TotalDuration::from_cycles(self.clock.cycle_duration, count.into());
+        self
+    }
+
+    /// Configure how the cycles repeat.
+    ///
+    /// This enables or disables cycle mirroring. See [the top-level `Tween`
+    /// documentation] for details.
+    ///
+    /// [the top-level `Tween` documentation]: crate::Tween#cycles
+    #[must_use]
+    pub fn with_repeat_strategy(mut self, strategy: RepeatStrategy) -> Self {
+        self.clock.strategy = strategy;
+        self
     }
 
     /// Enable raising a event on cycle completion.
@@ -663,15 +777,19 @@ impl Tween {
         self
     }
 
+    /// Set whether the tween emits [`CycleCompletedEvent`].
     ///
+    /// See [`with_completed_event()`] for details.
+    ///
+    /// [`with_completed_event()`]: Self::with_completed_event
     pub fn set_completed_event(&mut self, send: bool) {
         self.send_completed_event = send;
     }
 
-    /// Enable running a one-shot system upon completion.
+    /// Enable running a one-shot system upon cycle completion.
     ///
     /// If enabled, the tween will run a system via a provided [`SystemId`] when
-    /// the animation completes. This is similar to the
+    /// the animation completes a single cycle. This is similar to the
     /// [`with_completed_event()`], but uses a system registered by
     /// [`register_system()`] instead of a callback.
     ///
@@ -681,8 +799,8 @@ impl Tween {
     /// # use bevy_tweening::{lens::*, *};
     /// # use bevy::{ecs::event::EventReader, math::{Vec3, curve::EaseFunction}, ecs::world::World, ecs::system::Query, ecs::entity::Entity, ecs::query::With};
     /// # use std::time::Duration;
-    /// let mut world = World::new();
-    /// let test_system_system_id = world.register_system(test_system);
+    /// # let mut world = World::new();
+    /// let test_system_id = world.register_system(test_system);
     /// let tween = Tween::new(
     ///     // [...]
     /// #    EaseFunction::QuadraticInOut,
@@ -692,11 +810,12 @@ impl Tween {
     /// #        end: Vec3::new(3.5, 0., 0.),
     /// #    },
     /// )
-    /// .with_completed_system(test_system_system_id);
+    /// .with_completed_system(test_system_id);
     ///
-    /// fn test_system(query: Query<Entity>) {
-    ///    for entity in query.iter() {
-    ///       println!("Found an entity!");
+    /// fn test_system(animator: Res<TweenAnimator>) {
+    ///    println!("Animations still queued after this cycle completion:");
+    ///    for (id, anim) in animator.iter() {
+    ///       println!("Anim #{:?} playback_state={:?}", id, anim.playback_state);
     ///    }
     /// }
     /// ```
@@ -709,12 +828,20 @@ impl Tween {
         self
     }
 
+    /// Set the one-shot system executed when a cycle completes.
     ///
+    /// See [`with_completed_system()`] for details.
+    ///
+    /// [`with_completed_system()`]: Self::with_completed_system
     pub fn set_completed_system(&mut self, system_id: SystemId) {
         self.system_id = Some(system_id);
     }
 
+    /// Clear the one-shot system executed when a cycle completes.
     ///
+    /// See [`with_completed_system()`] for details.
+    ///
+    /// [`with_completed_system()`]: Self::with_completed_system
     pub fn clear_completed_system(&mut self) {
         self.system_id = None;
     }
@@ -722,7 +849,7 @@ impl Tween {
     /// Set the playback direction of the tween.
     ///
     /// The playback direction controls whether the internal animation clock,
-    /// and therefore the elapsed time, move forward or backward.
+    /// and therefore also the elapsed time, both move forward or backward.
     ///
     /// Changing the direction doesn't change any target state, nor the elapsed
     /// time of the tween. Only the direction of playback from this moment
@@ -733,7 +860,9 @@ impl Tween {
 
     /// Set the playback direction of the tween.
     ///
-    /// See [`Tween::set_playback_direction()`].
+    /// See [`set_playback_direction()`] for details.
+    ///
+    /// [`set_playback_direction()`]: Self::set_playback_direction
     #[must_use]
     pub fn with_playback_direction(mut self, direction: PlaybackDirection) -> Self {
         self.playback_direction = direction;
@@ -743,7 +872,8 @@ impl Tween {
     /// The current animation playback direction.
     ///
     /// This is the value set by the user with [`with_playback_direction()`] and
-    /// [`set_playback_direction()`]. This is never changed by the playback.
+    /// [`set_playback_direction()`]. This is never changed by the animation
+    /// playback itself.
     ///
     /// See [`PlaybackDirection`] for details.
     ///
@@ -807,8 +937,9 @@ impl Tween {
     /// fraction is capped at `1.0` (the tween doesn't loop when reaching
     /// the end of its last cycle).
     ///
-    /// The returned value is always in `[0:1]` for finite tweens, and `[0:1)`
-    /// for infinite ones.
+    /// The returned value is always in `[0:1]` for finite tweens, with the
+    /// value `1.0` returned only when the last cycle is completed, and in
+    /// `[0:1)` for infinite tweens as they never complete.
     #[must_use]
     #[inline]
     pub fn cycle_fraction(&self) -> f32 {
@@ -825,21 +956,6 @@ impl Tween {
     #[inline]
     pub fn is_cycle_mirrored(&self) -> bool {
         self.clock.is_cycle_mirrored(self.clock.cycle_index())
-    }
-
-    /// Set the number of times to repeat the animation.
-    #[must_use]
-    pub fn with_repeat_count(mut self, count: impl Into<RepeatCount>) -> Self {
-        self.clock.total_duration =
-            TotalDuration::from_cycles(self.clock.cycle_duration, count.into());
-        self
-    }
-
-    /// Choose how the animation behaves upon a repetition.
-    #[must_use]
-    pub fn with_repeat_strategy(mut self, strategy: RepeatStrategy) -> Self {
-        self.clock.strategy = strategy;
-        self
     }
 }
 

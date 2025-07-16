@@ -1202,7 +1202,18 @@ impl WorldTargetExtensions for World {
     }
 }
 
-/// A [`Tweenable`]-based animation.
+/// Animation instance queued into the [`TweenAnimator`].
+///
+/// The [`TweenAnim`] represents a single animation instance for a single
+/// target, component or asset. It cannot be created manually; instead you must
+/// enqueue a new component or asset animation into the [`TweenAnimator`] via
+/// [`add_component()`] or [`add_asset()`], respectively. Once created, use the
+/// [`TweenAnimator`] to access it, and modify the runtime playback of this
+/// instance. Each instance is independent, even if it mutates the same target
+/// as another instance.
+///
+/// [`add_component()`]: crate::TweenAnimator::add_component
+/// [`add_asset()`]: crate::TweenAnimator::add_asset
 pub struct TweenAnim {
     /// Target [`Entity`] containing the component to animate, or target asset.
     target: AnimTarget,
@@ -1321,7 +1332,16 @@ struct StepResult {
 /// # Active animations
 ///
 /// Animations queued into the [`TweenAnimator`] by default are pruned
-/// automatically on completion, and only active animations are retained.
+/// automatically on completion, and only active animations are retained. If you
+/// want the animator to retain completed animation instances, so you can
+/// continue to access them, you can set [`TweenAnim::destroy_on_completion`] to
+/// `false` to prevent this automated destruction. Note however that doing so
+/// will retain the animation instance forever, until set to `true` again. So
+/// you should avoid retaining all animations forever to prevent wasting memory
+/// and degrading performances. In general, the default pruning behavior is best
+/// suited for one-shot animations re-created each time they're needed.
+/// Conversely, disabling auto-destruction on completion is best suited to
+/// reusing the same animation instance again and again.
 ///
 /// # Lookup without `TweenId`
 ///
@@ -1935,6 +1955,11 @@ impl TweenAnimator {
     /// If you use the [`TweeningPlugin`], this is automatically called by the
     /// animation system the plugin registers. See the
     /// [`AnimationSystem::AnimationUpdate`] system set.
+    ///
+    /// Note that the order in which the animations are iterated over and
+    /// played, and therefore also any event is raised or any one-shot system is
+    /// executed, is an unspecfied implementation detail. There is no guarantee
+    /// on that order nor its stability frame to frame.
     pub fn step_all(
         &mut self,
         world: &mut World,
