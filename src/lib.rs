@@ -10,15 +10,15 @@
     missing_docs
 )]
 
-//! Tweening animation plugin for the Bevy game engine
+//! Tweening animation plugin for the Bevy game engine.
 //!
 //! 🍃 Bevy Tweening provides interpolation-based animation between ("tweening")
-//! two values, for any component and asset, including both built-in Bevy ones
-//! and custom user-defined ones. Each field of a component or asset can be
-//! animated via a collection of predefined easing functions, or providing a
-//! custom animation curve. The library supports any number of animations queued
-//! in parallel, even on the same component or asset type, and allows runtime
-//! control over playback and animation speed.
+//! two values, to animate any field of any component and asset, including both
+//! built-in Bevy ones and custom user-defined ones. Each field of a component
+//! or asset can be animated via a collection of predefined easing functions, or
+//! providing a custom animation curve. The library supports any number of
+//! animations queued in parallel, even on the same component or asset type, and
+//! allows runtime control over playback and animation speed.
 //!
 //! # Example
 //!
@@ -238,6 +238,21 @@
 //! expects you to write your own lenses by implementing the trait, which as you
 //! can see above is very simple. This allows animating virtually any field of
 //! any component or asset, whether shipped with Bevy or defined by the user.
+//!
+//! # Tweening vs. keyframed animation
+//!
+//! 🍃 Bevy Tweening is a "tweening" animation library. It focuses on simple
+//! animations often used in applications and games to breathe life into a user
+//! interface or the objects of a game world. The API design favors simplicity,
+//! often for quick one-shot animations created from code. This type of
+//! animation is inherently simpler than a full-blown animation solution, like
+//! `bevy_animation`, which typically works with complex keyframe-based
+//! animation curves authored via Digital Content Creation (DCC) tools like 3D
+//! modellers and exported as assets, and whose most common usage is skeletal
+//! animation of characters. There's a grey area between those two approaches,
+//! and you can use both to achieve most animations, but 🍃 Bevy Tweening will
+//! shine for simpler animations while `bevy_animation` while offer a more
+//! extensive support for larger, more complex ones.
 //!
 //! [`Transform::translation`]: https://docs.rs/bevy/0.16.0/bevy/transform/components/struct.Transform.html#structfield.translation
 //! [`Entity`]: https://docs.rs/bevy/0.16.0/bevy/ecs/entity/struct.Entity.html
