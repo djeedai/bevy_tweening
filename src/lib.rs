@@ -733,6 +733,7 @@ pub trait EntityWorldMutTweeningExtensions<'a> {
 }
 
 impl<'a> EntityWorldMutTweeningExtensions<'a> for EntityCommands<'a> {
+    #[inline]
     fn tween<T>(&mut self, tweenable: T) -> &mut EntityCommands<'a>
     where
         T: Tweenable + 'static,
@@ -742,6 +743,7 @@ impl<'a> EntityWorldMutTweeningExtensions<'a> for EntityCommands<'a> {
         })
     }
 
+    #[inline]
     fn move_to(
         &mut self,
         end: Vec3,
@@ -754,6 +756,7 @@ impl<'a> EntityWorldMutTweeningExtensions<'a> for EntityCommands<'a> {
         })
     }
 
+    #[inline]
     fn move_from(
         &mut self,
         start: Vec3,
@@ -766,6 +769,7 @@ impl<'a> EntityWorldMutTweeningExtensions<'a> for EntityCommands<'a> {
         })
     }
 
+    #[inline]
     fn scale_to(
         &mut self,
         end: Vec3,
@@ -778,6 +782,7 @@ impl<'a> EntityWorldMutTweeningExtensions<'a> for EntityCommands<'a> {
         })
     }
 
+    #[inline]
     fn scale_from(
         &mut self,
         start: Vec3,
@@ -810,97 +815,57 @@ impl<'a> EntityWorldMutTweeningExtensions<'a> for EntityWorldMut<'a> {
         self
     }
 
+    #[inline]
     fn move_to(
         &mut self,
         end: Vec3,
         duration: Duration,
         ease_method: impl Into<EaseMethod>,
     ) -> &mut Self {
-        let (start, target) =
-            make_component_tween_from_ent_world_mut(self, |transform: &Transform| {
-                transform.translation
-            });
+        let start = self.get::<Transform>().unwrap().translation;
         let lens = lens::TransformPositionLens { start, end };
         let tween = Tween::new(ease_method, duration, lens);
-        self.world_scope(|world: &mut World| {
-            world
-                .resource_mut::<TweenAnimator>()
-                .add_component_target(target.into(), tween);
-        });
-        self
+        self.tween(tween)
     }
 
+    #[inline]
     fn move_from(
         &mut self,
         start: Vec3,
         duration: Duration,
         ease_method: impl Into<EaseMethod>,
     ) -> &mut Self {
-        let (end, target) =
-            make_component_tween_from_ent_world_mut(self, |transform: &Transform| {
-                transform.translation
-            });
+        let end = self.get::<Transform>().unwrap().translation;
         let lens = lens::TransformPositionLens { start, end };
         let tween = Tween::new(ease_method, duration, lens);
-        self.world_scope(|world: &mut World| {
-            world
-                .resource_mut::<TweenAnimator>()
-                .add_component_target(target.into(), tween);
-        });
-        self
+        self.tween(tween)
     }
 
+    #[inline]
     fn scale_to(
         &mut self,
         end: Vec3,
         duration: Duration,
         ease_method: impl Into<EaseMethod>,
     ) -> &mut Self {
-        let (start, target) =
-            make_component_tween_from_ent_world_mut(self, |transform: &Transform| transform.scale);
+        let start = self.get::<Transform>().unwrap().scale;
         let lens = lens::TransformScaleLens { start, end };
         let tween = Tween::new(ease_method, duration, lens);
-        self.world_scope(|world: &mut World| {
-            world
-                .resource_mut::<TweenAnimator>()
-                .add_component_target(target.into(), tween);
-        });
-        self
+        self.tween(tween)
     }
 
+    #[inline]
     fn scale_from(
         &mut self,
         start: Vec3,
         duration: Duration,
         ease_method: impl Into<EaseMethod>,
     ) -> &mut Self {
-        let (end, target) =
-            make_component_tween_from_ent_world_mut(self, |transform: &Transform| transform.scale);
+        let end = self.get::<Transform>().unwrap().scale;
         let lens = lens::TransformScaleLens { start, end };
         let tween = Tween::new(ease_method, duration, lens);
-        self.world_scope(|world: &mut World| {
-            world
-                .resource_mut::<TweenAnimator>()
-                .add_component_target(target.into(), tween);
-        });
-        self
+        self.tween(tween)
     }
-}
-
-#[inline]
-fn make_component_tween_from_ent_world_mut<'w, C: Component<Mutability = Mutable>, T>(
-    ent: &mut EntityWorldMut<'w>,
-    read: fn(&C) -> T,
-) -> (T, ComponentAnimTarget) {
-    let component_id = ent.world().component_id::<C>().unwrap();
-    let component = ent.get::<C>().unwrap();
-    let value = read(component);
-    let e = ent.id();
-    let target = ComponentAnimTarget {
-        entity: e,
-        component_id,
-    };
-    (value, target)
 }
 
 /// Event raised when a [`TweenAnim`] completed.
@@ -965,9 +930,6 @@ pub enum TweeningError {
 /// component is identified by the ID of the component type as registered in the
 /// [`World`] where the animation is queued, and the [`Entity`] holding the
 /// component instance of that type.
-///
-/// This is a lightweight reference (copyable) implicitly tied to a given
-/// [`World`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ComponentAnimTarget {
     /// Component ID of the registered component being animated.
@@ -978,6 +940,19 @@ pub struct ComponentAnimTarget {
 
 impl ComponentAnimTarget {
     /// Create a new component target.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use std::any::TypeId;
+    /// # use bevy::{prelude::*, ecs::component::Components};
+    /// # use bevy_tweening::*;
+    /// fn my_system(mut commands: Commands, components: &Components) {
+    ///     let entity = commands.spawn(Transform::default()).id();
+    ///     let target = ComponentAnimTarget::new::<Transform>(components, entity);
+    ///     // [...]
+    /// }
+    /// ```
     pub fn new<C: Component<Mutability = Mutable>>(
         components: &Components,
         entity: Entity,
@@ -992,6 +967,25 @@ impl ComponentAnimTarget {
     }
 
     /// Create a new component target from a component type ID.
+    ///
+    /// This is useful when the component type is not known at compile time;
+    /// otherwise you should prefer [`new()`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use std::any::TypeId;
+    /// # use bevy::{prelude::*, ecs::component::Components};
+    /// # use bevy_tweening::*;
+    /// fn my_system(mut commands: Commands, components: &Components) {
+    ///     let entity = commands.spawn(Transform::default()).id();
+    ///     let type_id = TypeId::of::<Transform>();
+    ///     let target = ComponentAnimTarget::new_untyped(components, type_id, entity);
+    ///     // [...]
+    /// }
+    /// ```
+    ///
+    /// [`new()`]: Self::new
     pub fn new_untyped(
         components: &Components,
         type_id: TypeId,
@@ -1013,9 +1007,6 @@ impl ComponentAnimTarget {
 /// is identified by the ID of the [`Assets`] resource type registered in the
 /// [`World`] where the animation is queued, and the unique asset ID identifying
 /// the asset instance inside that [`Assets`] resource.
-///
-/// This is a lightweight reference (copyable) implicitly tied to a given
-/// [`World`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AssetAnimTarget {
     /// Resource ID of the registered [`Assets`] asset container.
@@ -1026,6 +1017,21 @@ pub struct AssetAnimTarget {
 
 impl AssetAnimTarget {
     /// Create a new asset target.
+    ///
+    /// The asset type `A` must be such that [`Assets<A>`] is registered in the
+    /// input [`Components`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use bevy::{prelude::*, ecs::component::Components};
+    /// # use bevy_tweening::*;
+    /// fn my_system(components: &Components, asset_server: Res<AssetServer>) {
+    ///     let handle: Handle<Image> = asset_server.load("image.png");
+    ///     let target = AssetAnimTarget::new::<Image>(components, &handle);
+    ///     // [...]
+    /// }
+    /// ```
     pub fn new<A: Asset>(
         components: &Components,
         asset_id: impl Into<AssetId<A>>,
@@ -1040,6 +1046,27 @@ impl AssetAnimTarget {
     }
 
     /// Create a new asset target from an `Assets<A>` type ID.
+    ///
+    /// The `assets_type_id` must reference an [`Assets<A>`] type registered in
+    /// the input [`Components`]. This is useful when the component type is not
+    /// known at compile time; otherwise you should prefer [`new()`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use std::any::TypeId;
+    /// # use bevy::{prelude::*, ecs::component::Components};
+    /// # use bevy_tweening::*;
+    /// fn my_system(components: &Components, asset_server: Res<AssetServer>) {
+    ///     let handle: Handle<Image> = asset_server.load("image.png");
+    ///     let handle = handle.untyped();
+    ///     let assets_type_id = TypeId::of::<Assets<Image>>();
+    ///     let target = AssetAnimTarget::new_untyped(components, assets_type_id, &handle);
+    ///     // [...]
+    /// }
+    /// ```
+    ///
+    /// [`new()`]: Self::new
     pub fn new_untyped(
         components: &Components,
         assets_type_id: TypeId,
@@ -1082,6 +1109,11 @@ impl AnimTarget {
     }
 
     /// Convert this target to a component target if possible.
+    ///
+    /// # Returns
+    ///
+    /// Returns self as a [`ComponentAnimTarget`] if the value matches that enum
+    /// variant, or `None` if it doesn't.
     #[inline]
     pub fn as_component(&self) -> Option<&ComponentAnimTarget> {
         if let Self::Component(component) = self {
@@ -1092,6 +1124,11 @@ impl AnimTarget {
     }
 
     /// Convert this target to a component target if possible.
+    ///
+    /// # Returns
+    ///
+    /// Returns self as a [`ComponentAnimTarget`] if the value matches that enum
+    /// variant, or `None` if it doesn't.
     #[inline]
     pub fn as_component_mut(&mut self) -> Option<&mut ComponentAnimTarget> {
         if let Self::Component(component) = self {
@@ -1108,6 +1145,11 @@ impl AnimTarget {
     }
 
     /// Convert this target to an asset target if possible.
+    ///
+    /// # Returns
+    ///
+    /// Returns self as an [`AssetAnimTarget`] if the value matches that enum
+    /// variant, or `None` if it doesn't.
     #[inline]
     pub fn as_asset(&self) -> Option<&AssetAnimTarget> {
         if let Self::Asset(asset) = self {
@@ -1118,6 +1160,11 @@ impl AnimTarget {
     }
 
     /// Convert this target to an asset target if possible.
+    ///
+    /// # Returns
+    ///
+    /// Returns self as an [`AssetAnimTarget`] if the value matches that enum
+    /// variant, or `None` if it doesn't.
     #[inline]
     pub fn as_asset_mut(&mut self) -> Option<&mut AssetAnimTarget> {
         if let Self::Asset(asset) = self {
@@ -1144,7 +1191,8 @@ impl From<AssetAnimTarget> for AnimTarget {
 ///
 /// This trait extends [`World`] with some helper functions.
 pub trait WorldTargetExtensions {
-    /// Get an [`AnimTarget`] for the given component type and entity pair.
+    /// Get a [`ComponentAnimTarget`] for the given component type and entity
+    /// pair.
     ///
     /// The target references the component instance held by the entity. The
     /// entity must exist in the [`World`], and the component type must be
@@ -1155,12 +1203,12 @@ pub trait WorldTargetExtensions {
     /// Returns the animation target referencing the component instance, or
     /// `None` if either the entity doesn't exist or the component type is not
     /// registered.
-    fn get_component_target<C: Component<Mutability = Mutable>>(
+    fn get_anim_component_target<C: Component<Mutability = Mutable>>(
         &self,
         entity: Entity,
     ) -> Option<ComponentAnimTarget>;
 
-    /// Get an [`AnimTarget`] for the given asset type and ID pair.
+    /// Get an [`AssetAnimTarget`] for the given asset type and ID pair.
     ///
     /// The target references the asset instance with the given ID. The
     /// ID must be valid, that is reference an existing asset in the `Assets<A>`
@@ -1171,11 +1219,12 @@ pub trait WorldTargetExtensions {
     /// Returns the animation target referencing the asset instance, or
     /// `None` if either the ID doesn't reference an existing asset or the asset
     /// type is not registered.
-    fn get_asset_target<A: Asset>(&self, id: impl Into<AssetId<A>>) -> Option<AssetAnimTarget>;
+    fn get_anim_asset_target<A: Asset>(&self, id: impl Into<AssetId<A>>)
+        -> Option<AssetAnimTarget>;
 }
 
 impl WorldTargetExtensions for World {
-    fn get_component_target<C: Component<Mutability = Mutable>>(
+    fn get_anim_component_target<C: Component<Mutability = Mutable>>(
         &self,
         entity: Entity,
     ) -> Option<ComponentAnimTarget> {
@@ -1189,7 +1238,10 @@ impl WorldTargetExtensions for World {
         })
     }
 
-    fn get_asset_target<A: Asset>(&self, id: impl Into<AssetId<A>>) -> Option<AssetAnimTarget> {
+    fn get_anim_asset_target<A: Asset>(
+        &self,
+        id: impl Into<AssetId<A>>,
+    ) -> Option<AssetAnimTarget> {
         let id = id.into();
         if !self.resource::<Assets<A>>().contains(id) {
             return None;
@@ -1211,6 +1263,9 @@ impl WorldTargetExtensions for World {
 /// [`TweenAnimator`] to access it, and modify the runtime playback of this
 /// instance. Each instance is independent, even if it mutates the same target
 /// as another instance.
+///
+/// _If you're looking for the basic tweenable animation description, see
+/// [`Tween`] instead._
 ///
 /// [`add_component()`]: crate::TweenAnimator::add_component
 /// [`add_asset()`]: crate::TweenAnimator::add_asset

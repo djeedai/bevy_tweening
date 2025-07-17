@@ -574,6 +574,9 @@ type TargetAction = dyn FnMut(MutUntyped, f32) + Send + Sync + 'static;
 /// or backward. On completion, you can be notified via events, observers, or
 /// the execution of a one-shot system.
 ///
+/// _If you're looking for the runtime representation of a tweenable animation
+/// queued into the [`TweenAnimator`], see [`TweenAnim`] instead._
+///
 /// # Cycles
 ///
 /// A tween can be configured to repeat multiple, or even an infinity, of times.
@@ -651,6 +654,7 @@ type TargetAction = dyn FnMut(MutUntyped, f32) + Send + Sync + 'static;
 /// [`with_completed_system()`]: Self::with_completed_system
 /// [`set_completed_system()`]: Self::set_completed_system
 /// [`AnimCompletedEvent`]: crate::AnimCompletedEvent
+/// [`TweenAnimator`]: crate::TweenAnimator
 pub struct Tween {
     ease_method: EaseMethod,
     clock: AnimClock,

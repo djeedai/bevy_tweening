@@ -2,7 +2,7 @@ use bevy::prelude::*;
 
 use crate::{AnimCompletedEvent, CycleCompletedEvent, TweenAnimator};
 
-/// Plugin to register the [`TweenAnimator`] and the systme playing animations.
+/// Plugin to register the [`TweenAnimator`] and the system playing animations.
 ///
 /// This plugin registers the common resources and events used by 🍃 Bevy
 /// Tweening as well as the core animation system which executes all pending

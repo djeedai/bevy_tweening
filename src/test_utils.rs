@@ -147,7 +147,7 @@ impl<T: Component<Mutability = Mutable> + Default> TestEnv<T> {
 
         let entity = world.spawn(T::default()).id();
         let tween_id = world.resource_scope(|world, mut animator: Mut<'_, TweenAnimator>| {
-            let target = world.get_component_target::<T>(entity).unwrap();
+            let target = world.get_anim_component_target::<T>(entity).unwrap();
             animator.add_component_target(target, tweenable)
         });
 
