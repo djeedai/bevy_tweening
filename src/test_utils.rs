@@ -118,7 +118,7 @@ macro_rules! assert_approx_eq {
 pub(crate) use assert_approx_eq;
 
 use crate::{
-    AnimCompletedEvent, CycleCompletedEvent, TweenAnim, TweenAnimator, TweenId, Tweenable,
+    AnimCompletedEvent, CycleCompletedEvent, TweenAnim, TweenAnimator, Tweenable,
     WorldTargetExtensions as _,
 };
 
@@ -127,7 +127,7 @@ use crate::{
 pub(crate) struct TestEnv<T: Component> {
     pub world: World,
     pub entity: Entity,
-    pub tween_id: TweenId,
+    pub tween_id: Entity,
     system: Box<dyn System<In = (), Out = ()>>,
     _phantom: PhantomData<T>,
 }

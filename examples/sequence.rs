@@ -33,19 +33,19 @@ struct BlueProgress;
 struct RedSprite {
     /// ID of the tween making the red sprite move along a path around the
     /// screen.
-    pub path_tween_id: TweenId,
+    pub path_tween_id: Entity,
     /// ID of the tween making the red sprite rotate on itself back and forth.
     #[allow(unused)]
-    pub rotate_tween_id: TweenId,
+    pub rotate_tween_id: Entity,
 }
 
 #[derive(Component)]
 struct BlueSprite {
     /// ID of the tween making the blue sprite move along a path, then rotate.
-    pub move_and_rotate_tween_id: TweenId,
+    pub move_and_rotate_tween_id: Entity,
     /// ID of the tween making the blue sprite scale.
     #[allow(unused)]
-    pub scale_tween_id: TweenId,
+    pub scale_tween_id: Entity,
 }
 
 #[derive(Component)]
@@ -169,7 +169,7 @@ fn setup(
         .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
         // Because we want to monitor the progress of the animations, we need to fetch
-        // their TweenId. This requires inserting them manually in the TweenAnimator
+        // their Entity. This requires inserting them manually in the TweenAnimator
         // resource, instead of using the extensions of EntityCommands.
         let path_tween_id = animator.add_component(components, entity, anim_move_along_path)?;
         let rotate_tween_id =
@@ -247,7 +247,7 @@ fn setup(
         let seq2 = tween_delay.then(tween_scale);
 
         // Because we want to monitor the progress of the animations, we need to fetch
-        // their TweenId. This requires inserting them manually in the TweenAnimator
+        // their Entity. This requires inserting them manually in the TweenAnimator
         // resource, instead of using the extensions of EntityCommands.
         let move_and_rotate_tween_id = animator.add_component(components, entity, seq1)?;
         let scale_tween_id = animator.add_component(components, entity, seq2)?;

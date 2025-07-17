@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::{AnimCompletedEvent, CycleCompletedEvent, TweenAnimator};
+use crate::{AnimCompletedEvent, CycleCompletedEvent, TweenAnim, TweenResolver};
 
 /// Plugin to register the [`TweenAnimator`] and the system playing animations.
 ///
@@ -14,7 +14,7 @@ pub struct TweeningPlugin;
 
 impl Plugin for TweeningPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<TweenAnimator>()
+        app.init_resource::<TweenResolver>()
             .add_event::<CycleCompletedEvent>()
             .add_event::<AnimCompletedEvent>()
             .add_systems(
@@ -35,8 +35,11 @@ pub enum AnimationSystem {
 /// Core animation systemt ticking the [`TweenAnimator`].
 pub(crate) fn animator_system(world: &mut World) {
     let delta_time = world.resource::<Time>().delta();
-    world.resource_scope(|world, mut animator: Mut<TweenAnimator>| {
-        animator.step_all(world, delta_time);
+    let anims = world.query::<&mut TweenAnim>();
+    world.resource_scope(|world, mut resolver: Mut<TweenResolver>| {
+        for anim in anims.iter_mut(world) {
+            anim.step(world, delta_time);
+        }
     });
 }
 

@@ -13,7 +13,6 @@ executing them from a single exclusive system._
 ### Added
 
 - Added `TweenAnimator`, a resource acting as a container for all active animations.
-- Added `TweenId`, a unique identifier for a currently active animation.
 - Added `TweenAnim`, a representation of the runtime parameters of an active animation.
 - Added `AnimTarget`, an enum describing the target mutated by an animation.
   Also added two structs `ComponentAnimTarget` and `AssetAnimTarget` as its enum variants.

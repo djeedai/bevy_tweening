@@ -5,9 +5,7 @@ use bevy::{
     prelude::*,
 };
 
-use crate::{
-    AnimTarget, EaseMethod, Lens, PlaybackDirection, RepeatCount, RepeatStrategy, TweenId,
-};
+use crate::{AnimTarget, EaseMethod, Lens, PlaybackDirection, RepeatCount, RepeatStrategy};
 
 /// The dynamic tweenable type.
 ///
@@ -31,7 +29,7 @@ use crate::{
 /// # use std::{any::TypeId, time::Duration};
 /// # use bevy::ecs::{system::{Commands, SystemId}, change_detection::MutUntyped};
 /// # use bevy::prelude::*;
-/// # use bevy_tweening::{BoxedTweenable, Sequence, TweenId, Tweenable, CycleCompletedEvent, TweenState, TotalDuration};
+/// # use bevy_tweening::{BoxedTweenable, Sequence, Entity, Tweenable, CycleCompletedEvent, TweenState, TotalDuration};
 /// #
 /// # #[derive(Debug)]
 /// # struct MyTweenable;
@@ -40,7 +38,7 @@ use crate::{
 /// #     fn total_duration(&self) -> TotalDuration  { unimplemented!() }
 /// #     fn set_elapsed(&mut self, elapsed: Duration)  { unimplemented!() }
 /// #     fn elapsed(&self) -> Duration  { unimplemented!() }
-/// #     fn step(&mut self, _tween_id: TweenId, delta: Duration, target: MutUntyped, notify_completed: &mut dyn FnMut(), queue_system: &mut dyn FnMut(SystemId)) -> TweenState  { unimplemented!() }
+/// #     fn step(&mut self, _tween_id: Entity, delta: Duration, target: MutUntyped, notify_completed: &mut dyn FnMut(), queue_system: &mut dyn FnMut(SystemId)) -> TweenState  { unimplemented!() }
 /// #     fn rewind(&mut self) { unimplemented!() }
 /// #     fn cycles_completed(&self) -> u32 { unimplemented!() }
 /// #     fn cycle_fraction(&self) -> f32 { unimplemented!() }
@@ -103,7 +101,7 @@ pub struct CycleCompletedEvent {
     ///
     /// [`TweenAnim`]: crate::TweenAnim
     /// [`TweenAnimator::get()`]: crate::TweenAnimator::get
-    pub id: TweenId,
+    pub id: Entity,
     /// The target the tweenable which completed and the [`TweenAnim`] it's
     /// part of are mutating.
     ///
@@ -483,7 +481,7 @@ pub trait Tweenable: Send + Sync {
     /// [`elapsed()`]: Tweenable::elapsed
     fn step(
         &mut self,
-        tween_id: TweenId,
+        tween_id: Entity,
         delta: Duration,
         target: MutUntyped,
         notify_completed: &mut dyn FnMut(),
@@ -988,7 +986,7 @@ impl Tweenable for Tween {
 
     fn step(
         &mut self,
-        _tween_id: TweenId,
+        _tween_id: Entity,
         delta: Duration,
         target: MutUntyped,
         notify_completed: &mut dyn FnMut(),
@@ -1176,7 +1174,7 @@ impl Tweenable for Sequence {
 
     fn step(
         &mut self,
-        tween_id: TweenId,
+        tween_id: Entity,
         mut delta: Duration,
         mut target: MutUntyped,
         notify_completed: &mut dyn FnMut(),
@@ -1357,7 +1355,7 @@ impl Tweenable for Delay {
 
     fn step(
         &mut self,
-        _tween_id: TweenId,
+        _tween_id: Entity,
         delta: Duration,
         _target: MutUntyped,
         _notify_completed: &mut dyn FnMut(),
@@ -1408,7 +1406,6 @@ mod tests {
     use bevy::ecs::{
         change_detection::MaybeLocation, component::Tick, event::Events, system::SystemState,
     };
-    use slotmap::Key as _;
 
     use super::*;
     use crate::{lens::*, test_utils::assert_approx_eq, ComponentAnimTarget};
@@ -1552,7 +1549,7 @@ mod tests {
 
     /// Manually tick a test tweenable targeting a component.
     fn manual_tick_component(
-        tween_id: TweenId,
+        tween_id: Entity,
         duration: Duration,
         tween: &mut dyn Tweenable,
         world: &mut World,
@@ -1920,7 +1917,7 @@ mod tests {
 
                     // Tick the tween
                     let actual_state = manual_tick_component(
-                        TweenId::null(), // unused in this test
+                        Entity::PLACEHOLDER, // unused in this test
                         tick_duration,
                         &mut tween,
                         &mut world,
@@ -1984,7 +1981,7 @@ mod tests {
 
                     // Dummy tick to update target
                     let actual_state = manual_tick_component(
-                        TweenId::null(), // unused in this test
+                        Entity::PLACEHOLDER, // unused in this test
                         Duration::ZERO,
                         &mut tween,
                         &mut world,
@@ -2046,7 +2043,7 @@ mod tests {
         tween.set_playback_direction(PlaybackDirection::Backward);
         assert_eq!(tween.elapsed(), d300);
         manual_tick_component(
-            TweenId::null(), // unused in this test
+            Entity::PLACEHOLDER, // unused in this test
             Duration::from_millis(100),
             &mut tween,
             &mut world,
@@ -2102,7 +2099,7 @@ mod tests {
 
         for i in 1..=16 {
             let state = manual_tick_component(
-                TweenId::null(), // unused in this test
+                Entity::PLACEHOLDER, // unused in this test
                 Duration::from_millis(200),
                 &mut seq,
                 &mut world,
@@ -2155,7 +2152,7 @@ mod tests {
         // - Start the third tween
         for delta_ms in [500, 2000] {
             manual_tick_component(
-                TweenId::null(), // unused in this test
+                Entity::PLACEHOLDER, // unused in this test
                 Duration::from_millis(delta_ms),
                 &mut seq,
                 &mut world,
@@ -2268,7 +2265,7 @@ mod tests {
 
     //     for i in 1..=6 {
     //         let state = manual_tick_component(
-    //             TweenId::null(), // unused in this test
+    //             Entity::PLACEHOLDER, // unused in this test
     //             Duration::from_millis(200),
     //             &mut tracks,
     //             &mut world,
@@ -2305,7 +2302,7 @@ mod tests {
     //     assert_approx_eq!(tracks.progress(), 0.9);
     //     // tick to udpate state (set_progress() does not update state)
     //     let state = manual_tick_component(
-    //         TweenId::null(), // unused in this test
+    //         Entity::PLACEHOLDER, // unused in this test
     //         Duration::ZERO,
     //         &mut tracks,
     //         &mut world,
@@ -2318,7 +2315,7 @@ mod tests {
     //     assert_approx_eq!(tracks.progress(), 1.);
     //     // tick to udpate state (set_progress() does not update state)
     //     let state = manual_tick_component(
-    //         TweenId::null(), // unused in this test
+    //         Entity::PLACEHOLDER, // unused in this test
     //         Duration::ZERO,
     //         &mut tracks,
     //         &mut world,
@@ -2331,7 +2328,7 @@ mod tests {
     //     assert_approx_eq!(tracks.progress(), 0.);
     //     // tick to udpate state (set_progress() does not update state)
     //     let state = manual_tick_component(
-    //         TweenId::null(), // unused in this test
+    //         Entity::PLACEHOLDER, // unused in this test
     //         Duration::ZERO,
     //         &mut tracks,
     //         &mut world,
@@ -2378,7 +2375,7 @@ mod tests {
             let dt = Duration::from_millis(200);
             time += dt;
             let state = manual_tick_component(
-                TweenId::null(), // unused in this test
+                Entity::PLACEHOLDER, // unused in this test
                 dt,
                 &mut delay,
                 &mut world,
@@ -2409,7 +2406,7 @@ mod tests {
         assert_eq!(0, delay.cycles_completed());
         assert_eq!(Duration::ZERO, delay.elapsed());
         let state: TweenState = manual_tick_component(
-            TweenId::null(), // unused in this test
+            Entity::PLACEHOLDER, // unused in this test
             Duration::ZERO,
             &mut delay,
             &mut world,
@@ -2475,7 +2472,7 @@ mod tests {
         let dt = Duration::from_millis(100);
         time += dt;
         let state = manual_tick_component(
-            TweenId::null(), // unused in this test
+            Entity::PLACEHOLDER, // unused in this test
             dt,
             &mut tween,
             &mut world,
@@ -2491,7 +2488,7 @@ mod tests {
         let dt = Duration::from_millis(1200);
         time += dt;
         let state = manual_tick_component(
-            TweenId::null(), // unused in this test
+            Entity::PLACEHOLDER, // unused in this test
             dt,
             &mut tween,
             &mut world,
@@ -2507,7 +2504,7 @@ mod tests {
         let dt = Duration::from_millis(3500);
         time += dt;
         let state = manual_tick_component(
-            TweenId::null(), // unused in this test
+            Entity::PLACEHOLDER, // unused in this test
             dt,
             &mut tween,
             &mut world,
@@ -2523,7 +2520,7 @@ mod tests {
         let dt = Duration::from_millis(200);
         time += dt;
         let state = manual_tick_component(
-            TweenId::null(), // unused in this test
+            Entity::PLACEHOLDER, // unused in this test
             dt,
             &mut tween,
             &mut world,
@@ -2549,7 +2546,7 @@ mod tests {
         // 10%
         let dt = Duration::from_millis(100);
         let state = manual_tick_component(
-            TweenId::null(), // unused in this test
+            Entity::PLACEHOLDER, // unused in this test
             dt,
             &mut tween,
             &mut world,
@@ -2573,7 +2570,7 @@ mod tests {
         // 120% - mirror
         let dt = Duration::from_millis(1200);
         let state = manual_tick_component(
-            TweenId::null(), // unused in this test
+            Entity::PLACEHOLDER, // unused in this test
             dt,
             &mut tween,
             &mut world,
@@ -2598,7 +2595,7 @@ mod tests {
         // 400% - done mirror (because Completed freezes the state)
         let dt = Duration::from_millis(4000);
         let state = manual_tick_component(
-            TweenId::null(), // unused in this test
+            Entity::PLACEHOLDER, // unused in this test
             dt,
             &mut tween,
             &mut world,
