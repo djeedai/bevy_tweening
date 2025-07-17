@@ -416,6 +416,7 @@ pub trait Tweenable: Send + Sync {
     /// of a single way, either from start to end or back from end to start.
     /// The total "loop" duration start -> end -> start to reach back the
     /// same state in this case is the double of the cycle duration.
+    #[must_use]
     fn cycle_duration(&self) -> Duration;
 
     /// Get the total duration of the entire animation, including repeating.
@@ -424,6 +425,7 @@ pub trait Tweenable: Send + Sync {
     /// duration of a single cycle ([`cycle_duration()`]).
     ///
     /// [`cycle_duration()`]: Self::cycle_duration
+    #[must_use]
     fn total_duration(&self) -> TotalDuration;
 
     /// Set the current animation playback elapsed time.
@@ -459,6 +461,7 @@ pub trait Tweenable: Send + Sync {
     ///
     /// [`cycle_duration()`]: Tweenable::cycle_duration
     /// [`total_duration()`]: Tweenable::total_duration
+    #[must_use]
     fn elapsed(&self) -> Duration;
 
     /// Step the tweenable.
@@ -507,11 +510,13 @@ pub trait Tweenable: Send + Sync {
     /// [`RepeatStrategy::MirroredRepeat`] this corresponds to a playback in
     /// a single direction, so tweening from start to end and back to start
     /// counts as two completed cycles (one forward, one backward).
+    #[must_use]
     fn cycles_completed(&self) -> u32 {
         self.elapsed().div_duration_f64(self.cycle_duration()) as u32
     }
 
     /// Get the completion fraction in `[0:1]` of the current cycle.
+    #[must_use]
     fn cycle_fraction(&self) -> f32 {
         self.elapsed()
             .div_duration_f64(self.cycle_duration())
@@ -540,6 +545,7 @@ pub trait Tweenable: Send + Sync {
     /// actually have any target associated with it.
     ///
     /// [`TweenAnimator`]: crate::TweenAnimator
+    #[must_use]
     fn type_id(&self) -> Option<TypeId>;
 }
 
@@ -1036,8 +1042,15 @@ pub struct Sequence {
 impl Sequence {
     /// Create a new sequence of tweens.
     ///
-    /// This method panics if the input collection is empty.
+    /// The collection of tweens form a single cycle of the sequence. If any
+    /// constituting item is of infinite duration, the sequence itself becomes
+    /// of infinite duration.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the input collection is empty.
     #[must_use]
+    #[inline]
     pub fn new(items: impl IntoIterator<Item = impl Into<BoxedTweenable>>) -> Self {
         let tweens: Vec<_> = items.into_iter().map(Into::into).collect();
         assert!(!tweens.is_empty());
@@ -1053,11 +1066,12 @@ impl Sequence {
         }
     }
 
-    /// Create a new sequence containing a single tween.
+    /// Create a new sequence containing a single tweenable animation.
     #[must_use]
-    pub fn from_single(tween: impl Tweenable + 'static) -> Self {
-        let total_duration = tween.total_duration();
-        let boxed: BoxedTweenable = Box::new(tween);
+    #[inline]
+    pub fn from_single(tweenable: impl Tweenable + 'static) -> Self {
+        let total_duration = tweenable.total_duration();
+        let boxed: BoxedTweenable = Box::new(tweenable);
         Self {
             tweens: vec![boxed],
             index: 0,
