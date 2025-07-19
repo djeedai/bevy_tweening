@@ -1,9 +1,6 @@
 use std::{any::TypeId, cmp::Ordering, time::Duration};
 
-use bevy::{
-    ecs::{change_detection::MutUntyped, system::SystemId},
-    prelude::*,
-};
+use bevy::{ecs::change_detection::MutUntyped, prelude::*};
 
 use crate::{AnimTarget, EaseMethod, Lens, PlaybackDirection, RepeatCount, RepeatStrategy};
 
@@ -29,7 +26,7 @@ use crate::{AnimTarget, EaseMethod, Lens, PlaybackDirection, RepeatCount, Repeat
 /// # use std::{any::TypeId, time::Duration};
 /// # use bevy::ecs::{system::{Commands, SystemId}, change_detection::MutUntyped};
 /// # use bevy::prelude::*;
-/// # use bevy_tweening::{BoxedTweenable, Sequence, Entity, Tweenable, CycleCompletedEvent, TweenState, TotalDuration};
+/// # use bevy_tweening::{BoxedTweenable, Sequence, Tweenable, CycleCompletedEvent, TweenState, TotalDuration};
 /// #
 /// # #[derive(Debug)]
 /// # struct MyTweenable;
@@ -38,7 +35,7 @@ use crate::{AnimTarget, EaseMethod, Lens, PlaybackDirection, RepeatCount, Repeat
 /// #     fn total_duration(&self) -> TotalDuration  { unimplemented!() }
 /// #     fn set_elapsed(&mut self, elapsed: Duration)  { unimplemented!() }
 /// #     fn elapsed(&self) -> Duration  { unimplemented!() }
-/// #     fn step(&mut self, _tween_id: Entity, delta: Duration, target: MutUntyped, notify_completed: &mut dyn FnMut(), queue_system: &mut dyn FnMut(SystemId)) -> TweenState  { unimplemented!() }
+/// #     fn step(&mut self, _tween_id: Entity, delta: Duration, target: MutUntyped, notify_completed: &mut dyn FnMut()) -> TweenState  { unimplemented!() }
 /// #     fn rewind(&mut self) { unimplemented!() }
 /// #     fn cycles_completed(&self) -> u32 { unimplemented!() }
 /// #     fn cycle_fraction(&self) -> f32 { unimplemented!() }
@@ -1175,7 +1172,6 @@ impl Tweenable for Sequence {
 #[derive(Debug)]
 pub struct Delay {
     timer: Timer,
-    system_id: Option<SystemId>,
 }
 
 impl Delay {
@@ -1196,49 +1192,7 @@ impl Delay {
         assert!(!duration.is_zero());
         Self {
             timer: Timer::new(duration, TimerMode::Once),
-            system_id: None,
         }
-    }
-
-    /// Enable running a one-shot system upon completion.
-    ///
-    /// If enabled, the tween will run a system via a provided [`SystemId`] when
-    /// the animation completes. This is similar to the
-    /// [`with_completed_event()`], but uses a system registered by
-    /// [`register_system()`] instead.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use bevy_tweening::{lens::*, *};
-    /// # use bevy::{ecs::event::EventReader, math::{Vec3, curve::EaseFunction}, ecs::world::World, ecs::system::Query, ecs::entity::Entity};
-    /// # use std::time::Duration;
-    /// let mut world = World::new();
-    /// let test_system_system_id = world.register_system(test_system);
-    /// let tween = Tween::new(
-    ///     // [...]
-    /// #    EaseFunction::QuadraticInOut,
-    /// #    Duration::from_secs(1),
-    /// #    TransformPositionLens {
-    /// #        start: Vec3::ZERO,
-    /// #        end: Vec3::new(3.5, 0., 0.),
-    /// #    },
-    /// )
-    /// .with_completed_system(test_system_system_id);
-    ///
-    /// fn test_system(query: Query<Entity>) {
-    ///    for entity in query.iter() {
-    ///       println!("Found an Entity!");
-    ///    }
-    /// }
-    /// ```
-    ///
-    /// [`with_completed_event()`]: crate::Tween::with_completed_event
-    /// [`register_system()`]: bevy::ecs::world::World::register_system
-    #[must_use]
-    pub fn with_completed_system(mut self, system_id: SystemId) -> Self {
-        self.system_id = Some(system_id);
-        self
     }
 
     /// Check if the delay completed.

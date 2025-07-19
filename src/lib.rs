@@ -183,30 +183,35 @@
 //! [`TweenAnimator::add_component()`] or [`TweenAnimator::add_asset()`].
 //!
 //! ```no_run
-//! # use bevy::prelude::*;
+//! # use bevy::{prelude::*, ecs::component::Components};
 //! # use bevy_tweening::*;
-//! # fn xxx() -> Option<()> {
-//! # let mut animator = TweenAnimator::default();
-//! # let entity = Entity::PLACEHOLDER;
-//! # let world = World::default();
-//! # let components = world.components();
 //! # fn make_tween() -> Tween { unimplemented!() }
-//! // Create a tween animation description
-//! let tween: Tween = make_tween();
-//! // Enqueue a new component animation instance
-//! let tween_id = animator.add_component(components, entity, tween);
-//! # None }
+//! fn my_system(mut commands: Commands, components: &Components) -> Result<(), TweeningError> {
+//! # let entity = Entity::PLACEHOLDER;
+//!     let entity = commands.spawn(Transform::default()).id();
+//!     let target = ComponentAnimTarget::new::<Transform>(components, entity)?;
+//!     // Place the TweenAnim on the same entity as the target component:
+//!     let tween: Tween = make_tween();
+//!     commands
+//!         .entity(entity)
+//!         .insert(TweenAnim::new(target, tween));
+//!     // ---OR---
+//!     // Place it on its own entity
+//!     let tween: Tween = make_tween();
+//!     commands.spawn(TweenAnim::new(target, tween));
+//!     Ok(())
+//! }
 //! ```
 //!
-//! After that, you can use the [`Entity`] to control the animation playback:
+//! After that, you can use the [`TweenAnim`] component to control the animation
+//! playback:
 //!
 //! ```no_run
+//! # use bevy::prelude::Single;
 //! # use bevy_tweening::*;
-//! # fn xxx() -> Option<()> {
-//! # let mut animator = TweenAnimator::default();
-//! # let tween_id = Entity::default();
-//! animator.get_mut(tween_id)?.speed = 0.8; // 80% playback speed
-//! # None }
+//! fn my_system(mut anim: Single<&mut TweenAnim>) {
+//!     anim.speed = 0.8; // 80% playback speed
+//! }
 //! ```
 //!
 //! ## Lenses
@@ -829,7 +834,7 @@ impl<'a> EntityWorldMutTweeningExtensions<'a> for EntityWorldMut<'a> {
             entity: self.id(),
         };
         self.world_scope(|world: &mut World| {
-            world.spawn(TweenAnim::new(target.into(), Box::new(tweenable)));
+            world.spawn(TweenAnim::new(target, tweenable));
         });
         self
     }
@@ -1351,18 +1356,26 @@ pub struct TweenAnim {
 impl TweenAnim {
     /// Create a new tween animation.
     ///
+    /// This components represents the runtime animation being played to mutate
+    /// a specific target.
+    ///
     /// # Panics
     ///
     /// Panics if the tweenable is "typeless", that is [`Tweenable::type_id()`]
-    /// returns `None`. Root animations enqueued in the [`TweenAnimator`] must
-    /// target a concrete component or asset type. This means in particular
-    /// that you can't insert a single [`Delay`]. You can however use a
-    /// [`Delay`] or other typeless tweenables as part of a [`Sequence`],
-    /// provided there's at least one other typed tweenable in the sequence.
-    fn new(target: AnimTarget, tweenable: BoxedTweenable) -> Self {
+    /// returns `None`. Animations must target a concrete component or asset
+    /// type. This means in particular that you can't insert a single
+    /// [`Delay`]. You can however use a [`Delay`] or other typeless
+    /// tweenables as part of a [`Sequence`], provided there's at least one
+    /// other typed tweenable in the sequence.
+    #[inline]
+    pub fn new(target: impl Into<AnimTarget>, tweenable: impl Tweenable + 'static) -> Self {
+        assert!(
+            tweenable.type_id().is_some(),
+            "The top-level Tweenable of a TweenAnim must be typed (type_id() returns Some)."
+        );
         Self {
-            target,
-            tweenable,
+            target: target.into(),
+            tweenable: Box::new(tweenable),
             playback_state: PlaybackState::Playing,
             speed: 1.,
             destroy_on_completion: true,
@@ -1507,34 +1520,33 @@ impl TweenAnim {
         self.tweenable.as_ref()
     }
 
-    /// Swap a queued animation.
+    /// Set a new animation description.
     ///
     /// Attempt to change the tweenable of an animation already enqueued, and
     /// possibly already playing.
     ///
     /// If the tweenable is successfully swapped, this resets the
-    /// [`TweenAnim::tween_state()`] to [`TweenState::Active`], even if the
-    /// tweenable would otherwise be completed _e.g._ because its elapsed time
-    /// is past its total duration. Conversely, this doesn't update the
-    /// target, as this function doesn't have mutable access to it.
+    /// [`tween_state()`] to [`TweenState::Active`], even if the tweenable would
+    /// otherwise be completed _e.g._ because its elapsed time is past its
+    /// total duration. Conversely, this doesn't update the target component or
+    /// asset, as this function doesn't have mutable access to it.
     ///
     /// To ensure the old and new animations have the same elapsed time (for
-    /// example if they need to be synchronized), call [`set_elapsed()`] first
-    /// on the input `tweenable`, with the duration value of the old tweenable
-    /// as returned by [`elapsed()`].
+    /// example if they need to be synchronized, if they're variants of each
+    /// other), call [`set_elapsed()`] first on the input `tweenable`, with
+    /// the duration value of the old tweenable returned by [`elapsed()`].
     ///
     /// ```
     /// # use std::time::Duration;
-    /// # use slotmap::Key as _;
     /// # use bevy::prelude::*;
     /// # use bevy_tweening::*;
-    /// # fn sys(mut animator: ResMut<TweenAnimator>) {
-    /// # let id = Entity::PLACEHOLDER;
-    /// # let mut tweenable = Delay::new(Duration::from_secs(1));
-    /// let elapsed = animator.get(id).unwrap().tweenable().elapsed();
-    /// tweenable.set_elapsed(elapsed);
-    /// animator.set_tweenable(id, tweenable);
-    /// # }
+    /// # fn make_tweenable() -> Tween { unimplemented!() }
+    /// fn my_system(mut anim: Single<&mut TweenAnim>) {
+    ///     let mut tweenable = make_tweenable();
+    ///     let elapsed = anim.tweenable().elapsed();
+    ///     tweenable.set_elapsed(elapsed);
+    ///     anim.set_tweenable(tweenable);
+    /// }
     /// ```
     ///
     /// To recompute the actual tweenable animation state and force a target
@@ -1544,6 +1556,7 @@ impl TweenAnim {
     ///
     /// On success, returns the previous tweenable which has been swapped out.
     ///
+    /// [`tween_state()`]: Self::tween_state
     /// [`set_elapsed()`]: crate::Tweenable::set_elapsed
     /// [`elapsed()`]: crate::Tweenable::elapsed
     /// [`step_one()`]: Self::step_one
@@ -2126,7 +2139,6 @@ pub(crate) struct StepResult {
 //     ///
 //     /// ```
 //     /// # use std::time::Duration;
-//     /// # use slotmap::Key as _;
 //     /// # use bevy::prelude::*;
 //     /// # use bevy_tweening::*;
 //     /// # fn sys(mut animator: ResMut<TweenAnimator>) {
