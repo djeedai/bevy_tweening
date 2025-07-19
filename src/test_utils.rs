@@ -118,8 +118,8 @@ macro_rules! assert_approx_eq {
 pub(crate) use assert_approx_eq;
 
 use crate::{
-    AnimCompletedEvent, CycleCompletedEvent, TweenAnim, TweenAnimator, Tweenable,
-    WorldTargetExtensions as _,
+    AnimCompletedEvent, ComponentAnimTarget, CycleCompletedEvent, TweenAnim, TweenResolver,
+    Tweenable,
 };
 
 /// A simple isolated test environment with a [`World`] and a single
@@ -127,7 +127,6 @@ use crate::{
 pub(crate) struct TestEnv<T: Component> {
     pub world: World,
     pub entity: Entity,
-    pub tween_id: Entity,
     system: Box<dyn System<In = (), Out = ()>>,
     _phantom: PhantomData<T>,
 }
@@ -140,21 +139,20 @@ impl<T: Component<Mutability = Mutable> + Default> TestEnv<T> {
         world.init_resource::<Time>();
         world.init_resource::<Events<CycleCompletedEvent>>();
         world.init_resource::<Events<AnimCompletedEvent>>();
-        world.init_resource::<TweenAnimator>();
+        world.init_resource::<TweenResolver>();
 
         let mut system = IntoSystem::into_system(crate::plugin::animator_system);
         system.initialize(&mut world);
 
         let entity = world.spawn(T::default()).id();
-        let tween_id = world.resource_scope(|world, mut animator: Mut<'_, TweenAnimator>| {
-            let target = world.get_anim_component_target::<T>(entity).unwrap();
-            animator.add_component_target(target, tweenable)
-        });
+        let target = ComponentAnimTarget::new::<T>(world.components(), entity).unwrap();
+        world
+            .entity_mut(entity)
+            .insert(TweenAnim::new(target.into(), Box::new(tweenable)));
 
         Self {
             world,
             entity,
-            tween_id,
             system: Box::new(system),
             _phantom: PhantomData,
         }
@@ -191,29 +189,14 @@ impl<T: Component<Mutability = Mutable>> TestEnv<T> {
         events.update();
     }
 
-    /// Get the animator for the component.
-    pub fn animator(&self) -> &TweenAnimator {
-        self.world.resource::<TweenAnimator>()
-    }
-
-    /// Get the animator for the component.
-    #[allow(dead_code)]
-    pub fn animator_mut(&mut self) -> Mut<TweenAnimator> {
-        self.world.resource_mut::<TweenAnimator>()
+    /// Get the animation.
+    pub fn anim(&self) -> Option<&TweenAnim> {
+        self.world.get::<TweenAnim>(self.entity)
     }
 
     /// Get the animation.
-    pub fn anim(&self) -> Option<&TweenAnim> {
-        self.world.resource::<TweenAnimator>().get(self.tween_id)
-    }
-
-    /// Apply a mutating closure to the animation.
-    pub fn anim_scope(&mut self, func: impl FnOnce(&mut TweenAnim)) {
-        let tween_id = self.tween_id;
-        let mut animator = self.world.resource_mut::<TweenAnimator>();
-        if let Some(anim) = animator.get_mut(tween_id) {
-            func(anim);
-        }
+    pub fn anim_mut(&mut self) -> Option<Mut<TweenAnim>> {
+        self.world.get_mut::<TweenAnim>(self.entity)
     }
 
     /// Get the component.

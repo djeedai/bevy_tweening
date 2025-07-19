@@ -485,7 +485,6 @@ pub trait Tweenable: Send + Sync {
         delta: Duration,
         target: MutUntyped,
         notify_completed: &mut dyn FnMut(),
-        queue_system: &mut dyn FnMut(SystemId),
     ) -> TweenState;
 
     /// Rewind the animation to its starting state.
@@ -659,7 +658,6 @@ pub struct Tween {
     /// Direction of playback the user asked for.
     playback_direction: PlaybackDirection,
     action: Box<TargetAction>,
-    system_id: Option<SystemId>,
     send_completed_event: bool,
     /// Type ID of the target.
     type_id: TypeId,
@@ -711,7 +709,6 @@ impl Tween {
             clock: AnimClock::new(cycle_duration),
             playback_direction: PlaybackDirection::Forward,
             action: Box::new(action),
-            system_id: None,
             send_completed_event: false,
             type_id: TypeId::of::<T>(),
         }
@@ -792,66 +789,6 @@ impl Tween {
     /// [`with_completed_event()`]: Self::with_completed_event
     pub fn set_completed_event(&mut self, send: bool) {
         self.send_completed_event = send;
-    }
-
-    /// Enable running a one-shot system upon cycle completion.
-    ///
-    /// If enabled, the tween will run a system via a provided [`SystemId`] when
-    /// the animation completes a single cycle. This is similar to the
-    /// [`with_completed_event()`], but uses a system registered by
-    /// [`register_system()`] instead of a callback.
-    ///
-    /// # Example
-    ///
-    /// ```
-    /// # use bevy_tweening::{lens::*, *};
-    /// # use bevy::{ecs::event::EventReader, math::{Vec3, curve::EaseFunction}, ecs::world::World, ecs::system::Query, ecs::entity::Entity, ecs::query::With, prelude::Res};
-    /// # use std::time::Duration;
-    /// # let mut world = World::new();
-    /// let test_system_id = world.register_system(test_system);
-    /// let tween = Tween::new(
-    ///     // [...]
-    /// #    EaseFunction::QuadraticInOut,
-    /// #    Duration::from_secs(1),
-    /// #    TransformPositionLens {
-    /// #        start: Vec3::ZERO,
-    /// #        end: Vec3::new(3.5, 0., 0.),
-    /// #    },
-    /// )
-    /// .with_completed_system(test_system_id);
-    ///
-    /// fn test_system(animator: Res<TweenAnimator>) {
-    ///    println!("Animations still queued after this cycle completion:");
-    ///    for (id, anim) in animator.iter() {
-    ///       println!("Anim #{:?} playback_state={:?}", id, anim.playback_state);
-    ///    }
-    /// }
-    /// ```
-    ///
-    /// [`with_completed_event()`]: crate::Tween::with_completed_event
-    /// [`register_system()`]: bevy::ecs::world::World::register_system
-    #[must_use]
-    pub fn with_completed_system(mut self, system_id: SystemId) -> Self {
-        self.system_id = Some(system_id);
-        self
-    }
-
-    /// Set the one-shot system executed when a cycle completes.
-    ///
-    /// See [`with_completed_system()`] for details.
-    ///
-    /// [`with_completed_system()`]: Self::with_completed_system
-    pub fn set_completed_system(&mut self, system_id: SystemId) {
-        self.system_id = Some(system_id);
-    }
-
-    /// Clear the one-shot system executed when a cycle completes.
-    ///
-    /// See [`with_completed_system()`] for details.
-    ///
-    /// [`with_completed_system()`]: Self::with_completed_system
-    pub fn clear_completed_system(&mut self) {
-        self.system_id = None;
     }
 
     /// Set the playback direction of the tween.
@@ -990,7 +927,6 @@ impl Tweenable for Tween {
         delta: Duration,
         target: MutUntyped,
         notify_completed: &mut dyn FnMut(),
-        queue_system: &mut dyn FnMut(SystemId),
     ) -> TweenState {
         if self.clock.state(self.playback_direction) == TweenState::Completed {
             return TweenState::Completed;
@@ -1010,14 +946,8 @@ impl Tweenable for Tween {
         (self.action)(target, fraction);
 
         // If completed at least once this frame, notify the user
-        if times_completed != 0 {
-            if self.send_completed_event {
-                notify_completed();
-            }
-
-            if let Some(system_id) = &self.system_id {
-                queue_system(*system_id);
-            }
+        if times_completed != 0 && self.send_completed_event {
+            notify_completed();
         }
 
         state
@@ -1178,7 +1108,6 @@ impl Tweenable for Sequence {
         mut delta: Duration,
         mut target: MutUntyped,
         notify_completed: &mut dyn FnMut(),
-        queue_system: &mut dyn FnMut(SystemId),
     ) -> TweenState {
         // Calculate the new elapsed time at the end of this tick
         self.elapsed = self.elapsed.saturating_add(delta);
@@ -1193,13 +1122,8 @@ impl Tweenable for Sequence {
 
             let prev_elapsed = tween.elapsed();
 
-            if tween.step(
-                tween_id,
-                delta,
-                target.reborrow(),
-                notify_completed,
-                queue_system,
-            ) == TweenState::Active
+            if tween.step(tween_id, delta, target.reborrow(), notify_completed)
+                == TweenState::Active
             {
                 return TweenState::Active;
             }
@@ -1359,7 +1283,6 @@ impl Tweenable for Delay {
         delta: Duration,
         _target: MutUntyped,
         _notify_completed: &mut dyn FnMut(),
-        _queue_system: &mut dyn FnMut(SystemId),
     ) -> TweenState {
         self.timer.tick(delta);
 
@@ -1536,16 +1459,12 @@ mod tests {
     }
 
     /// Utility to create a test environment to tick a tween.
-    fn make_test_env() -> (World, Entity, SystemId) {
+    fn make_test_env() -> (World, Entity) {
         let mut world = World::new();
         world.init_resource::<Events<CycleCompletedEvent>>();
         let entity = world.spawn(Transform::default()).id();
-        let system_id = world.register_system(oneshot_test);
-        (world, entity, system_id)
+        (world, entity)
     }
-
-    /// one-shot system to be used for testing
-    fn oneshot_test() {}
 
     /// Manually tick a test tweenable targeting a component.
     fn manual_tick_component(
@@ -1572,14 +1491,7 @@ mod tests {
                             target: world_target,
                         });
                     };
-                    let mut queue_system = |_: SystemId| {};
-                    tween.step(
-                        tween_id,
-                        duration,
-                        target.reborrow(),
-                        &mut notify_completed,
-                        &mut queue_system,
-                    )
+                    tween.step(tween_id, duration, target.reborrow(), &mut notify_completed)
                 } else {
                     TweenState::Completed
                 }
@@ -1698,14 +1610,9 @@ mod tests {
                     tween.set_elapsed(backward_start_time);
                 }
 
-                let (mut world, entity, system_id) = make_test_env();
+                let (mut world, entity) = make_test_env();
                 let mut event_reader_system_state: SystemState<EventReader<CycleCompletedEvent>> =
                     SystemState::new(&mut world);
-
-                // Activate oneshot system
-                tween.set_completed_system(system_id);
-                assert!(tween.system_id.is_some());
-                assert_eq!(tween.system_id.unwrap(), system_id);
 
                 // Loop over 2.2 seconds, so greater than one ping-pong loop (2 cycles in
                 // MirroredRepeat)
@@ -2003,10 +1910,6 @@ mod tests {
                 // Clear event sending
                 tween.set_completed_event(false);
                 assert!(!tween.send_completed_event);
-
-                // Clear oneshot system
-                tween.clear_completed_system();
-                assert!(tween.system_id.is_none());
             }
         }
     }
@@ -2037,7 +1940,7 @@ mod tests {
         tween.set_playback_direction(PlaybackDirection::Backward);
         assert_eq!(tween.elapsed(), d300);
 
-        let (mut world, entity, _system_id) = make_test_env();
+        let (mut world, entity) = make_test_env();
 
         // Progress always increases alongside the current direction
         tween.set_playback_direction(PlaybackDirection::Backward);
@@ -2095,7 +1998,7 @@ mod tests {
         );
         let mut seq = tween1.then(tween2);
 
-        let (mut world, entity, _system_id) = make_test_env();
+        let (mut world, entity) = make_test_env();
 
         for i in 1..=16 {
             let state = manual_tick_component(
@@ -2144,7 +2047,7 @@ mod tests {
             .with_repeat_count(RepeatCount::Finite(1))
         }));
 
-        let (mut world, entity, _system_id) = make_test_env();
+        let (mut world, entity) = make_test_env();
 
         // Tick halfway through the first tween, then in one tick:
         // - Finish the first tween
@@ -2368,7 +2271,7 @@ mod tests {
         }
 
         // Dummy world and event writer
-        let (mut world, entity, _system_id) = make_test_env();
+        let (mut world, entity) = make_test_env();
 
         let mut time = Duration::ZERO;
         for i in 1..=6 {
@@ -2464,7 +2367,7 @@ mod tests {
 
         assert_eq!(Duration::ZERO, tween.elapsed());
 
-        let (mut world, entity, _system_id) = make_test_env();
+        let (mut world, entity) = make_test_env();
 
         let mut time = Duration::ZERO;
 
@@ -2541,7 +2444,7 @@ mod tests {
 
         assert_eq!(Duration::ZERO, tween.elapsed());
 
-        let (mut world, entity, _system_id) = make_test_env();
+        let (mut world, entity) = make_test_env();
 
         // 10%
         let dt = Duration::from_millis(100);

@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::{AnimCompletedEvent, CycleCompletedEvent, TweenAnim, TweenResolver};
+use crate::{AnimCompletedEvent, AnimTarget, CycleCompletedEvent, TweenAnim, TweenResolver};
 
 /// Plugin to register the [`TweenAnimator`] and the system playing animations.
 ///
@@ -32,15 +32,102 @@ pub enum AnimationSystem {
     AnimationUpdate,
 }
 
-/// Core animation systemt ticking the [`TweenAnimator`].
+/// Core animation systemt ticking all queued animations.
 pub(crate) fn animator_system(world: &mut World) {
     let delta_time = world.resource::<Time>().delta();
-    let anims = world.query::<&mut TweenAnim>();
-    world.resource_scope(|world, mut resolver: Mut<TweenResolver>| {
-        for anim in anims.iter_mut(world) {
-            anim.step(world, delta_time);
-        }
+
+    // Gather all entities with a TweenAnim. We can't iterate over them while at the
+    // same time retaining a mutable access to the World (in order to resolve the
+    // MutUntyped of the target), so we first make a copy of the entities and
+    // targets.
+    let mut q_anims = world.query::<(Entity, &TweenAnim)>();
+    let mut anims = q_anims
+        .iter(world)
+        .map(|(entity, anim)| (entity, anim.target))
+        .collect::<Vec<_>>();
+
+    // Update animations
+    let mut to_remove = Vec::with_capacity(anims.len());
+    world.resource_scope(|world, asset_resolver: Mut<TweenResolver>| {
+        world.resource_scope(
+            |world, mut cycle_events: Mut<Events<CycleCompletedEvent>>| {
+                world.resource_scope(|world, mut anim_events: Mut<Events<AnimCompletedEvent>>| {
+                    let anim_comp_id = world.component_id::<TweenAnim>().unwrap();
+                    for (entity, target) in anims.drain(..) {
+                        let ret = match target {
+                            AnimTarget::Component(comp_target) => {
+                                let (mut entities, commands) = world.entities_and_commands();
+                                if entity == comp_target.entity {
+                                    // The TweenAnim animates another component on the same entity
+                                    let Ok([mut ent]) = entities.get_mut([entity]) else {
+                                        continue;
+                                    };
+                                    let Ok([anim, target]) =
+                                        ent.get_mut_by_id([anim_comp_id, comp_target.component_id])
+                                    else {
+                                        continue;
+                                    };
+                                    // SAFETY: We fetched the EntityMut from the component ID of
+                                    // TweenAnim
+                                    #[allow(unsafe_code)]
+                                    let mut anim = unsafe { anim.with_type::<TweenAnim>() };
+                                    anim.step(
+                                        commands,
+                                        entity,
+                                        delta_time,
+                                        target,
+                                        cycle_events.reborrow(),
+                                        anim_events.reborrow(),
+                                    )
+                                } else {
+                                    // The TweenAnim animates a component on a different entity
+                                    let Ok([mut anim, mut target]) =
+                                        entities.get_mut([entity, comp_target.entity])
+                                    else {
+                                        continue;
+                                    };
+                                    let Some(mut anim) = anim.get_mut::<TweenAnim>() else {
+                                        continue;
+                                    };
+                                    let Ok(target) = target.get_mut_by_id(comp_target.component_id)
+                                    else {
+                                        continue;
+                                    };
+                                    anim.step(
+                                        commands,
+                                        entity,
+                                        delta_time,
+                                        target,
+                                        cycle_events.reborrow(),
+                                        anim_events.reborrow(),
+                                    )
+                                }
+                            }
+                            AnimTarget::Asset(asset_target) => asset_resolver.resolve_scope(
+                                world,
+                                &asset_target,
+                                entity,
+                                delta_time,
+                                cycle_events.reborrow(),
+                                anim_events.reborrow(),
+                            ),
+                        };
+
+                        let retain = ret.map(|ret| ret.retain).unwrap_or(false);
+                        if !retain {
+                            to_remove.push(entity);
+                        }
+                    }
+                });
+            },
+        );
     });
+
+    for entity in to_remove.drain(..) {
+        world.entity_mut(entity).remove::<TweenAnim>();
+    }
+
+    world.flush();
 }
 
 #[cfg(test)]
@@ -97,8 +184,7 @@ mod tests {
 
         env.step_all(Duration::ZERO);
 
-        let animator = env.animator();
-        let anim = animator.get(env.tween_id).unwrap();
+        let anim = env.anim().unwrap();
         assert_eq!(anim.playback_state, PlaybackState::Playing);
         assert_eq!(anim.tweenable.cycles_completed(), 0);
         let transform = env.component_mut();
@@ -108,8 +194,7 @@ mod tests {
         env.step_all(Duration::from_millis(500));
 
         assert_eq!(env.event_count::<CycleCompletedEvent>(), 0);
-        let animator = env.animator();
-        let anim = animator.get(env.tween_id).unwrap();
+        let anim = env.anim().unwrap();
         assert_eq!(anim.playback_state, PlaybackState::Playing);
         assert_eq!(anim.tweenable.cycles_completed(), 0);
         let transform = env.component_mut();
@@ -123,8 +208,8 @@ mod tests {
         // so the component is changed.
 
         assert_eq!(env.event_count::<CycleCompletedEvent>(), 1);
-        let animator = env.animator();
-        assert!(animator.get(env.tween_id).is_none()); // done and deleted
+        let anim = env.anim();
+        assert!(anim.is_none()); // done and deleted
         let transform = env.component_mut();
         assert!(transform.is_changed());
         assert!(transform.translation.abs_diff_eq(Vec3::ONE, 1e-5));
@@ -133,8 +218,8 @@ mod tests {
         env.step_all(Duration::from_millis(100));
 
         assert_eq!(env.event_count::<CycleCompletedEvent>(), 0);
-        let animator = env.animator();
-        assert!(animator.get(env.tween_id).is_none()); // done and deleted
+        let anim = env.anim();
+        assert!(anim.is_none()); // done and deleted
         let transform = env.component_mut();
         assert!(!transform.is_changed());
         assert!(transform.translation.abs_diff_eq(Vec3::ONE, 1e-5));
@@ -182,8 +267,7 @@ mod tests {
         // Mutation disabled
         env.step_all(Duration::ZERO);
 
-        let animator = env.animator();
-        let anim = animator.get(env.tween_id).unwrap();
+        let anim = env.anim().unwrap();
         assert_eq!(anim.playback_state, PlaybackState::Playing);
         assert_eq!(anim.tweenable.cycles_completed(), 0);
         let component = env.component_mut();
@@ -193,8 +277,7 @@ mod tests {
         // Zero-length tick should not change the component
         env.step_all(Duration::ZERO);
 
-        let animator = env.animator();
-        let anim = animator.get(env.tween_id).unwrap();
+        let anim = env.anim().unwrap();
         assert_eq!(anim.playback_state, PlaybackState::Playing);
         assert_eq!(anim.tweenable.cycles_completed(), 0);
         let component = env.component_mut();
@@ -204,8 +287,7 @@ mod tests {
         // New tick, but lens mutation still disabled
         env.step_all(Duration::from_millis(200));
 
-        let animator = env.animator();
-        let anim = animator.get(env.tween_id).unwrap();
+        let anim = env.anim().unwrap();
         assert_eq!(anim.playback_state, PlaybackState::Playing);
         assert_eq!(anim.tweenable.cycles_completed(), 0);
         let component = env.component_mut();
@@ -220,8 +302,7 @@ mod tests {
         // increment the component's value.
         env.step_all(Duration::ZERO);
 
-        let animator = env.animator();
-        let anim = animator.get(env.tween_id).unwrap();
+        let anim = env.anim().unwrap();
         assert_eq!(anim.playback_state, PlaybackState::Playing);
         assert_eq!(anim.tweenable.cycles_completed(), 0);
         let component = env.component_mut();
@@ -234,8 +315,7 @@ mod tests {
         // value == 0.7
         env.step_all(Duration::from_millis(300));
 
-        let animator = env.animator();
-        let anim = animator.get(env.tween_id).unwrap();
+        let anim = env.anim().unwrap();
         assert_eq!(anim.playback_state, PlaybackState::Playing);
         assert_eq!(anim.tweenable.cycles_completed(), 0);
         let component = env.component_mut();
