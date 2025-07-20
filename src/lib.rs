@@ -623,6 +623,45 @@ pub trait EntityWorldMutTweeningExtensions<'a> {
     where
         T: Tweenable + 'static;
 
+    /// Queue the given [`Tweenable`] to animate a target asset.
+    ///
+    /// This inserts a new [`TweenAnim`] on the current entity, which
+    /// animates a given target asset. The asset type to animate  is validated
+    /// against the one on the type of the lens stored inside the
+    /// tweenable (see [`Tweenable::type_id()`]).
+    ///
+    /// # Panics
+    ///
+    /// This call panics, or queue a command which later panics, if the type of
+    /// the asset `A` is different from the type the `tweenable` is referencing
+    /// through its [`Lens`].
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use bevy::{prelude::*, ecs::world::CommandQueue};
+    /// # use bevy_tweening::{*, lens::TransformPositionLens};
+    /// # use std::time::Duration;
+    /// # fn make_tween() -> Tween { unimplemented!() }
+    /// #[derive(Asset)]
+    /// struct MyAsset;
+    ///
+    /// #[derive(Component)]
+    /// struct MyAssetRef(pub Handle<MyAsset>);
+    ///
+    /// fn my_system(mut commands: Commands, asset_server: Res<AssetServer>) {
+    ///     let handle: Handle<MyAsset> = asset_server.load("my_asset");
+    ///     let tween = make_tween();
+    ///     // Spawn (MyAssetRef, TweenAnim) on a new entity
+    ///     commands
+    ///         .spawn(MyAssetRef(handle.clone()))
+    ///         .tween_asset(&handle, tween);
+    /// }
+    /// ```
+    fn tween_asset<A: Asset, T>(&mut self, id: impl Into<AssetId<A>>, tweenable: T) -> &mut Self
+    where
+        T: Tweenable + 'static;
+
     /// Queue a new tween animation to move the current entity.
     ///
     /// The entity must have a [`Transform`] component. The tween animation will
@@ -805,6 +844,16 @@ impl<'a> EntityWorldMutTweeningExtensions<'a> for EntityCommands<'a> {
         })
     }
 
+    fn tween_asset<A: Asset, T>(&mut self, id: impl Into<AssetId<A>>, tweenable: T) -> &mut Self
+    where
+        T: Tweenable + 'static,
+    {
+        let id = id.into();
+        self.queue(move |mut entity: EntityWorldMut| {
+            entity.tween_asset(id, tweenable);
+        })
+    }
+
     #[inline]
     fn move_to(
         &mut self,
@@ -890,6 +939,29 @@ impl<'a> EntityWorldMutTweeningExtensions<'a> for EntityWorldMut<'a> {
         let target = ComponentAnimTarget {
             component_id,
             entity,
+        };
+        self.insert(TweenAnim::new(target, tweenable));
+        self
+    }
+
+    fn tween_asset<A: Asset, T>(&mut self, id: impl Into<AssetId<A>>, tweenable: T) -> &mut Self
+    where
+        T: Tweenable + 'static,
+    {
+        let asset_id = id.into().untyped();
+        let type_id = tweenable.type_id().unwrap();
+        assert_eq!(type_id, TypeId::of::<A>());
+
+        self.world_scope(|world| {
+            world.resource_scope(|world: &mut World, mut resolver: Mut<TweenResolver>| {
+                resolver.register_scoped_for::<A>(world.components());
+            });
+        });
+
+        let resource_id = self.world().resource_id::<Assets<A>>().unwrap();
+        let target = AssetAnimTarget {
+            resource_id,
+            asset_id,
         };
         self.insert(TweenAnim::new(target, tweenable));
         self

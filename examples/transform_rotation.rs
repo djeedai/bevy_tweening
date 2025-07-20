@@ -121,12 +121,12 @@ fn setup(mut commands: Commands) {
     }
 }
 
-fn update_animation_speed(options: Res<Options>, mut animators: ResMut<TweenAnimator>) {
+fn update_animation_speed(options: Res<Options>, mut q_anims: Query<&mut TweenAnim>) {
     if !options.is_changed() {
         return;
     }
 
-    for (_id, anim) in animators.iter_mut() {
+    for mut anim in &mut q_anims {
         anim.speed = options.speed;
     }
 }
