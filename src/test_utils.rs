@@ -148,7 +148,7 @@ impl<T: Component<Mutability = Mutable> + Default> TestEnv<T> {
         let target = ComponentAnimTarget::new::<T>(world.components(), entity).unwrap();
         world
             .entity_mut(entity)
-            .insert(TweenAnim::new(target.into(), Box::new(tweenable)));
+            .insert(TweenAnim::new(target, tweenable));
 
         Self {
             world,

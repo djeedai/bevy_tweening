@@ -33,20 +33,24 @@ struct BlueProgress;
 struct RedSprite {
     /// ID of the tween making the red sprite move along a path around the
     /// screen.
-    pub path_tween_id: Entity,
+    #[allow(unused)]
+    pub path_id: Entity,
     /// ID of the tween making the red sprite rotate on itself back and forth.
     #[allow(unused)]
-    pub rotate_tween_id: Entity,
+    pub rotate_id: Entity,
 }
 
 #[derive(Component)]
 struct BlueSprite {
     /// ID of the tween making the blue sprite move along a path, then rotate.
-    pub move_and_rotate_tween_id: Entity,
+    pub move_and_rotate_id: Entity,
     /// ID of the tween making the blue sprite scale.
     #[allow(unused)]
-    pub scale_tween_id: Entity,
+    pub scale_id: Entity,
 }
+
+#[derive(Component)]
+struct RedAnimMarker;
 
 #[derive(Component)]
 struct ProgressValue;
@@ -55,7 +59,6 @@ fn setup(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     components: &Components,
-    mut animator: ResMut<TweenAnimator>,
 ) -> Result<()> {
     commands.spawn(Camera2d::default());
 
@@ -151,8 +154,6 @@ fn setup(
                     end: pair[1] - center,
                 },
             )
-            // Get an event after each segment
-            //.with_completed_event(index as u64),
         }));
 
         // Rotate over self, forever. This will continue even after the move along path
@@ -169,14 +170,24 @@ fn setup(
         .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
         // Because we want to monitor the progress of the animations, we need to fetch
-        // their Entity. This requires inserting them manually in the TweenAnimator
-        // resource, instead of using the extensions of EntityCommands.
-        let path_tween_id = animator.add_component(components, entity, anim_move_along_path)?;
-        let rotate_tween_id =
-            animator.add_component(components, entity, anim_rotate_back_and_forth)?;
+        // their Entity. There's essentially two possibilities for this.
+        // 1) Spawn a new entity, which here we augment with a marker component to
+        //    identify it later, and call tween_target() to spawn the TweenAnim an
+        //    automatically make it target the given entity.
+        let path_tween_id = commands
+            // Spawns (RedAnimMarker, TweenAnim) on same entity
+            .spawn(RedAnimMarker)
+            .tween_target(entity, anim_move_along_path)
+            .id();
+        // 2) Alternatively, we can manually create the TweenAnim with for_component(),
+        //    and insert it like any other component.
+        let anim = TweenAnim::for_component(components, entity, anim_rotate_back_and_forth)?;
+        let rotate_tween_id = commands.spawn(anim).id();
+        // Then we save both entities into RedSprite. We don't really need the first one
+        // since we have the RedAnimMarker component too.
         commands.entity(entity).insert(RedSprite {
-            path_tween_id,
-            rotate_tween_id,
+            path_id: path_tween_id,
+            rotate_id: rotate_tween_id,
         });
     }
 
@@ -218,7 +229,7 @@ fn setup(
                 start: Vec3::new(-200., 100., 0.),
                 end: Vec3::new(200., 100., 0.),
             },
-        ); //.with_completed_event(99); // Get an event once move completed
+        );
 
         let tween_delay = Delay::new(move_duration);
 
@@ -249,11 +260,11 @@ fn setup(
         // Because we want to monitor the progress of the animations, we need to fetch
         // their Entity. This requires inserting them manually in the TweenAnimator
         // resource, instead of using the extensions of EntityCommands.
-        let move_and_rotate_tween_id = animator.add_component(components, entity, seq1)?;
-        let scale_tween_id = animator.add_component(components, entity, seq2)?;
+        let move_and_rotate_id = commands.spawn_empty().tween_target(entity, seq1).id();
+        let scale_id = commands.spawn_empty().tween_target(entity, seq2).id();
         commands.entity(entity).insert(BlueSprite {
-            move_and_rotate_tween_id,
-            scale_tween_id,
+            move_and_rotate_id,
+            scale_id,
         });
     }
 
@@ -261,23 +272,23 @@ fn setup(
 }
 
 fn update_text(
-    animator: Res<TweenAnimator>,
     red_text_children: Single<&Children, With<RedProgress>>,
     blue_text_children: Single<&Children, With<BlueProgress>>,
     mut q_textspans: Query<&mut TextSpan, With<ProgressValue>>,
-    q_anim_red: Query<&RedSprite>,
+    q_tween_anims: Query<&TweenAnim>,
+    q_anim_red: Single<Option<&TweenAnim>, With<RedAnimMarker>>,
     q_anim_blue: Query<&BlueSprite>,
     mut q_event_completed: EventReader<CycleCompletedEvent>,
 ) {
-    let anim_red = q_anim_red.single().unwrap();
-    let progress_red = if let Some(anim) = animator.get(anim_red.path_tween_id) {
+    let anim_red = *q_anim_red;
+    let progress_red = if let Some(anim) = anim_red {
         anim.tweenable().cycle_fraction()
     } else {
         1.
     };
 
     let anim_blue = q_anim_blue.single().unwrap();
-    let progress_blue = if let Some(anim) = animator.get(anim_blue.move_and_rotate_tween_id) {
+    let progress_blue = if let Ok(anim) = q_tween_anims.get(anim_blue.move_and_rotate_id) {
         anim.tweenable().cycle_fraction()
     } else {
         1.

@@ -554,12 +554,13 @@ impl std::ops::Not for PlaybackDirection {
 /// build time. To avoid a panic, prefer manually queuing a new tweenable
 /// animation through the [`TweenAnimator`].
 pub trait EntityWorldMutTweeningExtensions<'a> {
-    /// Queue the given [`Tweenable`].
+    /// Queue the given [`Tweenable`] to animate the current entity.
     ///
-    /// This calls [`TweenAnimator::add_component()`] on the current entity,
-    /// deriving the proper component to animate based on the type of the
-    /// lens stored inside the tweenable (see [`Tweenable::type_id()`]). That
-    /// component must exists on the entity.
+    /// This inserts a new [`TweenAnim`] on a newly spawned entity, which
+    /// animates the current entity. The proper component to animate on the
+    /// current entity is based on the type of the lens stored inside the
+    /// tweenable (see [`Tweenable::type_id()`]). That component must exists
+    /// on the current entity.
     ///
     /// # Example
     ///
@@ -578,9 +579,47 @@ pub trait EntityWorldMutTweeningExtensions<'a> {
     ///         end: Vec3::new(3.5, 0., 0.),
     ///     },
     /// );
+    /// // Spawn Transform on a first entity, and TweenAnim on a second one,
+    /// // animating the Transform one.
     /// commands.spawn(Transform::default()).tween(tween);
     /// ```
     fn tween<T>(&mut self, tweenable: T) -> &mut Self
+    where
+        T: Tweenable + 'static;
+
+    /// Queue the given [`Tweenable`] to animate a target entity.
+    ///
+    /// This inserts a new [`TweenAnim`] on the current entity, which
+    /// animates a given target entity. The proper component to animate on the
+    /// target entity is based on the type of the lens stored inside the
+    /// tweenable (see [`Tweenable::type_id()`]). That component must exists
+    /// on the target entity.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use bevy::{prelude::*, ecs::world::CommandQueue};
+    /// # use bevy_tweening::{*, lens::TransformPositionLens};
+    /// # use std::time::Duration;
+    /// # let mut queue = CommandQueue::default();
+    /// # let mut world = World::default();
+    /// # let mut commands = Commands::new(&mut queue, &mut world);
+    /// #[derive(Component)]
+    /// struct AnimMarker;
+    ///
+    /// let tween = Tween::new(
+    ///     EaseFunction::QuadraticIn,
+    ///     Duration::from_secs(1),
+    ///     TransformPositionLens {
+    ///         start: Vec3::ZERO,
+    ///         end: Vec3::new(3.5, 0., 0.),
+    ///     },
+    /// );
+    /// let target = commands.spawn(Transform::default()).id();
+    /// // Spawn (AnimMarker, TweenAnim) on a new entity
+    /// commands.spawn(AnimMarker).tween_target(target, tween);
+    /// ```
+    fn tween_target<T>(&mut self, entity: Entity, tweenable: T) -> &mut Self
     where
         T: Tweenable + 'static;
 
@@ -757,6 +796,16 @@ impl<'a> EntityWorldMutTweeningExtensions<'a> for EntityCommands<'a> {
     }
 
     #[inline]
+    fn tween_target<T>(&mut self, entity: Entity, tweenable: T) -> &mut EntityCommands<'a>
+    where
+        T: Tweenable + 'static,
+    {
+        self.queue(move |mut this: EntityWorldMut| {
+            this.tween_target(entity, tweenable);
+        })
+    }
+
+    #[inline]
     fn move_to(
         &mut self,
         end: Vec3,
@@ -823,7 +872,16 @@ impl<'a> EntityWorldMutTargetExtensions<'a> for EntityWorldMut<'a> {
 }
 
 impl<'a> EntityWorldMutTweeningExtensions<'a> for EntityWorldMut<'a> {
+    #[inline]
     fn tween<T>(&mut self, tweenable: T) -> &mut Self
+    where
+        T: Tweenable + 'static,
+    {
+        let entity = self.id();
+        self.tween_target(entity, tweenable)
+    }
+
+    fn tween_target<T>(&mut self, entity: Entity, tweenable: T) -> &mut Self
     where
         T: Tweenable + 'static,
     {
@@ -831,11 +889,9 @@ impl<'a> EntityWorldMutTweeningExtensions<'a> for EntityWorldMut<'a> {
         let component_id = self.world().components().get_id(type_id).unwrap();
         let target = ComponentAnimTarget {
             component_id,
-            entity: self.id(),
+            entity,
         };
-        self.world_scope(|world: &mut World| {
-            world.spawn(TweenAnim::new(target, tweenable));
-        });
+        self.insert(TweenAnim::new(target, tweenable));
         self
     }
 
@@ -1381,6 +1437,52 @@ impl TweenAnim {
             destroy_on_completion: true,
             tween_state: TweenState::Active,
         }
+    }
+
+    /// Create a new tweenable animation for a specific component target.
+    ///
+    /// This is a convenience helper which builds a [`ComponentAnimTarget`] then
+    /// calls [`new()`] with it. It's often useful in cases where you want to
+    /// manually insert the [`TweenAnim`] component to save its [`Entity`] so
+    /// you can reference it later, typically to control playback. Otherwise,
+    /// prefer using [`.tween()`] or similar to automatically create the
+    /// component and insert it.
+    ///
+    /// Note that the target component type is automically derived from the
+    /// input `tweenable`.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// # use std::any::TypeId;
+    /// # use bevy::{prelude::*, ecs::component::Components};
+    /// # use bevy_tweening::*;
+    /// # fn make_tween() -> Tween { unimplemented!() }
+    /// fn my_system(mut commands: Commands, components: &Components) -> Result<(), TweeningError> {
+    ///     // Get the entity holding the target component to animate. It doesn't need
+    ///     // to be spawned here, it only needs to exist.
+    ///     let target_entity = commands.spawn(Transform::default()).id();
+    ///     // Create the animation
+    ///     let tween = make_tween();
+    ///     let anim = TweenAnim::for_component(components, target_entity, tween)?;
+    ///     // Spawn the TweenAnim component on a new, separate Entity, and record that
+    ///     // Entity for later reference.
+    ///     let anim_entity = commands.spawn(anim).id();
+    ///     // [...]
+    ///     Ok(())
+    /// }
+    /// ```
+    ///
+    /// [`new()`]: Self::new
+    /// [`.tween()`]: crate::EntityWorldMutTweeningExtensions::tween
+    pub fn for_component(
+        components: &Components,
+        target: Entity,
+        tweenable: impl Tweenable + 'static,
+    ) -> Result<Self, TweeningError> {
+        let type_id = tweenable.type_id().ok_or(TweeningError::UntypedTweenable)?;
+        let target = ComponentAnimTarget::new_untyped(components, type_id, target)?;
+        Ok(Self::new(target, tweenable))
     }
 
     pub(crate) fn step(
