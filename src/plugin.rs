@@ -53,13 +53,13 @@ pub(crate) fn animator_system(world: &mut World) {
             |world, mut cycle_events: Mut<Events<CycleCompletedEvent>>| {
                 world.resource_scope(|world, mut anim_events: Mut<Events<AnimCompletedEvent>>| {
                     let anim_comp_id = world.component_id::<TweenAnim>().unwrap();
-                    for (entity, target) in anims.drain(..) {
-                        let ret = match target {
+                    for (anim_entity, anim_target) in anims.drain(..) {
+                        let ret = match anim_target {
                             AnimTarget::Component(comp_target) => {
                                 let (mut entities, commands) = world.entities_and_commands();
-                                if entity == comp_target.entity {
+                                if anim_entity == comp_target.entity {
                                     // The TweenAnim animates another component on the same entity
-                                    let Ok([mut ent]) = entities.get_mut([entity]) else {
+                                    let Ok([mut ent]) = entities.get_mut([anim_entity]) else {
                                         continue;
                                     };
                                     let Ok([anim, target]) =
@@ -73,7 +73,7 @@ pub(crate) fn animator_system(world: &mut World) {
                                     let mut anim = unsafe { anim.with_type::<TweenAnim>() };
                                     anim.step(
                                         commands,
-                                        entity,
+                                        anim_entity,
                                         delta_time,
                                         target,
                                         cycle_events.reborrow(),
@@ -82,7 +82,7 @@ pub(crate) fn animator_system(world: &mut World) {
                                 } else {
                                     // The TweenAnim animates a component on a different entity
                                     let Ok([mut anim, mut target]) =
-                                        entities.get_mut([entity, comp_target.entity])
+                                        entities.get_mut([anim_entity, comp_target.entity])
                                     else {
                                         continue;
                                     };
@@ -95,7 +95,7 @@ pub(crate) fn animator_system(world: &mut World) {
                                     };
                                     anim.step(
                                         commands,
-                                        entity,
+                                        anim_entity,
                                         delta_time,
                                         target,
                                         cycle_events.reborrow(),
@@ -106,7 +106,7 @@ pub(crate) fn animator_system(world: &mut World) {
                             AnimTarget::Asset(asset_target) => asset_resolver.resolve_scope(
                                 world,
                                 &asset_target,
-                                entity,
+                                anim_entity,
                                 delta_time,
                                 cycle_events.reborrow(),
                                 anim_events.reborrow(),
@@ -115,7 +115,7 @@ pub(crate) fn animator_system(world: &mut World) {
 
                         let retain = ret.map(|ret| ret.retain).unwrap_or(false);
                         if !retain {
-                            to_remove.push(entity);
+                            to_remove.push(anim_entity);
                         }
                     }
                 });

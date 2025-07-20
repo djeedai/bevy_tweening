@@ -10,19 +10,25 @@ const NORMAL_COLOR: Color = Color::srgba(162. / 255., 226. / 255., 95. / 255., 1
 const HOVER_COLOR: Color = Color::Srgba(AZURE);
 const CLICK_COLOR: Color = Color::Srgba(ALICE_BLUE);
 const TEXT_COLOR: Color = Color::srgba(83. / 255., 163. / 255., 130. / 255., 1.);
-const INIT_TRANSITION_DONE: u64 = 1;
 
-/// The menu in this example has two set of animations:
-/// one for appearance, one for interaction. Interaction animations
-/// are only enabled after appearance animations finished.
+#[derive(Component)]
+struct InitialAnimMarker;
+
+/// The menu in this example has two set of animations: one for appearance, one
+/// for interaction. Interaction animations are only enabled after appearance
+/// animations finished.
 ///
 /// The logic is handled as:
-/// 1. Appearance animations send a `TweenComplete` event with
-/// `INIT_TRANSITION_DONE` 2. The `enable_interaction_after_initial_animation`
-/// system adds a label component `InitTransitionDone` to any button component
-/// which completed its appearance animation, to mark it as active.
-/// 3. The `interaction` system only queries buttons with a `InitTransitionDone`
-/// marker.
+/// 1. Appearance animations send an `AnimCompletedEvent`
+/// 2. The `enable_interaction_after_initial_animation()` system adds a marker
+///    component `InitTransitionDone` to any button component which completed
+///    its appearance animation, to mark it as active.
+/// 3. The `interaction()` system only queries buttons with a
+///    `InitTransitionDone` marker.
+///
+/// For simplicity step 2. is handled via an observer. Note that the observer is
+/// on the Entity which owns the TweenAnim, and not on the one owning the
+/// animated component.
 fn main() {
     App::default()
         .add_plugins((
@@ -43,7 +49,6 @@ fn main() {
         ))
         .add_systems(Update, utils::close_on_esc)
         .add_systems(Update, interaction)
-        .add_systems(Update, enable_interaction_after_initial_animation)
         .add_systems(Startup, setup)
         .run();
 }
@@ -92,41 +97,47 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 )
                 .with_completed_event(true);
 
-                let mut ec = container.spawn((
-                    Name::new(format!("button:{}", text)),
-                    Button,
-                    Node {
-                        min_width: Val::Px(300.),
-                        min_height: Val::Px(80.),
-                        margin: UiRect::all(Val::Px(8.)),
-                        padding: UiRect::all(Val::Px(8.)),
-                        align_content: AlignContent::Center,
-                        align_items: AlignItems::Center,
-                        align_self: AlignSelf::Center,
-                        justify_content: JustifyContent::Center,
-                        ..default()
-                    },
-                    BackgroundColor(NORMAL_COLOR),
-                    Transform::from_scale(Vec3::splat(0.01)),
-                    label,
-                    children![(
-                        Text::new(text.to_string()),
-                        TextFont {
-                            font: font.clone(),
-                            font_size: 48.0,
+                let target = container
+                    .spawn((
+                        Name::new(format!("button:{}", text)),
+                        Button,
+                        Node {
+                            min_width: Val::Px(300.),
+                            min_height: Val::Px(80.),
+                            margin: UiRect::all(Val::Px(8.)),
+                            padding: UiRect::all(Val::Px(8.)),
+                            align_content: AlignContent::Center,
+                            align_items: AlignItems::Center,
+                            align_self: AlignSelf::Center,
+                            justify_content: JustifyContent::Center,
                             ..default()
                         },
-                        TextColor(TEXT_COLOR),
-                        TextLayout::new_with_justify(JustifyText::Center),
-                    )],
-                ));
+                        BackgroundColor(NORMAL_COLOR),
+                        Transform::from_scale(Vec3::splat(0.01)),
+                        label,
+                        children![(
+                            Text::new(text.to_string()),
+                            TextFont {
+                                font: font.clone(),
+                                font_size: 48.0,
+                                ..default()
+                            },
+                            TextColor(TEXT_COLOR),
+                            TextLayout::new_with_justify(JustifyText::Center),
+                        )],
+                    ))
+                    .id();
 
-                if start_time_ms > 0 {
+                let tweenable = if start_time_ms > 0 {
                     let delay = Delay::new(Duration::from_millis(start_time_ms));
-                    ec.tween(delay.then(tween_scale));
+                    delay.then(tween_scale).into_boxed()
                 } else {
-                    ec.tween(tween_scale);
-                }
+                    tween_scale.into_boxed()
+                };
+                container
+                    .spawn(InitialAnimMarker)
+                    .observe(enable_interaction_after_initial_animation)
+                    .tween_target(target, tweenable);
 
                 start_time_ms += 500;
             }
@@ -134,15 +145,22 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 }
 
 fn enable_interaction_after_initial_animation(
+    trigger: Trigger<AnimCompletedEvent>,
     mut commands: Commands,
-    mut reader: EventReader<CycleCompletedEvent>,
+    q_names: Query<&Name>,
 ) {
-    for event in reader.read() {
-        if let AnimTarget::Component(comp_target) = &event.target {
-            commands
-                .entity(comp_target.entity)
-                .insert(InitTransitionDone);
-        }
+    if let AnimTarget::Component(comp_target) = &trigger.target {
+        // Resolve the Entity to a friendly name through the Name component. This is
+        // optional, just to make the message nicer.
+        let name = q_names
+            .get(comp_target.entity)
+            .ok()
+            .map(Into::into)
+            .unwrap_or(format!("{:?}", comp_target.entity));
+        println!("Button on entity {name} completed initial animation, activating...",);
+        commands
+            .entity(comp_target.entity)
+            .insert(InitTransitionDone);
     }
 }
 

@@ -56,6 +56,24 @@ use crate::{AnimTarget, EaseMethod, Lens, PlaybackDirection, RepeatCount, Repeat
 /// ```
 pub type BoxedTweenable = Box<dyn Tweenable + 'static>;
 
+/// Helper trait to accept boxed and non-boxed tweenables in various functions.
+pub trait IntoBoxedTweenable {
+    /// Convert to a [`BoxedTweenable`].
+    fn into_boxed(self) -> BoxedTweenable;
+}
+
+impl IntoBoxedTweenable for BoxedTweenable {
+    fn into_boxed(self) -> BoxedTweenable {
+        self
+    }
+}
+
+impl<T: Tweenable + 'static> IntoBoxedTweenable for T {
+    fn into_boxed(self) -> BoxedTweenable {
+        Box::new(self)
+    }
+}
+
 /// Playback state of a [`Tweenable`].
 ///
 /// This is returned by [`Tweenable::step()`] to allow the caller to execute

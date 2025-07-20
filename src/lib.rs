@@ -285,8 +285,8 @@ pub use lens::Lens;
 pub use plugin::{AnimationSystem, TweeningPlugin};
 use thiserror::Error;
 pub use tweenable::{
-    BoxedTweenable, CycleCompletedEvent, Delay, Sequence, TotalDuration, Tween, TweenState,
-    Tweenable,
+    BoxedTweenable, CycleCompletedEvent, Delay, IntoBoxedTweenable, Sequence, TotalDuration, Tween,
+    TweenState, Tweenable,
 };
 
 pub mod lens;
@@ -583,9 +583,7 @@ pub trait EntityWorldMutTweeningExtensions<'a> {
     /// // animating the Transform one.
     /// commands.spawn(Transform::default()).tween(tween);
     /// ```
-    fn tween<T>(&mut self, tweenable: T) -> &mut Self
-    where
-        T: Tweenable + 'static;
+    fn tween(&mut self, tweenable: impl IntoBoxedTweenable) -> &mut Self;
 
     /// Queue the given [`Tweenable`] to animate a target entity.
     ///
@@ -619,9 +617,7 @@ pub trait EntityWorldMutTweeningExtensions<'a> {
     /// // Spawn (AnimMarker, TweenAnim) on a new entity
     /// commands.spawn(AnimMarker).tween_target(target, tween);
     /// ```
-    fn tween_target<T>(&mut self, entity: Entity, tweenable: T) -> &mut Self
-    where
-        T: Tweenable + 'static;
+    fn tween_target(&mut self, entity: Entity, tweenable: impl IntoBoxedTweenable) -> &mut Self;
 
     /// Queue the given [`Tweenable`] to animate a target asset.
     ///
@@ -658,9 +654,11 @@ pub trait EntityWorldMutTweeningExtensions<'a> {
     ///         .tween_asset(&handle, tween);
     /// }
     /// ```
-    fn tween_asset<A: Asset, T>(&mut self, id: impl Into<AssetId<A>>, tweenable: T) -> &mut Self
-    where
-        T: Tweenable + 'static;
+    fn tween_asset<A: Asset>(
+        &mut self,
+        id: impl Into<AssetId<A>>,
+        tweenable: impl IntoBoxedTweenable,
+    ) -> &mut Self;
 
     /// Queue a new tween animation to move the current entity.
     ///
@@ -825,30 +823,32 @@ pub trait EntityWorldMutTweeningExtensions<'a> {
 
 impl<'a> EntityWorldMutTweeningExtensions<'a> for EntityCommands<'a> {
     #[inline]
-    fn tween<T>(&mut self, tweenable: T) -> &mut EntityCommands<'a>
-    where
-        T: Tweenable + 'static,
-    {
+    fn tween(&mut self, tweenable: impl IntoBoxedTweenable) -> &mut EntityCommands<'a> {
+        let tweenable = tweenable.into_boxed();
         self.queue(move |mut entity: EntityWorldMut| {
             entity.tween(tweenable);
         })
     }
 
     #[inline]
-    fn tween_target<T>(&mut self, entity: Entity, tweenable: T) -> &mut EntityCommands<'a>
-    where
-        T: Tweenable + 'static,
-    {
+    fn tween_target(
+        &mut self,
+        entity: Entity,
+        tweenable: impl IntoBoxedTweenable,
+    ) -> &mut EntityCommands<'a> {
+        let tweenable = tweenable.into_boxed();
         self.queue(move |mut this: EntityWorldMut| {
             this.tween_target(entity, tweenable);
         })
     }
 
-    fn tween_asset<A: Asset, T>(&mut self, id: impl Into<AssetId<A>>, tweenable: T) -> &mut Self
-    where
-        T: Tweenable + 'static,
-    {
+    fn tween_asset<A: Asset>(
+        &mut self,
+        id: impl Into<AssetId<A>>,
+        tweenable: impl IntoBoxedTweenable,
+    ) -> &mut Self {
         let id = id.into();
+        let tweenable = tweenable.into_boxed();
         self.queue(move |mut entity: EntityWorldMut| {
             entity.tween_asset(id, tweenable);
         })
@@ -922,18 +922,13 @@ impl<'a> EntityWorldMutTargetExtensions<'a> for EntityWorldMut<'a> {
 
 impl<'a> EntityWorldMutTweeningExtensions<'a> for EntityWorldMut<'a> {
     #[inline]
-    fn tween<T>(&mut self, tweenable: T) -> &mut Self
-    where
-        T: Tweenable + 'static,
-    {
+    fn tween(&mut self, tweenable: impl IntoBoxedTweenable) -> &mut Self {
         let entity = self.id();
         self.tween_target(entity, tweenable)
     }
 
-    fn tween_target<T>(&mut self, entity: Entity, tweenable: T) -> &mut Self
-    where
-        T: Tweenable + 'static,
-    {
+    fn tween_target(&mut self, entity: Entity, tweenable: impl IntoBoxedTweenable) -> &mut Self {
+        let tweenable = tweenable.into_boxed();
         let type_id = tweenable.type_id().unwrap();
         let component_id = self.world().components().get_id(type_id).unwrap();
         let target = ComponentAnimTarget {
@@ -944,10 +939,12 @@ impl<'a> EntityWorldMutTweeningExtensions<'a> for EntityWorldMut<'a> {
         self
     }
 
-    fn tween_asset<A: Asset, T>(&mut self, id: impl Into<AssetId<A>>, tweenable: T) -> &mut Self
-    where
-        T: Tweenable + 'static,
-    {
+    fn tween_asset<A: Asset>(
+        &mut self,
+        id: impl Into<AssetId<A>>,
+        tweenable: impl IntoBoxedTweenable,
+    ) -> &mut Self {
+        let tweenable = tweenable.into_boxed();
         let asset_id = id.into().untyped();
         let type_id = tweenable.type_id().unwrap();
         assert_eq!(type_id, TypeId::of::<A>());
@@ -1023,21 +1020,19 @@ impl<'a> EntityWorldMutTweeningExtensions<'a> for EntityWorldMut<'a> {
 /// Event raised when a [`TweenAnim`] completed.
 #[derive(Copy, Clone, Event)]
 pub struct AnimCompletedEvent {
-    /// The ID of the tween animation which completed.
+    /// The entity owning the [`TweenAnim`] which completed.
     ///
-    /// Note that commonly the [`TweenAnim`] is pruned out of the
-    /// [`TweenAnimator`] on completion, so can't be queried anymore with
-    /// this ID. However animation IDs are unique, so this can be used to
-    /// identify the tweenable animation from an ID stored by the user. You
-    /// can prevent a completed animation from being automatically destroyed by
+    /// Note that commonly the [`TweenAnim`] is despawned on completion, so
+    /// can't be queried anymore with this entity. You can prevent a completed
+    /// animation from being automatically destroyed by
     /// setting [`TweenAnim::destroy_on_completion`] to `false`.
-    pub id: Entity,
+    pub anim_entity: Entity,
     /// The animation target.
     ///
     /// This is provided both as a convenience for [`TweenAnim`]s not destroyed
-    /// from the [`TweenAnimator`] on completion, and because for those
-    /// animations which are destroyed on completion the information is not
-    /// available anymore when this event is received.
+    /// on completion, and because for those animations which are destroyed
+    /// on completion the information is not available anymore when this
+    /// event is received.
     pub target: AnimTarget,
 }
 
@@ -1496,14 +1491,15 @@ impl TweenAnim {
     /// tweenables as part of a [`Sequence`], provided there's at least one
     /// other typed tweenable in the sequence.
     #[inline]
-    pub fn new(target: impl Into<AnimTarget>, tweenable: impl Tweenable + 'static) -> Self {
+    pub fn new(target: impl Into<AnimTarget>, tweenable: impl IntoBoxedTweenable) -> Self {
+        let tweenable = tweenable.into_boxed();
         assert!(
             tweenable.type_id().is_some(),
             "The top-level Tweenable of a TweenAnim must be typed (type_id() returns Some)."
         );
         Self {
             target: target.into(),
-            tweenable: Box::new(tweenable),
+            tweenable,
             playback_state: PlaybackState::Playing,
             speed: 1.,
             destroy_on_completion: true,
@@ -1560,7 +1556,7 @@ impl TweenAnim {
     pub(crate) fn step(
         &mut self,
         mut commands: Commands,
-        tween_id: Entity,
+        anim_entity: Entity,
         delta_time: Duration,
         mut mut_untyped: MutUntyped,
         mut events: Mut<Events<CycleCompletedEvent>>,
@@ -1596,18 +1592,14 @@ impl TweenAnim {
         let delta_time = delta_time.mul_f64(self.speed);
 
         // Step the tweenable animation
-        let entity = self.target.as_component().map(|comp| comp.entity);
         let mut notify_completed = || {
-            completed_events.push((
-                CycleCompletedEvent {
-                    id: tween_id,
-                    target: self.target,
-                },
-                entity,
-            ));
+            completed_events.push(CycleCompletedEvent {
+                id: anim_entity,
+                target: self.target,
+            });
         };
         let state = self.tweenable.step(
-            tween_id,
+            anim_entity,
             delta_time,
             mut_untyped.reborrow(),
             &mut notify_completed,
@@ -1619,40 +1611,28 @@ impl TweenAnim {
         if !completed_events.is_empty() {
             sent_commands = true;
 
-            for (event, entity) in completed_events.drain(..) {
+            for event in completed_events.drain(..) {
                 // Send buffered event
                 events.send(event);
 
                 // Trigger all entity-scoped observers
-                if let Some(entity) = entity {
-                    commands.trigger_targets(event, entity);
-                }
+                commands.trigger_targets(event, anim_entity);
             }
         }
 
-        // // Execute one-shot systems
-        // for sys_id in queued_systems.drain(..) {
-        //     let _ = world.run_system(sys_id);
-        // }
-
         // Raise animation completed event
         if state == TweenState::Completed {
-            let event = AnimCompletedEvent {
-                id: tween_id,
+            let event: AnimCompletedEvent = AnimCompletedEvent {
+                anim_entity,
                 target: self.target,
             };
 
             // Send buffered event
             anim_events.send(event);
 
-            // Trigger all global observers
-            commands.trigger(event);
-
             // Trigger all entity-scoped observers
-            if let Some(entity) = entity {
-                sent_commands = true;
-                commands.trigger_targets(event, entity);
-            }
+            sent_commands = true;
+            commands.trigger_targets(event, anim_entity);
         }
 
         let ret = StepResult {
