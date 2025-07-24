@@ -2,10 +2,10 @@ use bevy::prelude::*;
 
 use crate::{AnimCompletedEvent, CycleCompletedEvent, TweenAnim, TweenResolver};
 
-/// Plugin to register the [`TweenAnimator`] and the system playing animations.
+/// Plugin to register tweening animation framework.
 ///
 /// This plugin registers the common resources and events used by 🍃 Bevy
-/// Tweening as well as the core animation system which executes all pending
+/// Tweening as well as the core animation system which steps all pending
 /// tweenable animations. That system runs in the
 /// [`AnimationSystem::AnimationUpdate`] system set, during the [`Update`]
 /// schedule.
@@ -28,7 +28,7 @@ impl Plugin for TweeningPlugin {
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, SystemSet)]
 #[non_exhaustive]
 pub enum AnimationSystem {
-    /// Ticks all animations. This executes during the [`Update`] schedule.
+    /// Steps all animations. This executes during the [`Update`] schedule.
     AnimationUpdate,
 }
 

@@ -110,12 +110,10 @@ pub enum TweenState {
 pub struct CycleCompletedEvent {
     /// The ID of the tweenable animation which completed.
     ///
-    /// This is the ID of the top-level [`TweenAnim`] this tweenable is part of.
-    /// It can be used to retrieve the entire animation with
-    /// [`TweenAnimator::get()`].
+    /// This is the entity owning the top-level [`TweenAnim`] this tweenable is
+    /// part of.
     ///
     /// [`TweenAnim`]: crate::TweenAnim
-    /// [`TweenAnimator::get()`]: crate::TweenAnimator::get
     pub id: Entity,
     /// The target the tweenable which completed and the [`TweenAnim`] it's
     /// part of are mutating.
@@ -537,26 +535,18 @@ pub trait Tweenable: Send + Sync {
 
     /// Get the [`TypeId`] this tweenable targets.
     ///
-    /// This returns the type of the component or resource that the
-    /// [`TweenAnimator`] needs to fetch from the ECS `World` in order to
-    /// resolve the animation target.
-    ///
-    /// - For components, this is the type of the component itself, _e.g._
-    ///   `TypeId::of::<C>()`.
-    /// - For assets, this is **NOT** the type of the asset `A`, but rather the
-    ///   type of the asset container `Assets<A>`. This is because the asset
-    ///   itself is not stored in the ECS `World`, but in the `Assets<A>`
-    ///   container. So we need to retrieve that container from the world, then
-    ///   find the asset by ID inside it.
+    /// This returns the type of the component or asset that the [`TweenAnim`]
+    /// needs to fetch from the ECS `World` in order to resolve the animation
+    /// target.
     ///
     /// # Returns
     ///
     /// Returns the type of the target, if any, or `None` if this tweenable is
-    /// untyped. Typically only `Delay` is untyped, as this is the only
+    /// untyped. Typically only [`Delay`] is untyped, as this is the only
     /// tweenable which doesn't actually mutate the target, so it doesn't
-    /// actually have any target associated with it.
+    /// actually have any target type associated with it.
     ///
-    /// [`TweenAnimator`]: crate::TweenAnimator
+    /// [`TweenAnim`]: crate::TweenAnim
     #[must_use]
     fn type_id(&self) -> Option<TypeId>;
 }
@@ -586,8 +576,8 @@ type TargetAction = dyn FnMut(MutUntyped, f32) + Send + Sync + 'static;
 /// or backward. On completion, you can be notified via events, observers, or
 /// the execution of a one-shot system.
 ///
-/// _If you're looking for the runtime representation of a tweenable animation
-/// queued into the [`TweenAnimator`], see [`TweenAnim`] instead._
+/// _If you're looking for the runtime representation of a tweenable animation,
+/// see [`TweenAnim`] instead._
 ///
 /// # Cycles
 ///
@@ -651,20 +641,15 @@ type TargetAction = dyn FnMut(MutUntyped, f32) + Send + Sync + 'static;
 /// - Each time a _single_ cycle is completed, the tween can emit a
 ///   [`CycleCompletedEvent`]. The event is emitted as a buffered event, to be
 ///   read by another system through an [`EventReader`]. For component targets,
-///   entity-scoped observers are also triggered. Both of these are enabled
-///   through [`with_completed_event()`] and [`set_completed_event()`].
-///   Alternatively, or in addition, a custom one-shot system can be executed,
-///   enabled through [`with_completed_system()`] and
-///   [`set_completed_system()`]. Per-cycle events are disabled by default, and
-///   no one-shot system is registered by default.
+///   observers are also triggered. Both of these are enabled through
+///   [`with_completed_event()`] and [`set_completed_event()`]. Per-cycle events
+///   are disabled by default.
 /// - At the end of all cycles, when the animation itself completes, the tween
 ///   emits an [`AnimCompletedEvent`]. This event is always emitted.
 ///
 /// [`TweenAnim`]: crate::TweenAnim
 /// [`with_completed_event()`]: Self::with_completed_event
 /// [`set_completed_event()`]: Self::set_completed_event
-/// [`with_completed_system()`]: Self::with_completed_system
-/// [`set_completed_system()`]: Self::set_completed_system
 /// [`AnimCompletedEvent`]: crate::AnimCompletedEvent
 /// [`TweenAnimator`]: crate::TweenAnimator
 pub struct Tween {

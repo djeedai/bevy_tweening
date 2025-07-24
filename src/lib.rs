@@ -527,8 +527,8 @@ impl From<EaseFunction> for EaseMethod {
 /// Direction a tweening animation is playing.
 ///
 /// The playback direction determines if the delta animation time passed to
-/// [`Tweenable::step()`], generally by the [`TweenAnimator`], is added or
-/// subtracted to the current time position on the animation's timeline.
+/// [`Tweenable::step()`] is added or subtracted to the current time position on
+/// the animation's timeline.
 /// - In `Forward` direction, time passes forward from `t=0` to the total
 ///   duration of the animation.
 /// - Conversely, in `Backward` direction, time passes backward from the total
@@ -598,15 +598,6 @@ impl std::ops::Not for PlaybackDirection {
 /// commands.spawn(Transform::default()).tween(tween);
 /// ```
 ///
-/// The extension offers 3 main functions, grouped into 2 core use cases:
-/// - If you want to animate a component on the _current_ entity, use
-///   [`tween()`]. This spawns a new separate empty entity with a new
-///   [`TweenAnim`], which targets a component on the current entity. There's no
-///   equivalent for assets, since an asset cannot be owned by an entity.
-/// - If you want the _current entity to own the [`TweenAnim`]_:
-///   - [`tween_component()`] animates a given target component.
-///   - [`tween_asset()`] animates a given target asset.
-///
 /// or even more concisely:
 ///
 /// ```
@@ -623,6 +614,15 @@ impl std::ops::Not for PlaybackDirection {
 /// );
 /// ```
 ///
+/// The extension offers 3 main functions, grouped into 2 core use cases:
+/// - If you want to animate a component on the _current_ entity, use
+///   [`tween()`]. This spawns a new separate empty entity with a new
+///   [`TweenAnim`], which targets a component on the current entity. There's no
+///   equivalent for assets, since an asset cannot be owned by an entity.
+/// - If you want the _current entity to own the [`TweenAnim`]_:
+///   - [`tween_component()`] animates a given target component.
+///   - [`tween_asset()`] animates a given target asset.
+///
 /// This convenience comes at the price of reduced control and error checking.
 /// Additional information like the [`Entity`] of a newly created [`TweenAnim`]
 /// cannot be retrieved. And any error (_e.g._ trying to insert an animation
@@ -630,7 +630,7 @@ impl std::ops::Not for PlaybackDirection {
 /// component) cannot be forwarded back to the caller, so will produce a panic
 /// instead. This is best used for cases where you know those conditions at
 /// build time. To avoid a panic, prefer manually queuing a new tweenable
-/// animation through the [`TweenAnimator`].
+/// animation by spawning a [`TweenAnim`] component yourself.
 ///
 /// [`tween()`]: Self::tween
 /// [`tween_component()`]: Self::tween_component
@@ -643,6 +643,10 @@ pub trait EntityWorldMutTweeningExtensions<'a> {
     /// current entity is based on the type of the lens stored inside the
     /// tweenable (see [`Tweenable::type_id()`]). That component must exist
     /// on the current entity.
+    ///
+    /// Because this function spawns a new entity for each animation, you can
+    /// use it multiple times on the same source entity, including with the same
+    /// component.
     ///
     /// # Example
     ///
@@ -675,6 +679,9 @@ pub trait EntityWorldMutTweeningExtensions<'a> {
     /// on the type of the lens stored inside the tweenable (see
     /// [`Tweenable::type_id()`]).
     ///
+    /// Because this function spawns a new [`TweenAnim`] on the current entity,
+    /// it cannot be called more than once.
+    ///
     /// # Example
     ///
     /// ```
@@ -699,6 +706,16 @@ pub trait EntityWorldMutTweeningExtensions<'a> {
     /// // Spawn (AnimMarker, TweenAnim) on a new entity
     /// commands.spawn(AnimMarker).tween_component(target, tween);
     /// ```
+    ///
+    /// # Panics
+    ///
+    /// This call panics, or queue a command which later panics, if a
+    /// [`TweenAnim`] component already exists on the current entity, whether
+    /// from another prior call to [`tween_component()`] or [`tween_asset()`],
+    /// or from manually inserting the component.
+    ///
+    /// [`tween_component()`]: Self::tween_component
+    /// [`tween_asset()`]: Self::tween_asset
     fn tween_component(&mut self, entity: Entity, tweenable: impl IntoBoxedTweenable) -> &mut Self;
 
     /// Queue the given [`Tweenable`] to animate a target asset.
@@ -736,6 +753,16 @@ pub trait EntityWorldMutTweeningExtensions<'a> {
     ///         .tween_asset(&handle, tween);
     /// }
     /// ```
+    ///
+    /// # Panics
+    ///
+    /// This call panics, or queue a command which later panics, if a
+    /// [`TweenAnim`] component already exists on the current entity, whether
+    /// from another prior call to [`tween_component()`] or [`tween_asset()`],
+    /// or from manually inserting the component.
+    ///
+    /// [`tween_component()`]: Self::tween_component
+    /// [`tween_asset()`]: Self::tween_asset
     fn tween_asset<A: Asset>(
         &mut self,
         id: impl Into<AssetId<A>>,
@@ -755,8 +782,8 @@ pub trait EntityWorldMutTweeningExtensions<'a> {
     ///
     /// This function is a fire-and-forget convenience helper, and doesn't give
     /// access to the [`Entity`] created. To retrieve the ID and control
-    /// the animation playback, directly add the tweenable via
-    /// [`TweenAnimator::add_component()`].
+    /// the animation playback, you should spawn a [`TweenAnim`] component
+    /// manually.
     ///
     /// # Example
     ///
@@ -795,8 +822,8 @@ pub trait EntityWorldMutTweeningExtensions<'a> {
     ///
     /// This function is a fire-and-forget convenience helper, and doesn't give
     /// access to the [`Entity`] created. To retrieve the ID and control
-    /// the animation playback, directly add the tweenable via
-    /// [`TweenAnimator::add_component()`].
+    /// the animation playback, you should spawn a [`TweenAnim`] component
+    /// manually.
     ///
     /// # Example
     ///
@@ -835,8 +862,8 @@ pub trait EntityWorldMutTweeningExtensions<'a> {
     ///
     /// This function is a fire-and-forget convenience helper, and doesn't give
     /// access to the [`Entity`] created. To retrieve the ID and control
-    /// the animation playback, directly add the tweenable via
-    /// [`TweenAnimator::add_component()`].
+    /// the animation playback, you should spawn a [`TweenAnim`] component
+    /// manually.
     ///
     /// # Example
     ///
@@ -875,8 +902,8 @@ pub trait EntityWorldMutTweeningExtensions<'a> {
     ///
     /// This function is a fire-and-forget convenience helper, and doesn't give
     /// access to the [`Entity`] created. To retrieve the ID and control
-    /// the animation playback, directly add the tweenable via
-    /// [`TweenAnimator::add_component()`].
+    /// the animation playback, you should spawn a [`TweenAnim`] component
+    /// manually.
     ///
     /// # Example
     ///
@@ -1495,21 +1522,26 @@ impl WorldTargetExtensions for World {
     }
 }
 
-/// Animation instance queued into the [`TweenAnimator`].
+/// Animation instance.
 ///
 /// The [`TweenAnim`] represents a single animation instance for a single
-/// target, component or asset. It cannot be created manually; instead you must
-/// enqueue a new component or asset animation into the [`TweenAnimator`] via
-/// [`add_component()`] or [`add_asset()`], respectively. Once created, use the
-/// [`TweenAnimator`] to access it, and modify the runtime playback of this
-/// instance. Each instance is independent, even if it mutates the same target
-/// as another instance.
+/// target, component or asset. Each instance is independent, even if it mutates
+/// the same target as another instance. Spawning this component adds an active
+/// animation, and destroying it stops that animation. The component can also be
+/// used to control the animation playback at runtime, like the playback speed.
+///
+/// You can create this component yourself via [`new()`] and spawn it as a
+/// regular component, but doing so involves creating an [`AnimTarget`], which
+/// is now always convenient. Instead, it's often easier to use one of the
+/// extension functions provided by the [`EntityWorldMutTweeningExtensions`]
+/// trait, like [`tween()`]. Those extensions automatically create an approriate
+/// [`AnimTarget`] for you.
 ///
 /// _If you're looking for the basic tweenable animation description, see
 /// [`Tween`] instead._
 ///
-/// [`add_component()`]: crate::TweenAnimator::add_component
-/// [`add_asset()`]: crate::TweenAnimator::add_asset
+/// [`new()`]: Self::new
+/// [`tween()`]: EntityWorldMutTweeningExtensions::tween
 #[derive(Component)]
 pub struct TweenAnim {
     /// Target [`Entity`] containing the component to animate, or target asset.
@@ -1530,7 +1562,7 @@ pub struct TweenAnim {
     /// Setting a negative or zero speed value effectively pauses the animation
     /// (although the [`playback_state`] remains unchanged). Negative values may
     /// be clamped to 0. when the animation is stepped, but positive or zero
-    /// values are never modified by the [`TweenAnimator`].
+    /// values are never modified by the library.
     ///
     /// # Time precision
     ///
@@ -1547,12 +1579,12 @@ pub struct TweenAnim {
     /// [`playback_state`]: Self::playback_state
     pub speed: f64,
     /// Destroy the animation once completed. This defaults to `true`, and makes
-    /// [`TweenAnim::step()`] destroy itself once it completed. To keep the
-    /// animation queued, and allow access after it completed, set this to
-    /// `false`. Note however that you should avoid leaving all animations
-    /// queued if they're unused, as this wastes memory and may degrade
-    /// performances if too many completed animations are kept around for no
-    /// good reason.
+    /// the stepping functions like [`TweenAnim::step_all()`] destroy this
+    /// animation once it completed. To keep the animation queued, and allow
+    /// access after it completed, set this to `false`. Note however that
+    /// you should avoid leaving all animations queued if they're unused, as
+    /// this wastes memory and may degrade performances if too many
+    /// completed animations are kept around for no good reason.
     pub destroy_on_completion: bool,
     /// Current tweening completion state.
     tween_state: TweenState,
@@ -1561,17 +1593,17 @@ pub struct TweenAnim {
 impl TweenAnim {
     /// Create a new tween animation.
     ///
-    /// This components represents the runtime animation being played to mutate
-    /// a specific target.
+    /// This component represents the runtime animation being played to mutate a
+    /// specific target.
     ///
     /// # Panics
     ///
     /// Panics if the tweenable is "typeless", that is [`Tweenable::type_id()`]
     /// returns `None`. Animations must target a concrete component or asset
-    /// type. This means in particular that you can't insert a single
-    /// [`Delay`]. You can however use a [`Delay`] or other typeless
-    /// tweenables as part of a [`Sequence`], provided there's at least one
-    /// other typed tweenable in the sequence.
+    /// type. This means in particular that you can't use a single [`Delay`]
+    /// alone. You can however use a [`Delay`] or other typeless tweenables
+    /// as part of a [`Sequence`], provided there's at least one other typed
+    /// tweenable in the sequence to make it typed too.
     #[inline]
     pub fn new(target: impl Into<AnimTarget>, tweenable: impl IntoBoxedTweenable) -> Self {
         let tweenable = tweenable.into_boxed();
@@ -1645,6 +1677,25 @@ impl TweenAnim {
     /// the added benefit that it returns some error if the entity is not valid.
     /// See [`step_many()`] for details.
     ///
+    /// # Example
+    ///
+    /// ```
+    /// # use std::time::Duration;
+    /// # use bevy::prelude::*;
+    /// # use bevy_tweening::*;
+    /// # fn make_tweenable() -> Tween { unimplemented!() }
+    /// #[derive(Component)]
+    /// struct MyMarker;
+    ///
+    /// fn my_system(world: &mut World) -> Result<()> {
+    ///     let mut q_anims = world.query_filtered::<Entity, (With<TweenAnim>, With<MyMarker>)>();
+    ///     let entity = q_anims.single(world)?;
+    ///     let delta_time = Duration::from_millis(200);
+    ///     TweenAnim::step_one(world, delta_time, entity);
+    ///     Ok(())
+    /// }
+    /// ```
+    ///
     /// # Returns
     ///
     /// This returns an error if the entity is not found or doesn't own a
@@ -1686,6 +1737,25 @@ impl TweenAnim {
     /// responsible for ensuring the input entity slice contains distinct
     /// entities.
     ///
+    /// # Example
+    ///
+    /// ```
+    /// # use std::time::Duration;
+    /// # use bevy::prelude::*;
+    /// # use bevy_tweening::*;
+    /// # fn make_tweenable() -> Tween { unimplemented!() }
+    /// #[derive(Component)]
+    /// struct MyMarker;
+    ///
+    /// fn my_system(world: &mut World) -> Result<()> {
+    ///     let mut q_anims = world.query_filtered::<Entity, (With<TweenAnim>, With<MyMarker>)>();
+    ///     let entities = q_anims.iter(world).collect::<Vec<Entity>>();
+    ///     let delta_time = Duration::from_millis(200);
+    ///     TweenAnim::step_many(world, delta_time, &entities[..]);
+    ///     Ok(())
+    /// }
+    /// ```
+    ///
     /// # Returns
     ///
     /// Returns the number of [`TweenAnim`] component found and stepped, which
@@ -1710,12 +1780,11 @@ impl TweenAnim {
     /// registered by the [`TweeningPlugin`], you generally don't need to call
     /// it._
     ///
-    /// Step the animation by the given `delta_time`, which can be
-    /// `Duration::ZERO`. The `anim_entity` is the [`Entity`] which owns this
-    /// [`TweenAnim`], and is copied into any event sent. The animation target
-    /// is represented by `mut_untyped`, which must point to a valid target
-    /// instance compatible with the [`Tweenable`] associated with this
-    /// animation. It's passed down to [`Tweenable::step()`]
+    /// Step all the [`TweenAnim`] components of the input world by a given
+    /// `delta_time`, which may be [`Duration::ZERO`]. Passing a zero delta
+    /// time may be useful to force the current animation state to be
+    /// applied to a target, in case you made change which do not
+    /// automatically do so (for example, retargeting an animation).
     pub fn step_all(world: &mut World, delta_time: Duration) -> Result<(), TweeningError> {
         let mut q_anims = world.query::<(Entity, &TweenAnim)>();
         let targets = q_anims
@@ -1820,7 +1889,7 @@ impl TweenAnim {
         world.flush();
     }
 
-    pub(crate) fn step_self(
+    fn step_self(
         &mut self,
         mut commands: Commands,
         anim_entity: Entity,
@@ -1927,7 +1996,7 @@ impl TweenAnim {
 
     /// Get the target this animation is mutating.
     ///
-    /// To change the target, use [`TweenAnimator::set_target()`].
+    /// To change the target, use [`TweenAnim::set_target()`].
     #[inline]
     pub fn target(&self) -> &AnimTarget {
         &self.target
@@ -1935,7 +2004,7 @@ impl TweenAnim {
 
     /// Get the tweenable describing this animation.
     ///
-    /// To change the tweenable, use [`TweenAnimator::set_tweenable()`].
+    /// To change the tweenable, use [`TweenAnim::set_tweenable()`].
     #[inline]
     pub fn tweenable(&self) -> &dyn Tweenable {
         self.tweenable.as_ref()
@@ -1943,14 +2012,16 @@ impl TweenAnim {
 
     /// Set a new animation description.
     ///
-    /// Attempt to change the tweenable of an animation already enqueued, and
-    /// possibly already playing.
+    /// Attempt to change the tweenable of an animation already spawned.
     ///
     /// If the tweenable is successfully swapped, this resets the
     /// [`tween_state()`] to [`TweenState::Active`], even if the tweenable would
-    /// otherwise be completed _e.g._ because its elapsed time is past its
-    /// total duration. Conversely, this doesn't update the target component or
-    /// asset, as this function doesn't have mutable access to it.
+    /// otherwise be completed _e.g._ because its current elapsed time is past
+    /// its total duration. Conversely, this doesn't update the target
+    /// component or asset, as this function doesn't have mutable access to
+    /// it. To force applying the new state to the target without stepping the
+    /// animation forward or backward, call one of the stepping functions like
+    /// [`TweenAnim::step_one()`] passing a delta time of [`Duration::ZERO`].
     ///
     /// To ensure the old and new animations have the same elapsed time (for
     /// example if they need to be synchronized, if they're variants of each
@@ -1970,9 +2041,6 @@ impl TweenAnim {
     /// }
     /// ```
     ///
-    /// To recompute the actual tweenable animation state and force a target
-    /// update, use [`step_one()`] with a [`Duration::ZERO`].
-    ///
     /// # Returns
     ///
     /// On success, returns the previous tweenable which has been swapped out.
@@ -1990,6 +2058,48 @@ impl TweenAnim {
         // Reset tweening state, the new tweenable is at t=0
         self.tween_state = TweenState::Active;
         Ok(old_tweenable)
+    }
+
+    /// Retarget this animation.
+    ///
+    /// Attempt to change the target of this animation, even if it's already
+    /// playing. This function performs a number of checks on the new target
+    /// to ensure it's compatible with the previous target currently set. In
+    /// particular, the new target needs to have:
+    /// - the same kind (component or asset);
+    /// - the same type.
+    ///
+    /// # Returns
+    ///
+    /// On success, returns the previous target which has been replaced.
+    pub fn set_target(&mut self, target: AnimTarget) -> Result<AnimTarget, TweeningError> {
+        match (self.target, target) {
+            (AnimTarget::Component(old_component), AnimTarget::Component(new_component)) => {
+                if old_component.component_id != new_component.component_id {
+                    return Err(TweeningError::MismatchingComponentId(
+                        old_component.component_id,
+                        new_component.component_id,
+                    ));
+                }
+            }
+            (AnimTarget::Asset(old_asset), AnimTarget::Asset(new_asset)) => {
+                if old_asset.resource_id != new_asset.resource_id {
+                    return Err(TweeningError::MismatchingAssetResourceId(
+                        old_asset.resource_id,
+                        new_asset.resource_id,
+                    ));
+                }
+            }
+            _ => {
+                return Err(TweeningError::MismatchingTargetKind(
+                    self.target.is_component(),
+                    target.is_component(),
+                ))
+            }
+        }
+        let old_target = self.target;
+        self.target = target;
+        Ok(old_target)
     }
 
     /// Get the tweening completion state.
