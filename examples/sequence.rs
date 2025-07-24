@@ -172,7 +172,7 @@ fn setup(
         // Because we want to monitor the progress of the animations, we need to fetch
         // their Entity. There's essentially two possibilities for this.
         // 1) Spawn a new entity, which here we augment with a marker component to
-        //    identify it later, and call tween_target() to spawn the TweenAnim an
+        //    identify it later, and call tween_component() to spawn the TweenAnim an
         //    automatically make it target the given entity.
         let path_tween_id = commands
             // Spawns (RedAnimMarker, TweenAnim) on same entity

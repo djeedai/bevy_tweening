@@ -126,7 +126,7 @@
 //! // That entity contains the (AnimController, TweenAnim) components.
 //! let anim_entity = commands
 //!     .spawn(AnimController)
-//!     .tween_target(target_entity, tween)
+//!     .tween_component(target_entity, tween)
 //!     .id();
 //! # }
 //! ```
@@ -697,7 +697,7 @@ pub trait EntityWorldMutTweeningExtensions<'a> {
     /// );
     /// let target = commands.spawn(Transform::default()).id();
     /// // Spawn (AnimMarker, TweenAnim) on a new entity
-    /// commands.spawn(AnimMarker).tween_target(target, tween);
+    /// commands.spawn(AnimMarker).tween_component(target, tween);
     /// ```
     fn tween_component(&mut self, entity: Entity, tweenable: impl IntoBoxedTweenable) -> &mut Self;
 
@@ -721,7 +721,7 @@ pub trait EntityWorldMutTweeningExtensions<'a> {
     /// # use bevy_tweening::{*, lens::TransformPositionLens};
     /// # use std::time::Duration;
     /// # fn make_tween() -> Tween { unimplemented!() }
-    /// #[derive(Asset)]
+    /// #[derive(Asset, TypePath)]
     /// struct MyAsset;
     ///
     /// #[derive(Component)]
