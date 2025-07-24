@@ -137,7 +137,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 container
                     .spawn(InitialAnimMarker)
                     .observe(enable_interaction_after_initial_animation)
-                    .tween_target(target, tweenable);
+                    .tween_component(target, tweenable);
 
                 start_time_ms += 500;
             }

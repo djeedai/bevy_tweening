@@ -177,7 +177,7 @@ fn setup(
         let path_tween_id = commands
             // Spawns (RedAnimMarker, TweenAnim) on same entity
             .spawn(RedAnimMarker)
-            .tween_target(entity, anim_move_along_path)
+            .tween_component(entity, anim_move_along_path)
             .id();
         // 2) Alternatively, we can manually create the TweenAnim with for_component(),
         //    and insert it like any other component.
@@ -260,8 +260,8 @@ fn setup(
         // Because we want to monitor the progress of the animations, we need to fetch
         // their Entity. This requires inserting them manually in the TweenAnimator
         // resource, instead of using the extensions of EntityCommands.
-        let move_and_rotate_id = commands.spawn_empty().tween_target(entity, seq1).id();
-        let scale_id = commands.spawn_empty().tween_target(entity, seq2).id();
+        let move_and_rotate_id = commands.spawn_empty().tween_component(entity, seq1).id();
+        let scale_id = commands.spawn_empty().tween_component(entity, seq2).id();
         commands.entity(entity).insert(BlueSprite {
             move_and_rotate_id,
             scale_id,

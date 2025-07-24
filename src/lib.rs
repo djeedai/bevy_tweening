@@ -59,14 +59,15 @@
 //! commands
 //!     // Spawn an entity to animate the position of.
 //!     .spawn(Transform::default())
-//!     // Queue the tweenable animation
+//!     // Create a tweenable animation targetting the current entity.
+//!     // This spawns a TweenAnim component.
 //!     .tween(tween);
 //! # }
 //! ```
 //!
 //! This example shows the general pattern to add animations for any component
-//! or asset. Since moving the position of an object is a very common
-//! task, 🍃 Bevy Tweening provides a shortcut for it. The above example can be
+//! or asset. Since moving the position of an object is a very common task,
+//! 🍃 Bevy Tweening provides a shortcut for it. The above example can be
 //! rewritten more concicely as:
 //!
 //! ```
@@ -77,7 +78,7 @@
 //! commands
 //!     // Spawn an entity to animate the position of.
 //!     .spawn((Transform::default(),))
-//!     // Create-and-queue a new Transform::translation animation
+//!     // Create a new Transform::translation animation
 //!     .move_to(
 //!         Vec3::new(1., 2., -4.),
 //!         Duration::from_secs(1),
@@ -86,19 +87,62 @@
 //! # }
 //! ```
 //!
+//! The [`tween()`] extension is convenient for fire-and-forget animations,
+//! because it implicitly targets the current entity. However, sometimes you
+//! want to remember the [`Entity`] owning the [`TweenAnim`], or insert a marker
+//! component on it, so that you can retrieve it later to control the animation
+//! at runtime. In that case, you can use instead the [`tween_component()`]
+//! extension instead:
+//!
+//! ```
+//! # use bevy::prelude::*;
+//! # use bevy_tweening::{lens::*, *};
+//! # use std::time::Duration;
+//! # fn system(mut commands: Commands) {
+//! // Marker component to identify the TweenAnim controller.
+//! #[derive(Component)]
+//! struct AnimController;
+//!
+//! // Create a single animation (tween) to move an entity.
+//! let tween = Tween::new(
+//!     // Use a quadratic easing on both endpoints.
+//!     EaseFunction::QuadraticInOut,
+//!     // It takes 1 second to go from start to end points.
+//!     Duration::from_secs(1),
+//!     // The lens gives access to the Transform component of the Entity,
+//!     // for the TweenAnimator to animate it. It also contains the start and
+//!     // end values respectively associated with the progress ratios 0. and 1.
+//!     TransformPositionLens {
+//!         start: Vec3::ZERO,
+//!         end: Vec3::new(1., 2., -4.),
+//!     },
+//! );
+//!
+//! // The Entity with the Transform being animated.
+//! // That entity contains a single Transform component.
+//! let target_entity = commands.spawn(Transform::default()).id();
+//!
+//! // The Entity with the TweenAnim controlling the animation.
+//! // That entity contains the (AnimController, TweenAnim) components.
+//! let anim_entity = commands
+//!     .spawn(AnimController)
+//!     .tween_target(target_entity, tween)
+//!     .id();
+//! # }
+//! ```
+//!
 //! See the [`EntityWorldMutTweeningExtensions`] extension trait for the various
-//! helpers provided for common animations.
+//! helpers provided for common animations like [`move_to()`].
 //!
 //! # Ready to animate
 //!
 //! Unlike previous versions of 🍃 Bevy Tweening, **you don't need any
 //! particular system setup** aside from adding the [`TweeningPlugin`] to your
 //! [`App`]. In particular, per-component-type and per-asset-type systems are
-//! gone. Instead, the plugin adds a single system executing during the
-//! [`Update`] schedule, which calls [`TweenAnimator::step_all()`]. The
-//! [`TweenAnimator`] acts as a central hub for all queued animations, and
-//! updates them all for all components and assets at once, even for custom
-//! component and asset types.
+//! gone. Instead, the plugin adds a _single_ system executing during the
+//! [`Update`] schedule. Each [`TweenAnim`] acts as a controller for one
+//! animation, and mutates its target which can be any component or asset, even
+//! a custom one.
 //!
 //! # Tweenables
 //!
@@ -156,11 +200,12 @@
 //! last element of a sequence (for example, move to position and then rotate
 //! forever on self).
 //!
-//! # `TweenAnimator`
+//! # `TweenAnim`
 //!
-//! Bevy components and assets are animated with the [`TweenAnimator`] resource.
-//! The animator determines the component or asset to animate via an
-//! [`AnimTarget`], and accesses its field(s) using a [`Lens`].
+//! Bevy components and assets are animated with the [`TweenAnim`] component.
+//! This component acts as a controller for the animation. It determines the
+//! target component or asset to animate via an [`AnimTarget`], and accesses the
+//! field(s) of that target using a [`Lens`].
 //!
 //! - Components are animated via the [`ComponentAnimTarget`], which identifies
 //!   a component instance on an entity via the [`Entity`] itself and the
@@ -178,9 +223,34 @@
 //! then animate that copy alone.
 //!
 //! Although you generally should prefer using the various extensions on
-//! commands, like the [`.tween()`] function on entity commands, under the hood
-//! the manual process of queuing a new animation involves calling
-//! [`TweenAnimator::add_component()`] or [`TweenAnimator::add_asset()`].
+//! commands, like the [`tween()`] function on entity commands, under the hood
+//! the manual process of queuing a new animation involves spawning a
+//! [`TweenAnim`] component.
+//!
+//! ```no_run
+//! # use bevy::{prelude::*, ecs::component::Components};
+//! # use bevy_tweening::*;
+//! # fn make_tween() -> Tween { unimplemented!() }
+//! fn my_system(mut commands: Commands, components: &Components) -> Result<(), TweeningError> {
+//! # let entity = Entity::PLACEHOLDER;
+//!     let entity = commands.spawn(Transform::default()).id();
+//!     let target = ComponentAnimTarget::new::<Transform>(components, entity)?;
+//!     // Place the TweenAnim on the same entity as the target component:
+//!     let tween: Tween = make_tween();
+//!     commands
+//!         .entity(entity)
+//!         .insert(TweenAnim::new(target, tween));
+//!     // ---OR---
+//!     // Place it on its own entity
+//!     let tween: Tween = make_tween();
+//!     commands.spawn(TweenAnim::new(target, tween));
+//!     Ok(())
+//! }
+//! ```
+//!
+//! For assets, you also must ensure a resolver is registered for that asset
+//! type, through [`TweenResolver::register_scoped_for()`]. Note that the
+//! [`.tween_asset()`] extension takes care of this for you.
 //!
 //! ```no_run
 //! # use bevy::{prelude::*, ecs::component::Components};
@@ -216,11 +286,11 @@
 //!
 //! ## Lenses
 //!
-//! The [`AnimTarget`] references the container (component or asset) being
+//! The [`AnimTarget`] references the target (component or asset) being
 //! animated. However, only a part of that component or asset is generally
-//! animated. To that end, the [`TweenAnimator`] accesses the field(s) to
-//! animate via a _lens_, a type that implements the [`Lens`] trait and allows
-//! mapping a container to the actual value(s) animated.
+//! animated. To that end, the [`TweenAnim`] accesses the field(s) to animate
+//! via a _lens_, a type that implements the [`Lens`] trait and allows mapping a
+//! target component or asset to the actual value(s) animated.
 //!
 //! For example, the [`TransformPositionLens`] uses a [`Transform`] component as
 //! input, and animates its [`Transform::translation`] field only, leaving the
@@ -239,10 +309,10 @@
 //!
 //! Several built-in lenses are provided in the [`lens`] module for the most
 //! commonly animated fields, like the components of a [`Transform`]. Those are
-//! provided for convenience and mainly as examples. In general 🍃 Bevy Tweening
-//! expects you to write your own lenses by implementing the trait, which as you
-//! can see above is very simple. This allows animating virtually any field of
-//! any component or asset, whether shipped with Bevy or defined by the user.
+//! provided for convenience and mainly as examples. 🍃 Bevy Tweening expects
+//! you to write your own lenses by implementing the [`Lens`] trait, which as
+//! you can see above is very simple. This allows animating virtually any field
+//! of any component or asset, whether shipped with Bevy or defined by the user.
 //!
 //! # Tweening vs. keyframed animation
 //!
@@ -261,14 +331,13 @@
 //!
 //! [`Transform::translation`]: https://docs.rs/bevy/0.16.0/bevy/transform/components/struct.Transform.html#structfield.translation
 //! [`Entity`]: https://docs.rs/bevy/0.16.0/bevy/ecs/entity/struct.Entity.html
-//! [`Query`]: https://docs.rs/bevy/0.16.0/bevy/ecs/system/struct.Query.html
 //! [`ColorMaterial`]: https://docs.rs/bevy/0.16.0/bevy/sprite/struct.ColorMaterial.html
-//! [`Sprite`]: https://docs.rs/bevy/0.16.0/bevy/sprite/struct.Sprite.html
-//! [`Node`]: https://docs.rs/bevy/0.16.0/bevy/ui/struct.Node.html#structfield.position
-//! [`TextColor`]: https://docs.rs/bevy/0.16.0/bevy/text/struct.TextColor.html
 //! [`Transform`]: https://docs.rs/bevy/0.16.0/bevy/transform/components/struct.Transform.html
 //! [`TransformPositionLens`]: crate::lens::TransformPositionLens
-//! [`.tween()`]: crate::EntityWorldMutTweeningExtensions::tween
+//! [`tween()`]: crate::EntityWorldMutTweeningExtensions::tween
+//! [`tween_component()`]: crate::EntityWorldMutTweeningExtensions::tween_component
+//! [`tween_asset()`]: crate::EntityWorldMutTweeningExtensions::tween_asset
+//! [`move_to()`]: crate::EntityWorldMutTweeningExtensions::move_to
 
 use std::{any::TypeId, time::Duration};
 
@@ -529,6 +598,15 @@ impl std::ops::Not for PlaybackDirection {
 /// commands.spawn(Transform::default()).tween(tween);
 /// ```
 ///
+/// The extension offers 3 main functions, grouped into 2 core use cases:
+/// - If you want to animate a component on the _current_ entity, use
+///   [`tween()`]. This spawns a new separate empty entity with a new
+///   [`TweenAnim`], which targets a component on the current entity. There's no
+///   equivalent for assets, since an asset cannot be owned by an entity.
+/// - If you want the _current entity to own the [`TweenAnim`]_:
+///   - [`tween_component()`] animates a given target component.
+///   - [`tween_asset()`] animates a given target asset.
+///
 /// or even more concisely:
 ///
 /// ```
@@ -553,13 +631,17 @@ impl std::ops::Not for PlaybackDirection {
 /// instead. This is best used for cases where you know those conditions at
 /// build time. To avoid a panic, prefer manually queuing a new tweenable
 /// animation through the [`TweenAnimator`].
+///
+/// [`tween()`]: Self::tween
+/// [`tween_component()`]: Self::tween_component
+/// [`tween_asset()`]: Self::tween_asset
 pub trait EntityWorldMutTweeningExtensions<'a> {
     /// Queue the given [`Tweenable`] to animate the current entity.
     ///
     /// This inserts a new [`TweenAnim`] on a newly spawned entity, which
     /// animates the current entity. The proper component to animate on the
     /// current entity is based on the type of the lens stored inside the
-    /// tweenable (see [`Tweenable::type_id()`]). That component must exists
+    /// tweenable (see [`Tweenable::type_id()`]). That component must exist
     /// on the current entity.
     ///
     /// # Example
@@ -585,13 +667,13 @@ pub trait EntityWorldMutTweeningExtensions<'a> {
     /// ```
     fn tween(&mut self, tweenable: impl IntoBoxedTweenable) -> &mut Self;
 
-    /// Queue the given [`Tweenable`] to animate a target entity.
+    /// Queue the given [`Tweenable`] to animate a target component.
     ///
     /// This inserts a new [`TweenAnim`] on the current entity, which
-    /// animates a given target entity. The proper component to animate on the
-    /// target entity is based on the type of the lens stored inside the
-    /// tweenable (see [`Tweenable::type_id()`]). That component must exists
-    /// on the target entity.
+    /// animates a given target component identified by the entity which owns
+    /// it. The type of the component to animate on that target entity is based
+    /// on the type of the lens stored inside the tweenable (see
+    /// [`Tweenable::type_id()`]).
     ///
     /// # Example
     ///
@@ -617,12 +699,12 @@ pub trait EntityWorldMutTweeningExtensions<'a> {
     /// // Spawn (AnimMarker, TweenAnim) on a new entity
     /// commands.spawn(AnimMarker).tween_target(target, tween);
     /// ```
-    fn tween_target(&mut self, entity: Entity, tweenable: impl IntoBoxedTweenable) -> &mut Self;
+    fn tween_component(&mut self, entity: Entity, tweenable: impl IntoBoxedTweenable) -> &mut Self;
 
     /// Queue the given [`Tweenable`] to animate a target asset.
     ///
     /// This inserts a new [`TweenAnim`] on the current entity, which
-    /// animates a given target asset. The asset type to animate  is validated
+    /// animates a given target asset. The asset type to animate is validated
     /// against the one on the type of the lens stored inside the
     /// tweenable (see [`Tweenable::type_id()`]).
     ///
@@ -831,14 +913,14 @@ impl<'a> EntityWorldMutTweeningExtensions<'a> for EntityCommands<'a> {
     }
 
     #[inline]
-    fn tween_target(
+    fn tween_component(
         &mut self,
         entity: Entity,
         tweenable: impl IntoBoxedTweenable,
     ) -> &mut EntityCommands<'a> {
         let tweenable = tweenable.into_boxed();
         self.queue(move |mut this: EntityWorldMut| {
-            this.tween_target(entity, tweenable);
+            this.tween_component(entity, tweenable);
         })
     }
 
@@ -924,10 +1006,10 @@ impl<'a> EntityWorldMutTweeningExtensions<'a> for EntityWorldMut<'a> {
     #[inline]
     fn tween(&mut self, tweenable: impl IntoBoxedTweenable) -> &mut Self {
         let entity = self.id();
-        self.tween_target(entity, tweenable)
+        self.tween_component(entity, tweenable)
     }
 
-    fn tween_target(&mut self, entity: Entity, tweenable: impl IntoBoxedTweenable) -> &mut Self {
+    fn tween_component(&mut self, entity: Entity, tweenable: impl IntoBoxedTweenable) -> &mut Self {
         let tweenable = tweenable.into_boxed();
         let type_id = tweenable.type_id().unwrap();
         let component_id = self.world().components().get_id(type_id).unwrap();
