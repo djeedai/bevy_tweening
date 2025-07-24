@@ -1547,12 +1547,12 @@ pub struct TweenAnim {
     /// [`playback_state`]: Self::playback_state
     pub speed: f64,
     /// Destroy the animation once completed. This defaults to `true`, and makes
-    /// [`TweenAnimator::step_one()`] and [`TweenAnimator::step_all()`]
-    /// destroy this [`TweenAnim`] once it completed. To keep the animation
-    /// queued, and allow access after it completed, set this to `false`. Note
-    /// however that you should avoid leaving all animations queued if they're
-    /// unused, as this wastes memory and may degrade performances if too many
-    /// completed animations are kept around for no good reason.
+    /// [`TweenAnim::step()`] destroy itself once it completed. To keep the
+    /// animation queued, and allow access after it completed, set this to
+    /// `false`. Note however that you should avoid leaving all animations
+    /// queued if they're unused, as this wastes memory and may degrade
+    /// performances if too many completed animations are kept around for no
+    /// good reason.
     pub destroy_on_completion: bool,
     /// Current tweening completion state.
     tween_state: TweenState,
@@ -1635,13 +1635,198 @@ impl TweenAnim {
         Ok(Self::new(target, tweenable))
     }
 
-    pub(crate) fn step(
+    /// Step a single animation.
+    ///
+    /// _The [`step_all()`] function is called automatically by the animation
+    /// system registered by the [`TweeningPlugin`], you generally don't
+    /// need to call this one._
+    ///
+    /// This is a shortcut for `step_many(world, delta_time, [entity])`, with
+    /// the added benefit that it returns some error if the entity is not valid.
+    /// See [`step_many()`] for details.
+    ///
+    /// # Returns
+    ///
+    /// This returns an error if the entity is not found or doesn't own a
+    /// [`TweenAnim`] component.
+    ///
+    /// [`step_all()`]: Self::step_all
+    /// [`step_many()`]: Self::step_many
+    #[inline]
+    pub fn step_one(
+        world: &mut World,
+        delta_time: Duration,
+        entity: Entity,
+    ) -> Result<(), TweeningError> {
+        let num = Self::step_many(world, delta_time, &[entity]);
+        if num > 0 {
+            Ok(())
+        } else {
+            Err(TweeningError::EntityNotFound(entity))
+        }
+    }
+
+    /// Step some animation(s).
+    ///
+    /// _The [`step_all()`] function is called automatically by the animation
+    /// system registered by the [`TweeningPlugin`], you generally don't
+    /// need to call this one._
+    ///
+    /// Step the given animation(s) by a given `delta_time`, which may be
+    /// [`Duration::ZERO`]. Passing a zero delta time may be useful to force the
+    /// current animation state to be applied to a target, in case you made
+    /// change which do not automatically do so (for example, retargeting an
+    /// animation). The `anims` are the entities which own a [`TweenAnim`]
+    /// component to step; any entity without a [`TweenAnim`] component is
+    /// silently ignored.
+    ///
+    /// The function doesn't check that all input entities are unique. If an
+    /// entity is duplicated in `anims`, the behavior is undefined, including
+    /// (but not guaranteed) stepping the animation multiple times. You're
+    /// responsible for ensuring the input entity slice contains distinct
+    /// entities.
+    ///
+    /// # Returns
+    ///
+    /// Returns the number of [`TweenAnim`] component found and stepped, which
+    /// is always less than or equal to the input `anims` slice length.
+    ///
+    /// [`step_all()`]: Self::step_all
+    pub fn step_many(world: &mut World, delta_time: Duration, anims: &[Entity]) -> usize {
+        let mut q_anims = world.query::<&TweenAnim>();
+        let mut targets = Vec::with_capacity(anims.len());
+        for entity in anims {
+            if let Ok(target) = q_anims.get(world, *entity).map(|anim| anim.target) {
+                targets.push((*entity, target));
+            }
+        }
+        Self::step_impl(world, delta_time, &targets[..]);
+        targets.len()
+    }
+
+    /// Step all animations on the given world.
+    ///
+    /// _This function is called automatically by the animation system
+    /// registered by the [`TweeningPlugin`], you generally don't need to call
+    /// it._
+    ///
+    /// Step the animation by the given `delta_time`, which can be
+    /// `Duration::ZERO`. The `anim_entity` is the [`Entity`] which owns this
+    /// [`TweenAnim`], and is copied into any event sent. The animation target
+    /// is represented by `mut_untyped`, which must point to a valid target
+    /// instance compatible with the [`Tweenable`] associated with this
+    /// animation. It's passed down to [`Tweenable::step()`]
+    pub fn step_all(world: &mut World, delta_time: Duration) -> Result<(), TweeningError> {
+        let mut q_anims = world.query::<(Entity, &TweenAnim)>();
+        let targets = q_anims
+            .iter(world)
+            .map(|(entity, anim)| (entity, anim.target))
+            .collect::<Vec<_>>();
+        Self::step_impl(world, delta_time, &targets[..]);
+        Ok(())
+    }
+
+    fn step_impl(world: &mut World, delta_time: Duration, anims: &[(Entity, AnimTarget)]) {
+        let mut to_remove = Vec::with_capacity(anims.len());
+        world.resource_scope(|world, asset_resolver: Mut<TweenResolver>| {
+            world.resource_scope(
+                |world, mut cycle_events: Mut<Events<CycleCompletedEvent>>| {
+                    world.resource_scope(
+                        |world, mut anim_events: Mut<Events<AnimCompletedEvent>>| {
+                            let anim_comp_id = world.component_id::<TweenAnim>().unwrap();
+                            for (anim_entity, anim_target) in anims {
+                                let ret = match anim_target {
+                                    AnimTarget::Component(comp_target) => {
+                                        let (mut entities, commands) =
+                                            world.entities_and_commands();
+                                        if *anim_entity == comp_target.entity {
+                                            // The TweenAnim animates another component on the same
+                                            // entity
+                                            let Ok([mut ent]) = entities.get_mut([*anim_entity])
+                                            else {
+                                                continue;
+                                            };
+                                            let Ok([anim, target]) = ent.get_mut_by_id([
+                                                anim_comp_id,
+                                                comp_target.component_id,
+                                            ]) else {
+                                                continue;
+                                            };
+                                            // SAFETY: We fetched the EntityMut from the component
+                                            // ID of
+                                            // TweenAnim
+                                            #[allow(unsafe_code)]
+                                            let mut anim = unsafe { anim.with_type::<TweenAnim>() };
+                                            anim.step_self(
+                                                commands,
+                                                *anim_entity,
+                                                delta_time,
+                                                target,
+                                                cycle_events.reborrow(),
+                                                anim_events.reborrow(),
+                                            )
+                                        } else {
+                                            // The TweenAnim animates a component on a different
+                                            // entity
+                                            let Ok([mut anim, mut target]) = entities
+                                                .get_mut([*anim_entity, comp_target.entity])
+                                            else {
+                                                continue;
+                                            };
+                                            let Some(mut anim) = anim.get_mut::<TweenAnim>() else {
+                                                continue;
+                                            };
+                                            let Ok(target) =
+                                                target.get_mut_by_id(comp_target.component_id)
+                                            else {
+                                                continue;
+                                            };
+                                            anim.step_self(
+                                                commands,
+                                                *anim_entity,
+                                                delta_time,
+                                                target,
+                                                cycle_events.reborrow(),
+                                                anim_events.reborrow(),
+                                            )
+                                        }
+                                    }
+                                    AnimTarget::Asset(asset_target) => asset_resolver
+                                        .resolve_scope(
+                                            world,
+                                            &asset_target,
+                                            *anim_entity,
+                                            delta_time,
+                                            cycle_events.reborrow(),
+                                            anim_events.reborrow(),
+                                        ),
+                                };
+
+                                let retain = ret.map(|ret| ret.retain).unwrap_or(false);
+                                if !retain {
+                                    to_remove.push(*anim_entity);
+                                }
+                            }
+                        },
+                    );
+                },
+            );
+        });
+
+        for entity in to_remove.drain(..) {
+            world.entity_mut(entity).remove::<TweenAnim>();
+        }
+
+        world.flush();
+    }
+
+    pub(crate) fn step_self(
         &mut self,
         mut commands: Commands,
         anim_entity: Entity,
         delta_time: Duration,
         mut mut_untyped: MutUntyped,
-        mut events: Mut<Events<CycleCompletedEvent>>,
+        mut cycle_events: Mut<Events<CycleCompletedEvent>>,
         mut anim_events: Mut<Events<AnimCompletedEvent>>,
     ) -> Result<StepResult, TweeningError> {
         let mut completed_events = Vec::with_capacity(8);
@@ -1695,7 +1880,7 @@ impl TweenAnim {
 
             for event in completed_events.drain(..) {
                 // Send buffered event
-                events.send(event);
+                cycle_events.send(event);
 
                 // Trigger all entity-scoped observers
                 commands.trigger_targets(event, anim_entity);
@@ -1900,7 +2085,7 @@ impl TweenResolver {
                 };
 
                 // Finally, step the TweenAnim and mutate the target
-                anim.step(
+                anim.step_self(
                     commands,
                     entity,
                     delta_time,
