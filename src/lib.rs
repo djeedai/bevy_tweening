@@ -872,7 +872,7 @@ pub trait EntityCommandsTweeningExtensions<'a> {
     fn move_to(
         self,
         end: Vec3,
-        cycle_duration: Duration,
+        duration: Duration,
         ease_method: impl Into<EaseMethod>,
     ) -> AnimatedEntityCommands<'a, impl TweenCommand>;
 
@@ -912,7 +912,7 @@ pub trait EntityCommandsTweeningExtensions<'a> {
     fn move_from(
         self,
         start: Vec3,
-        cycle_duration: Duration,
+        duration: Duration,
         ease_method: impl Into<EaseMethod>,
     ) -> AnimatedEntityCommands<'a, impl TweenCommand>;
 
@@ -952,7 +952,7 @@ pub trait EntityCommandsTweeningExtensions<'a> {
     fn scale_to(
         self,
         end: Vec3,
-        cycle_duration: Duration,
+        duration: Duration,
         ease_method: impl Into<EaseMethod>,
     ) -> AnimatedEntityCommands<'a, impl TweenCommand>;
 
@@ -992,7 +992,7 @@ pub trait EntityCommandsTweeningExtensions<'a> {
     fn scale_from(
         self,
         start: Vec3,
-        cycle_duration: Duration,
+        duration: Duration,
         ease_method: impl Into<EaseMethod>,
     ) -> AnimatedEntityCommands<'a, impl TweenCommand>;
 }
@@ -1281,42 +1281,42 @@ impl<'a, C: TweenCommand> EntityCommandsTweeningExtensions<'a> for AnimatedEntit
     fn move_to(
         self,
         end: Vec3,
-        cycle_duration: Duration,
+        duration: Duration,
         ease_method: impl Into<EaseMethod>,
     ) -> AnimatedEntityCommands<'a, impl TweenCommand> {
-        self.into_inner().move_to(end, cycle_duration, ease_method)
+        self.into_inner().move_to(end, duration, ease_method)
     }
 
     #[inline]
     fn move_from(
         self,
         start: Vec3,
-        cycle_duration: Duration,
+        duration: Duration,
         ease_method: impl Into<EaseMethod>,
     ) -> AnimatedEntityCommands<'a, impl TweenCommand> {
         self.into_inner()
-            .move_from(start, cycle_duration, ease_method)
+            .move_from(start, duration, ease_method)
     }
 
     #[inline]
     fn scale_to(
         self,
         end: Vec3,
-        cycle_duration: Duration,
+        duration: Duration,
         ease_method: impl Into<EaseMethod>,
     ) -> AnimatedEntityCommands<'a, impl TweenCommand> {
-        self.into_inner().scale_to(end, cycle_duration, ease_method)
+        self.into_inner().scale_to(end, duration, ease_method)
     }
 
     #[inline]
     fn scale_from(
         self,
         start: Vec3,
-        cycle_duration: Duration,
+        duration: Duration,
         ease_method: impl Into<EaseMethod>,
     ) -> AnimatedEntityCommands<'a, impl TweenCommand> {
         self.into_inner()
-            .scale_from(start, cycle_duration, ease_method)
+            .scale_from(start, duration, ease_method)
     }
 }
 
@@ -1388,7 +1388,7 @@ impl<'a> EntityCommandsTweeningExtensions<'a> for EntityCommands<'a> {
     fn move_to(
         self,
         end: Vec3,
-        cycle_duration: Duration,
+        duration: Duration,
         ease_method: impl Into<EaseMethod>,
     ) -> AnimatedEntityCommands<'a, impl TweenCommand> {
         AnimatedEntityCommands::new(
@@ -1397,7 +1397,7 @@ impl<'a> EntityCommandsTweeningExtensions<'a> for EntityCommands<'a> {
                 end,
                 config: TweenConfig {
                     ease_method: ease_method.into(),
-                    cycle_duration,
+                    cycle_duration: duration,
                     ..default()
                 },
             },
@@ -1408,7 +1408,7 @@ impl<'a> EntityCommandsTweeningExtensions<'a> for EntityCommands<'a> {
     fn move_from(
         self,
         start: Vec3,
-        cycle_duration: Duration,
+        duration: Duration,
         ease_method: impl Into<EaseMethod>,
     ) -> AnimatedEntityCommands<'a, impl TweenCommand> {
         AnimatedEntityCommands::new(
@@ -1417,7 +1417,7 @@ impl<'a> EntityCommandsTweeningExtensions<'a> for EntityCommands<'a> {
                 start,
                 config: TweenConfig {
                     ease_method: ease_method.into(),
-                    cycle_duration,
+                    cycle_duration: duration,
                     ..default()
                 },
             },
@@ -1428,7 +1428,7 @@ impl<'a> EntityCommandsTweeningExtensions<'a> for EntityCommands<'a> {
     fn scale_to(
         self,
         end: Vec3,
-        cycle_duration: Duration,
+        duration: Duration,
         ease_method: impl Into<EaseMethod>,
     ) -> AnimatedEntityCommands<'a, impl TweenCommand> {
         AnimatedEntityCommands::new(
@@ -1437,7 +1437,7 @@ impl<'a> EntityCommandsTweeningExtensions<'a> for EntityCommands<'a> {
                 end,
                 config: TweenConfig {
                     ease_method: ease_method.into(),
-                    cycle_duration,
+                    cycle_duration: duration,
                     ..default()
                 },
             },
@@ -1448,7 +1448,7 @@ impl<'a> EntityCommandsTweeningExtensions<'a> for EntityCommands<'a> {
     fn scale_from(
         self,
         start: Vec3,
-        cycle_duration: Duration,
+        duration: Duration,
         ease_method: impl Into<EaseMethod>,
     ) -> AnimatedEntityCommands<'a, impl TweenCommand> {
         AnimatedEntityCommands::new(
@@ -1457,7 +1457,7 @@ impl<'a> EntityCommandsTweeningExtensions<'a> for EntityCommands<'a> {
                 start,
                 config: TweenConfig {
                     ease_method: ease_method.into(),
-                    cycle_duration,
+                    cycle_duration: duration,
                     ..default()
                 },
             },
