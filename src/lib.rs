@@ -591,21 +591,20 @@ impl<T: Asset> AssetAnimator<T> {
             _marker: Default::default(),
         }
     }
+
+    /// Create a new version of this asset animator component with a marker
+    pub fn with_marker<M>(self) -> AssetAnimator<T, M> {
+        AssetAnimator::<T, M> {
+            state: self.state,
+            tweenable: self.tweenable,
+            speed: self.speed,
+            _marker: Default::default(),
+        }
+    }
 }
 
 #[cfg(feature = "bevy_asset")]
 impl<T: Asset, M> AssetAnimator<T, M> {
-    /// Create a new marked asset animator component from a single tweenable.
-    #[must_use]
-    pub fn new_with_marker(tween: impl Tweenable<T> + 'static) -> Self {
-        Self {
-            state: default(),
-            tweenable: Box::new(tween),
-            speed: 1.,
-            _marker: Default::default(),
-        }
-    }
-
     animator_impl!();
 }
 
