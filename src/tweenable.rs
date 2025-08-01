@@ -5,6 +5,9 @@ use std::{
 
 use bevy::{ecs::system::SystemId, prelude::*};
 
+#[cfg(feature = "bevy_asset")]
+use bevy::asset::{Asset, AssetId};
+
 use crate::{EaseMethod, Lens, RepeatCount, RepeatStrategy, TweeningDirection};
 
 /// The dynamic tweenable type.
@@ -767,6 +770,13 @@ impl<T> Tweenable<T> for Tween<T> {
             return TweenState::Completed;
         }
 
+        let times_completed_before = self.times_completed();
+
+        // Check for the start of the tween
+        if self.elapsed().is_zero() && times_completed_before == 0 && self.direction.is_forward() {
+            self.lens.update_on_tween_start(target, self.direction, 0);
+        }
+
         // Tick the animation clock
         let (state, times_completed) = self.clock.tick(delta);
         let (progress, times_completed_for_direction) = match state {
@@ -777,6 +787,12 @@ impl<T> Tweenable<T> for Tween<T> {
             && times_completed_for_direction & 1 != 0
         {
             self.direction = !self.direction;
+
+            self.lens
+                .update_on_tween_start(target, self.direction, times_completed);
+        } else if times_completed as u32 != times_completed_before {
+            self.lens
+                .update_on_tween_start(target, self.direction, times_completed);
         }
 
         // Apply the lens, even if the animation finished, to ensure the state is
@@ -968,7 +984,7 @@ impl<T> Tweenable<T> for Sequence<T> {
             }
 
             tween.rewind();
-            delta -= tween_remaining;
+            delta = delta.saturating_sub(tween_remaining);
             self.index += 1;
         }
 
@@ -1418,8 +1434,6 @@ mod tests {
             |world: &mut World, mut events: Mut<Events<TweenCompleted>>| {
                 let transform = world.get_mut::<T>(entity).unwrap();
                 let mut target = ComponentTarget::new(transform);
-                // let command_queue = &mut CommandQueue::default(); // todo
-                // let mut asd = Commands::new(command_queue, world);
                 tween.tick(
                     duration,
                     &mut target,

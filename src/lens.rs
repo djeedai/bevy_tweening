@@ -39,6 +39,8 @@ use bevy::prelude::*;
 
 use crate::Targetable;
 
+use crate::TweeningDirection;
+
 /// A lens over a subset of a component.
 ///
 /// The lens takes a `target` component or asset from a query, as a mutable
@@ -74,6 +76,17 @@ pub trait Lens<T> {
     /// implementation decides which fields are interpolated, and performs
     /// the animation in-place, overwriting the target.
     fn lerp(&mut self, target: &mut dyn Targetable<T>, ratio: f32);
+
+    /// Update lens on tween start
+    /// Can be used for relative lenses
+    #[allow(unused_variables)]
+    fn update_on_tween_start(
+        &mut self,
+        target: &mut dyn Targetable<T>,
+        direction: TweeningDirection,
+        times_completed: i32,
+    ) {
+    }
 }
 
 /// A lens to manipulate the [`color`] field of a section of a [`Text`]

@@ -69,6 +69,10 @@ required-features = ["bevy_sprite", "bevy_text", "bevy/bevy_winit", "bevy/bevy_p
 name = "transform_marker"
 required-features = ["bevy/bevy_winit"]
 
+[[example]]
+name = "custom_relative_lens"
+required-features = ["bevy/bevy_winit"]
+
 [workspace]
 resolver = "2"
 members = [".", "benchmarks/"]
