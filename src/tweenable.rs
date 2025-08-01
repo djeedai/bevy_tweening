@@ -419,7 +419,8 @@ impl Ord for TotalDuration {
     }
 }
 
-/// An animatable entity, either a single [`Tween`] or a collection of them.
+/// Tweening animation description, either a single [`Tween`] or a collection of
+/// them.
 pub trait Tweenable: Send + Sync {
     /// Get the duration of a single cycle of the animation.
     ///
@@ -497,7 +498,7 @@ pub trait Tweenable: Send + Sync {
         tween_id: Entity,
         delta: Duration,
         target: MutUntyped,
-        notify_completed: &mut dyn FnMut(),
+        notify_cycle_completed: &mut dyn FnMut(),
     ) -> TweenState;
 
     /// Rewind the animation to its starting state.
@@ -568,6 +569,26 @@ impl_boxed!(Delay);
 
 type TargetAction = dyn FnMut(MutUntyped, f32) + Send + Sync + 'static;
 
+/// Configuration to create a [`Tween`].
+///
+/// This is largely an internal type, only exposed due to other constraints.
+#[doc(hidden)]
+#[derive(Default, Clone, Copy)]
+pub struct TweenConfig {
+    ///
+    pub ease_method: EaseMethod,
+    ///
+    pub playback_direction: PlaybackDirection,
+    ///
+    pub send_cycle_completed_event: bool,
+    ///
+    pub cycle_duration: Duration,
+    ///
+    pub repeat_count: RepeatCount,
+    ///
+    pub repeat_strategy: RepeatStrategy,
+}
+
 /// Single tweening animation description.
 ///
 /// A _tween_ is the basic building block of an animation. It describes a single
@@ -621,16 +642,19 @@ type TargetAction = dyn FnMut(MutUntyped, f32) + Send + Sync + 'static;
 /// duration of the animation. This is a property of an active animation, and is
 /// available per instance from the [`TweenAnim`] representing the instance. So
 /// a tween itself, which describes an animation without a specific target to
-/// animate, doesn't have an elapsed time.
+/// animate, doesn't have an elapsed time. You can think of the elapsed time as
+/// the current time position on some animation timeline.
 ///
 /// The tween however has a _playback direction_. By default, the playback
 /// direction is [`PlaybackDirection::Forward`], and the animation plays forward
 /// as described above. By instead using [`PlaybackDirection::Backward`], the
 /// tween plays in reverse from end to start. Practically, this means that the
 /// elapsed time _decreases_ from its current value back to zero, and the
-/// animation completes at `t=0`. Note that as a result, because infinite
-/// animations ([`RepeatCount::Infinite`]) don't have an end time, they cannot
-/// be rewinded when the playback direction is backward.
+/// animation completes at `t=0`. You can think of the playback direction as the
+/// direction in which the time position moves on some animation timeline. Note
+/// that as a result, because infinite animations ([`RepeatCount::Infinite`])
+/// don't have an end time, they cannot be rewinded when the playback direction
+/// is backward.
 ///
 /// # Completion events and one-shot systems
 ///
@@ -642,23 +666,22 @@ type TargetAction = dyn FnMut(MutUntyped, f32) + Send + Sync + 'static;
 ///   [`CycleCompletedEvent`]. The event is emitted as a buffered event, to be
 ///   read by another system through an [`EventReader`]. For component targets,
 ///   observers are also triggered. Both of these are enabled through
-///   [`with_completed_event()`] and [`set_completed_event()`]. Per-cycle events
-///   are disabled by default.
+///   [`with_cycle_completed_event()`] and [`set_cycle_completed_event()`].
+///   Per-cycle events are disabled by default.
 /// - At the end of all cycles, when the animation itself completes, the tween
 ///   emits an [`AnimCompletedEvent`]. This event is always emitted.
 ///
 /// [`TweenAnim`]: crate::TweenAnim
-/// [`with_completed_event()`]: Self::with_completed_event
-/// [`set_completed_event()`]: Self::set_completed_event
+/// [`with_cycle_completed_event()`]: Self::with_cycle_completed_event
+/// [`set_cycle_completed_event()`]: Self::set_cycle_completed_event
 /// [`AnimCompletedEvent`]: crate::AnimCompletedEvent
-/// [`TweenAnimator`]: crate::TweenAnimator
 pub struct Tween {
     ease_method: EaseMethod,
     clock: AnimClock,
     /// Direction of playback the user asked for.
     playback_direction: PlaybackDirection,
     action: Box<TargetAction>,
-    send_completed_event: bool,
+    send_cycle_completed_event: bool,
     /// Type ID of the target.
     type_id: TypeId,
 }
@@ -709,9 +732,33 @@ impl Tween {
             clock: AnimClock::new(cycle_duration),
             playback_direction: PlaybackDirection::Forward,
             action: Box::new(action),
-            send_completed_event: false,
+            send_cycle_completed_event: false,
             type_id: TypeId::of::<T>(),
         }
+    }
+
+    #[inline]
+    #[must_use]
+    pub(crate) fn from_config<T, L>(config: TweenConfig, mut lens: L) -> Self
+    where
+        T: 'static,
+        L: Lens<T> + Send + Sync + 'static,
+    {
+        let action = move |ptr: MutUntyped, ratio: f32| {
+            // SAFETY: ptr was obtained from the same type, via the type_id saved below.
+            #[allow(unsafe_code)]
+            let target = unsafe { ptr.with_type::<T>() };
+            lens.lerp(target, ratio);
+        };
+        let this = Self {
+            ease_method: config.ease_method,
+            clock: AnimClock::new(config.cycle_duration),
+            playback_direction: config.playback_direction,
+            action: Box::new(action),
+            send_cycle_completed_event: config.send_cycle_completed_event,
+            type_id: TypeId::of::<T>(),
+        };
+        this.with_repeat(config.repeat_count, config.repeat_strategy)
     }
 
     /// Set the number of times to repeat the animation.
@@ -727,6 +774,17 @@ impl Tween {
         self
     }
 
+    /// Set the number of times to repeat the animation.
+    ///
+    /// The repeat count determines the number of cycles of the animation. See
+    /// [the top-level `Tween` documentation] for details.
+    ///
+    /// [the top-level `Tween` documentation]: crate::Tween#cycles
+    pub fn set_repeat_count(&mut self, count: impl Into<RepeatCount>) {
+        self.clock.total_duration =
+            TotalDuration::from_cycles(self.clock.cycle_duration, count.into());
+    }
+
     /// Configure how the cycles repeat.
     ///
     /// This enables or disables cycle mirroring. See [the top-level `Tween`
@@ -737,6 +795,42 @@ impl Tween {
     pub fn with_repeat_strategy(mut self, strategy: RepeatStrategy) -> Self {
         self.clock.strategy = strategy;
         self
+    }
+
+    /// Configure how the cycles repeat.
+    ///
+    /// This enables or disables cycle mirroring. See [the top-level `Tween`
+    /// documentation] for details.
+    ///
+    /// [the top-level `Tween` documentation]: crate::Tween#cycles
+    pub fn set_repeat_strategy(&mut self, strategy: RepeatStrategy) {
+        self.clock.strategy = strategy;
+    }
+
+    /// Configure the animation repeat parameters.
+    ///
+    /// The repeat count determines the number of cycles of the animation. The
+    /// repeat strategy enables or disables cycle mirrored repeat. See
+    /// [the top-level `Tween` documentation] for details.
+    ///
+    /// [the top-level `Tween` documentation]: crate::Tween#cycles
+    #[must_use]
+    #[inline]
+    pub fn with_repeat(self, count: impl Into<RepeatCount>, strategy: RepeatStrategy) -> Self {
+        self.with_repeat_count(count).with_repeat_strategy(strategy)
+    }
+
+    /// Configure the animation repeat parameters.
+    ///
+    /// The repeat count determines the number of cycles of the animation. The
+    /// repeat strategy enables or disables cycle mirrored repeat. See
+    /// [the top-level `Tween` documentation] for details.
+    ///
+    /// [the top-level `Tween` documentation]: crate::Tween#cycles
+    #[inline]
+    pub fn set_repeat(&mut self, count: impl Into<RepeatCount>, strategy: RepeatStrategy) {
+        self.set_repeat_count(count);
+        self.set_repeat_strategy(strategy);
     }
 
     /// Enable raising a event on cycle completion.
@@ -764,7 +858,7 @@ impl Tween {
     /// #    },
     /// )
     /// // Raise a CycleCompletedEvent each cycle
-    /// .with_completed_event(true);
+    /// .with_cycle_completed_event(true);
     ///
     /// fn my_system(mut reader: EventReader<CycleCompletedEvent>) {
     ///     for ev in reader.read() {
@@ -777,18 +871,18 @@ impl Tween {
     /// }
     /// ```
     #[must_use]
-    pub fn with_completed_event(mut self, send: bool) -> Self {
-        self.send_completed_event = send;
+    pub fn with_cycle_completed_event(mut self, send: bool) -> Self {
+        self.send_cycle_completed_event = send;
         self
     }
 
     /// Set whether the tween emits [`CycleCompletedEvent`].
     ///
-    /// See [`with_completed_event()`] for details.
+    /// See [`with_cycle_completed_event()`] for details.
     ///
-    /// [`with_completed_event()`]: Self::with_completed_event
-    pub fn set_completed_event(&mut self, send: bool) {
-        self.send_completed_event = send;
+    /// [`with_cycle_completed_event()`]: Self::with_cycle_completed_event
+    pub fn set_cycle_completed_event(&mut self, send: bool) {
+        self.send_cycle_completed_event = send;
     }
 
     /// Set the playback direction of the tween.
@@ -926,7 +1020,7 @@ impl Tweenable for Tween {
         _tween_id: Entity,
         delta: Duration,
         target: MutUntyped,
-        notify_completed: &mut dyn FnMut(),
+        notify_cycle_completed: &mut dyn FnMut(),
     ) -> TweenState {
         if self.clock.state(self.playback_direction) == TweenState::Completed {
             return TweenState::Completed;
@@ -946,8 +1040,8 @@ impl Tweenable for Tween {
         (self.action)(target, fraction);
 
         // If completed at least once this frame, notify the user
-        if times_completed != 0 && self.send_completed_event {
-            notify_completed();
+        if times_completed != 0 && self.send_cycle_completed_event {
+            notify_cycle_completed();
         }
 
         state
@@ -962,7 +1056,7 @@ impl Tweenable for Tween {
     }
 }
 
-/// A sequence of tweens played back in order one after the other.
+/// A sequence of tweenable animations played in order one after the other.
 pub struct Sequence {
     tweens: Vec<BoxedTweenable>,
     index: usize,
@@ -1550,9 +1644,9 @@ mod tests {
                     .with_playback_direction(playback_direction)
                     .with_repeat_count(count)
                     .with_repeat_strategy(strategy)
-                    .with_completed_event(true);
+                    .with_cycle_completed_event(true);
                 assert_eq!(tween.playback_direction(), playback_direction);
-                assert!(tween.send_completed_event);
+                assert!(tween.send_cycle_completed_event);
 
                 // Note: for infinite duration playing backward, we need to start *somewhere*
                 // since we can't start at infinity. So pick t=1s which is shorter than 11
@@ -1865,8 +1959,8 @@ mod tests {
                 }
 
                 // Clear event sending
-                tween.set_completed_event(false);
-                assert!(!tween.send_completed_event);
+                tween.set_cycle_completed_event(false);
+                assert!(!tween.send_cycle_completed_event);
             }
         }
     }

@@ -9,6 +9,16 @@ use crate::{AnimCompletedEvent, CycleCompletedEvent, TweenAnim, TweenResolver};
 /// tweenable animations. That system runs in the
 /// [`AnimationSystem::AnimationUpdate`] system set, during the [`Update`]
 /// schedule.
+///
+/// ```no_run
+/// use bevy::prelude::*;
+/// use bevy_tweening::*;
+///
+/// App::default()
+///     .add_plugins(DefaultPlugins)
+///     .add_plugins(TweeningPlugin)
+///     .run();
+/// ```
 #[derive(Debug, Clone, Copy)]
 pub struct TweeningPlugin;
 
@@ -63,7 +73,7 @@ mod tests {
                 end: Vec3::ONE,
             },
         )
-        .with_completed_event(true);
+        .with_cycle_completed_event(true);
         let mut env = TestEnv::<Transform>::new(tween);
 
         env.step_all(Duration::ZERO);
@@ -85,7 +95,7 @@ mod tests {
                 end: Vec3::ONE,
             },
         )
-        .with_completed_event(true);
+        .with_cycle_completed_event(true);
 
         let mut env = TestEnv::<Transform>::new(tween);
 
@@ -165,7 +175,7 @@ mod tests {
                 defer: Arc::clone(&defer),
             },
         )
-        .with_completed_event(true);
+        .with_cycle_completed_event(true);
 
         let mut env = TestEnv::<DummyComponent>::new(tween);
 

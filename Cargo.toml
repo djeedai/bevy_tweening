@@ -33,6 +33,10 @@ thiserror = "2"
 bevy-inspector-egui = { version = "0.31" }
 
 [[example]]
+name = "ambient_light"
+required-features = ["bevy_ui", "bevy_text", "bevy/bevy_winit", "bevy/bevy_picking", "bevy/bevy_pbr"]
+
+[[example]]
 name = "menu"
 required-features = ["bevy_ui", "bevy_text", "bevy/bevy_winit", "bevy/bevy_picking"]
 

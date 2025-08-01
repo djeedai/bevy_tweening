@@ -95,7 +95,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                         end: Vec3::ONE,
                     },
                 )
-                .with_completed_event(true);
+                .with_cycle_completed_event(true);
 
                 let target = container
                     .spawn((
