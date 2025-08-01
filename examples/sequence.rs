@@ -278,7 +278,7 @@ fn update_text(
     q_tween_anims: Query<&TweenAnim>,
     q_anim_red: Single<Option<&TweenAnim>, With<RedAnimMarker>>,
     q_anim_blue: Query<&BlueSprite>,
-    mut q_event_completed: EventReader<CycleCompletedEvent>,
+    mut q_event_completed: EventReader<AnimCompletedEvent>,
 ) {
     let anim_red = *q_anim_red;
     let progress_red = if let Some(anim) = anim_red {
@@ -302,8 +302,8 @@ fn update_text(
 
     for ev in q_event_completed.read() {
         println!(
-            "Event: CycleCompletedEvent tween_id={:?} target={:?}",
-            ev.id, ev.target
+            "Event: AnimCompletedEvent anim_entity={:?} target={:?}",
+            ev.anim_entity, ev.target
         );
     }
 }
