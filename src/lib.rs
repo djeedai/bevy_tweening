@@ -1202,7 +1202,7 @@ impl TweenCommand for ScaleFromCommand {
 ///
 /// [`reborrow()`]: bevy::prelude::EntityCommands::reborrow
 pub struct AnimatedEntityCommands<'a, C: TweenCommand> {
-    commands: Option<EntityCommands<'a>>,
+    commands: EntityCommands<'a>,
     cmd: Option<C>,
 }
 
@@ -1210,7 +1210,7 @@ impl<'a, C: TweenCommand> AnimatedEntityCommands<'a, C> {
     /// Wrap an [`EntityCommands`] into an animated one.
     pub fn new(commands: EntityCommands<'a>, cmd: C) -> Self {
         Self {
-            commands: Some(commands),
+            commands,
             cmd: Some(cmd),
         }
     }
@@ -1250,7 +1250,18 @@ impl<'a, C: TweenCommand> AnimatedEntityCommands<'a, C> {
     /// commands queue is returned.
     pub fn into_inner(mut self) -> EntityCommands<'a> {
         self.flush();
-        self.commands.take().unwrap()
+        // Since we already flushed above, we don't need Drop. And trying to keep would
+        // allow it to access self.commands after it was stolen (even though we know the
+        // implementation doesn't in practice). Still, it's safer to just short-circuit
+        // Drop here.
+        let this = std::mem::ManuallyDrop::new(self);
+        // SAFETY: We have flushed self.cmd which is now None, and we're stealing
+        // self.commands, after which the this object is forgotten and never
+        // accessed again.
+        #[allow(unsafe_code)]
+        unsafe {
+            std::ptr::read(&this.commands)
+        }
     }
 
     /// Flush the current animation, inserting it into the commands queue.
@@ -1268,50 +1279,44 @@ impl<'a, C: TweenCommand> AnimatedEntityCommands<'a, C> {
 impl<'a, C: TweenCommand> EntityCommandsTweeningExtensions<'a> for AnimatedEntityCommands<'a, C> {
     #[inline]
     fn move_to(
-        mut self,
+        self,
         end: Vec3,
         cycle_duration: Duration,
         ease_method: impl Into<EaseMethod>,
     ) -> AnimatedEntityCommands<'a, impl TweenCommand> {
-        self.flush();
-        let commands = self.commands.take().unwrap();
-        commands.move_to(end, cycle_duration, ease_method)
+        self.into_inner().move_to(end, cycle_duration, ease_method)
     }
 
     #[inline]
     fn move_from(
-        mut self,
+        self,
         start: Vec3,
         cycle_duration: Duration,
         ease_method: impl Into<EaseMethod>,
     ) -> AnimatedEntityCommands<'a, impl TweenCommand> {
-        self.flush();
-        let commands = self.commands.take().unwrap();
-        commands.move_from(start, cycle_duration, ease_method)
+        self.into_inner()
+            .move_from(start, cycle_duration, ease_method)
     }
 
     #[inline]
     fn scale_to(
-        mut self,
+        self,
         end: Vec3,
         cycle_duration: Duration,
         ease_method: impl Into<EaseMethod>,
     ) -> AnimatedEntityCommands<'a, impl TweenCommand> {
-        self.flush();
-        let commands = self.commands.take().unwrap();
-        commands.scale_to(end, cycle_duration, ease_method)
+        self.into_inner().scale_to(end, cycle_duration, ease_method)
     }
 
     #[inline]
     fn scale_from(
-        mut self,
+        self,
         start: Vec3,
         cycle_duration: Duration,
         ease_method: impl Into<EaseMethod>,
     ) -> AnimatedEntityCommands<'a, impl TweenCommand> {
-        self.flush();
-        let commands = self.commands.take().unwrap();
-        commands.scale_from(start, cycle_duration, ease_method)
+        self.into_inner()
+            .scale_from(start, cycle_duration, ease_method)
     }
 }
 
@@ -1319,14 +1324,14 @@ impl<'a, C: TweenCommand> Deref for AnimatedEntityCommands<'a, C> {
     type Target = EntityCommands<'a>;
 
     fn deref(&self) -> &Self::Target {
-        self.commands.as_ref().unwrap()
+        &self.commands
     }
 }
 
 impl<'a, C: TweenCommand> DerefMut for AnimatedEntityCommands<'a, C> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.flush();
-        self.commands.as_mut().unwrap()
+        &mut self.commands
     }
 }
 
@@ -1463,7 +1468,7 @@ impl<'a> EntityCommandsTweeningExtensions<'a> for EntityCommands<'a> {
 impl<'a, C: TweenCommand> TweeningExtensions<'a> for AnimatedEntityCommands<'a, C> {
     #[inline]
     fn tween(&mut self, tweenable: impl IntoBoxedTweenable) -> &mut AnimatedEntityCommands<'a, C> {
-        self.commands.as_mut().unwrap().tween(tweenable);
+        self.commands.tween(tweenable);
         self
     }
 
@@ -1473,19 +1478,13 @@ impl<'a, C: TweenCommand> TweeningExtensions<'a> for AnimatedEntityCommands<'a, 
         entity: Entity,
         tweenable: impl IntoBoxedTweenable,
     ) -> &mut AnimatedEntityCommands<'a, C> {
-        self.commands
-            .as_mut()
-            .unwrap()
-            .tween_component(entity, tweenable);
+        self.commands.tween_component(entity, tweenable);
         self
     }
 
     #[inline]
     fn tween_resource<R: Resource>(&mut self, tweenable: impl IntoBoxedTweenable) -> &mut Self {
-        self.commands
-            .as_mut()
-            .unwrap()
-            .tween_resource::<R>(tweenable);
+        self.commands.tween_resource::<R>(tweenable);
         self
     }
 
@@ -1494,10 +1493,7 @@ impl<'a, C: TweenCommand> TweeningExtensions<'a> for AnimatedEntityCommands<'a, 
         id: impl Into<AssetId<A>>,
         tweenable: impl IntoBoxedTweenable,
     ) -> &mut Self {
-        self.commands
-            .as_mut()
-            .unwrap()
-            .tween_asset::<A>(id, tweenable);
+        self.commands.tween_asset::<A>(id, tweenable);
         self
     }
 }
@@ -1573,52 +1569,6 @@ impl<'a> TweeningExtensions<'a> for EntityWorldMut<'a> {
         self
     }
 }
-
-// impl<'a> TweeningExtensions<'a> for EntityWorldMut<'a> {
-//     type Output = Self;
-
-//     #[inline]
-//     fn move_to(self, end: Vec3, duration: Duration, ease_method: impl
-// Into<EaseMethod>) -> Self {         let start =
-// self.get::<Transform>().unwrap().translation;         let lens =
-// TransformPositionLens { start, end };         let tween =
-// Tween::new(ease_method, duration, lens);         self.tween(tween)
-//     }
-
-//     #[inline]
-//     fn move_from(
-//         self,
-//         start: Vec3,
-//         duration: Duration,
-//         ease_method: impl Into<EaseMethod>,
-//     ) -> Self {
-//         let end = self.get::<Transform>().unwrap().translation;
-//         let lens = TransformPositionLens { start, end };
-//         let tween = Tween::new(ease_method, duration, lens);
-//         self.tween(tween)
-//     }
-
-//     #[inline]
-//     fn scale_to(self, end: Vec3, duration: Duration, ease_method: impl
-// Into<EaseMethod>) -> Self {         let start =
-// self.get::<Transform>().unwrap().scale;         let lens = TransformScaleLens
-// { start, end };         let tween = Tween::new(ease_method, duration, lens);
-//         self.tween(tween)
-//     }
-
-//     #[inline]
-//     fn scale_from(
-//         self,
-//         start: Vec3,
-//         duration: Duration,
-//         ease_method: impl Into<EaseMethod>,
-//     ) -> Self {
-//         let end = self.get::<Transform>().unwrap().scale;
-//         let lens = TransformScaleLens { start, end };
-//         let tween = Tween::new(ease_method, duration, lens);
-//         self.tween(tween)
-//     }
-// }
 
 /// Event raised when a [`TweenAnim`] completed.
 #[derive(Copy, Clone, Event)]
