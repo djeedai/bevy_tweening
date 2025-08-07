@@ -37,6 +37,10 @@ name = "ambient_light"
 required-features = ["bevy_ui", "bevy_text", "bevy/bevy_winit", "bevy/bevy_picking", "bevy/bevy_pbr", "bevy/hdr", "bevy/tonemapping_luts"]
 
 [[example]]
+name = "follow"
+required-features = ["bevy_sprite", "bevy_text", "bevy/bevy_winit", "bevy/bevy_picking"]
+
+[[example]]
 name = "menu"
 required-features = ["bevy_ui", "bevy_text", "bevy/bevy_winit", "bevy/bevy_picking"]
 

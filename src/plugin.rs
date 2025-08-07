@@ -48,7 +48,7 @@ pub enum AnimationSystem {
 /// `delta_time` equal to [`Time::delta()`].
 pub(crate) fn animator_system(world: &mut World) {
     let delta_time = world.resource::<Time>().delta();
-    let _ = TweenAnim::step_all(world, delta_time);
+    TweenAnim::step_all(world, delta_time);
 }
 
 #[cfg(test)]

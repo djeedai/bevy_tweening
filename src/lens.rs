@@ -224,6 +224,105 @@ impl Lens<Transform> for TransformRotateZLens {
     }
 }
 
+/// A lens to rotate a [`Transform`] component around its local X axis
+/// additively.
+///
+/// This lens interpolates the rotation angle of a local rotation from
+/// a `start` value to an `end` value, for a rotation around the local X axis,
+/// and compose this with the `base_rotation`, applying the result to a
+/// [`Transform`] component. Unlike [`TransformRotationLens`], it can produce an
+/// animation that rotates the entity any number of turns around its local X
+/// axis.
+///
+/// See the [top-level `lens` module documentation] for a comparison of rotation
+/// lenses.
+///
+/// [`Transform`]: https://docs.rs/bevy/0.16.0/bevy/transform/components/struct.Transform.html
+/// [top-level `lens` module documentation]: crate::lens
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct TransformRotateAdditiveXLens {
+    /// The base rotation of the object, which is composed with the animated
+    /// rotation.
+    pub base_rotation: Quat,
+    /// Start value of the rotation angle, in radians.
+    pub start: f32,
+    /// End value of the rotation angle, in radians.
+    pub end: f32,
+}
+
+impl Lens<Transform> for TransformRotateAdditiveXLens {
+    fn lerp(&mut self, mut target: Mut<Transform>, ratio: f32) {
+        let angle = (self.end - self.start).mul_add(ratio, self.start);
+        target.rotation = self.base_rotation * Quat::from_rotation_x(angle);
+    }
+}
+
+/// A lens to rotate a [`Transform`] component around its local Y axis
+/// additively.
+///
+/// This lens interpolates the rotation angle of a local rotation from
+/// a `start` value to an `end` value, for a rotation around the local Y axis,
+/// and compose this with the `base_rotation`, applying the result to a
+/// [`Transform`] component. Unlike [`TransformRotationLens`], it can produce an
+/// animation that rotates the entity any number of turns around its local Y
+/// axis.
+///
+/// See the [top-level `lens` module documentation] for a comparison of rotation
+/// lenses.
+///
+/// [`Transform`]: https://docs.rs/bevy/0.16.0/bevy/transform/components/struct.Transform.html
+/// [top-level `lens` module documentation]: crate::lens
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct TransformRotateAdditiveYLens {
+    /// The base rotation of the object, which is composed with the animated
+    /// rotation.
+    pub base_rotation: Quat,
+    /// Start value of the rotation angle, in radians.
+    pub start: f32,
+    /// End value of the rotation angle, in radians.
+    pub end: f32,
+}
+
+impl Lens<Transform> for TransformRotateAdditiveYLens {
+    fn lerp(&mut self, mut target: Mut<Transform>, ratio: f32) {
+        let angle = (self.end - self.start).mul_add(ratio, self.start);
+        target.rotation = self.base_rotation * Quat::from_rotation_y(angle);
+    }
+}
+
+/// A lens to rotate a [`Transform`] component around its local Z axis
+/// additively.
+///
+/// This lens interpolates the rotation angle of a local rotation from
+/// a `start` value to an `end` value, for a rotation around the local Z axis,
+/// and compose this with the `base_rotation`, applying the result to a
+/// [`Transform`] component. Unlike [`TransformRotationLens`], it can produce an
+/// animation that rotates the entity any number of turns around its local Z
+/// axis.
+///
+/// See the [top-level `lens` module documentation] for a comparison of rotation
+/// lenses.
+///
+/// [`Transform`]: https://docs.rs/bevy/0.16.0/bevy/transform/components/struct.Transform.html
+/// [top-level `lens` module documentation]: crate::lens
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct TransformRotateAdditiveZLens {
+    /// The base rotation of the object, which is composed with the animated
+    /// rotation.
+    pub base_rotation: Quat,
+    /// Start value of the rotation angle, in radians.
+    pub start: f32,
+    /// End value of the rotation angle, in radians.
+    pub end: f32,
+}
+
+impl Lens<Transform> for TransformRotateAdditiveZLens {
+    fn lerp(&mut self, mut target: Mut<Transform>, ratio: f32) {
+        let angle = (self.end - self.start).mul_add(ratio, self.start);
+        target.rotation = self.base_rotation * Quat::from_rotation_z(angle);
+    }
+}
+
 /// A lens to rotate a [`Transform`] component around a given fixed axis.
 ///
 /// This lens interpolates the rotation angle of a [`Transform`] component from

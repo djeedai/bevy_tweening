@@ -2,7 +2,7 @@ use std::{any::TypeId, cmp::Ordering, time::Duration};
 
 use bevy::{ecs::change_detection::MutUntyped, prelude::*};
 
-use crate::{AnimTarget, EaseMethod, Lens, PlaybackDirection, RepeatCount, RepeatStrategy};
+use crate::{AnimTargetKind, EaseMethod, Lens, PlaybackDirection, RepeatCount, RepeatStrategy};
 
 /// The dynamic tweenable type.
 ///
@@ -116,10 +116,14 @@ pub struct CycleCompletedEvent {
     /// [`TweenAnim`]: crate::TweenAnim
     pub id: Entity,
     /// The target the tweenable which completed and the [`TweenAnim`] it's
-    /// part of are mutating.
+    /// part of are mutating. Note that an actual [`AnimTarget`] component might
+    /// not be spawned in the ECS world, if the target is a component on the
+    /// same entity as the one owning the [`TweenAnim`] ("implicit component
+    /// targetting"). But this field is always equal to the valid value that
+    /// would otherwise exist as component.
     ///
     /// [`TweenAnim`]: crate::TweenAnim
-    pub target: AnimTarget,
+    pub target: AnimTargetKind,
 }
 
 #[derive(Debug)]
@@ -549,7 +553,7 @@ pub trait Tweenable: Send + Sync {
     ///
     /// [`TweenAnim`]: crate::TweenAnim
     #[must_use]
-    fn type_id(&self) -> Option<TypeId>;
+    fn target_type_id(&self) -> Option<TypeId>;
 }
 
 macro_rules! impl_boxed {
@@ -1051,7 +1055,7 @@ impl Tweenable for Tween {
         self.clock.rewind(self.playback_direction);
     }
 
-    fn type_id(&self) -> Option<TypeId> {
+    fn target_type_id(&self) -> Option<TypeId> {
         Some(self.type_id)
     }
 }
@@ -1247,12 +1251,12 @@ impl Tweenable for Sequence {
         }
     }
 
-    fn type_id(&self) -> Option<TypeId> {
+    fn target_type_id(&self) -> Option<TypeId> {
         // Loop over all children, because we want to skip all untyped ones (Delay).
         // Otherwise the animator will panic, because we can't create an untyped
         // animation.
         for tween in &self.tweens {
-            if let Some(type_id) = tween.type_id() {
+            if let Some(type_id) = tween.target_type_id() {
                 return Some(type_id);
             }
         }
@@ -1366,7 +1370,7 @@ impl Tweenable for Delay {
         self.timer.reset();
     }
 
-    fn type_id(&self) -> Option<TypeId> {
+    fn target_type_id(&self) -> Option<TypeId> {
         None
     }
 }
@@ -1382,7 +1386,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::{lens::*, test_utils::assert_approx_eq, ComponentAnimTarget};
+    use crate::{lens::*, test_utils::assert_approx_eq};
 
     // #[derive(Default, Copy, Clone)]
     // struct CallbackMonitor {
@@ -1531,11 +1535,7 @@ mod tests {
                 let component_id = world.component_id::<Transform>().unwrap();
                 let entity_mut = &mut world.get_entity_mut([entity]).unwrap()[0];
                 if let Ok(mut target) = entity_mut.get_mut_by_id(component_id) {
-                    let world_target = ComponentAnimTarget {
-                        entity,
-                        component_id,
-                    }
-                    .into();
+                    let world_target = AnimTargetKind::Component { entity };
                     let mut notify_completed = || {
                         events.send(CycleCompletedEvent {
                             id: tween_id,
@@ -1893,18 +1893,19 @@ mod tests {
 
                     // Events are only sent when playing forward
                     if playback_direction.is_forward() {
-                        let component_id = world.component_id::<Transform>().unwrap();
+                        //let component_id = world.component_id::<Transform>().unwrap();
                         let mut event_reader = event_reader_system_state.get_mut(&mut world);
                         let event = event_reader.read().next();
                         if just_completed {
                             assert!(event.is_some());
                             if let Some(event) = event {
-                                let comp_target = event
-                                    .target
-                                    .as_component()
-                                    .expect("Expected a component target, got an asset one.");
-                                assert_eq!(comp_target.entity, entity);
-                                assert_eq!(comp_target.component_id, component_id);
+                                let AnimTargetKind::Component {
+                                    entity: comp_target,
+                                } = &event.target
+                                else {
+                                    panic!("Expected AnimTargetKind::Component");
+                                };
+                                assert_eq!(*comp_target, entity);
                             }
                         } else {
                             assert!(event.is_none());

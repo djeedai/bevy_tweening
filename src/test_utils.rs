@@ -117,10 +117,7 @@ macro_rules! assert_approx_eq {
 
 pub(crate) use assert_approx_eq;
 
-use crate::{
-    AnimCompletedEvent, ComponentAnimTarget, CycleCompletedEvent, TweenAnim, TweenResolver,
-    Tweenable,
-};
+use crate::{AnimCompletedEvent, CycleCompletedEvent, TweenAnim, TweenResolver, Tweenable};
 
 /// A simple isolated test environment with a [`World`] and a single
 /// [`Entity`] in it.
@@ -144,11 +141,7 @@ impl<T: Component<Mutability = Mutable> + Default> TestEnv<T> {
         let mut system = IntoSystem::into_system(crate::plugin::animator_system);
         system.initialize(&mut world);
 
-        let entity = world.spawn(T::default()).id();
-        let target = ComponentAnimTarget::new::<T>(world.components(), entity).unwrap();
-        world
-            .entity_mut(entity)
-            .insert(TweenAnim::new(target, tweenable));
+        let entity = world.spawn((T::default(), TweenAnim::new(tweenable))).id();
 
         Self {
             world,
