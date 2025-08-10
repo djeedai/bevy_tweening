@@ -106,26 +106,27 @@ fn setup(mut commands: Commands) {
         .with_repeat_count(RepeatCount::Infinite)
         .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
-        commands
-            .spawn((
-                Node {
-                    width: Val::Px(size),
-                    height: Val::Px(size),
-                    left: Val::Px(x),
-                    top: Val::Px(10.),
-                    right: Val::Auto,
-                    bottom: Val::Auto,
-                    position_type: PositionType::Absolute,
-                    align_content: AlignContent::Center,
-                    align_items: AlignItems::Center,
-                    align_self: AlignSelf::Center,
-                    justify_content: JustifyContent::Center,
-                    ..default()
-                },
-                BackgroundColor(RED.into()),
-            ))
-            // Automatically insert the animation via the entity command queue
-            .tween(tween);
+        commands.spawn((
+            Node {
+                width: Val::Px(size),
+                height: Val::Px(size),
+                left: Val::Px(x),
+                top: Val::Px(10.),
+                right: Val::Auto,
+                bottom: Val::Auto,
+                position_type: PositionType::Absolute,
+                align_content: AlignContent::Center,
+                align_items: AlignItems::Center,
+                align_self: AlignSelf::Center,
+                justify_content: JustifyContent::Center,
+                ..default()
+            },
+            BackgroundColor(RED.into()),
+            // In this example we add the TweenAnim on the same Entity as the component being
+            // animated (Node). Because of that, the target is implicitly a component on this
+            // Entity, and we don't need to add an AnimTarget component.
+            TweenAnim::new(tween),
+        ));
 
         x += offset_x;
     }

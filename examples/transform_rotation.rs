@@ -103,14 +103,18 @@ fn setup(mut commands: Commands) {
                 Visibility::default(),
             ))
             .with_children(|parent| {
-                parent
-                    .spawn((Sprite {
+                parent.spawn((
+                    Sprite {
                         color: RED.into(),
                         custom_size: Some(Vec2::new(size, size * 0.5)),
                         ..default()
-                    },))
-                    // Automatically insert the animation via the entity command queue
-                    .tween(tween);
+                    },
+                    // In this example we add the TweenAnim on the same Entity as the component
+                    // being animated (Transform, automatically added because it's required by
+                    // Sprite). Because of that, the target is implicitly a component on this
+                    // Entity, and we don't need to add an AnimTarget component.
+                    TweenAnim::new(tween),
+                ));
             });
 
         y -= size * spacing;

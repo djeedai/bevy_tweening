@@ -20,11 +20,12 @@ struct InitialAnimMarker;
 ///
 /// The logic is handled as:
 /// 1. Appearance animations send an `AnimCompletedEvent`
-/// 2. The `enable_interaction_after_initial_animation()` system adds a marker
-///    component `InitTransitionDone` to any button component which completed
-///    its appearance animation, to mark it as active.
-/// 3. The `interaction()` system only queries buttons with a
-///    `InitTransitionDone` marker.
+/// 2. The `enable_interaction_after_initial_animation()` system adds a
+///    `HoverAnim` component to any button component which completed its
+///    appearance animation, to mark it as active. This component also contains
+///    the entity of the current hover animation being played, if any.
+/// 3. The `interaction()` system only queries buttons with a `HoverAnim`
+///    component, and override the tweenable animation based on the hover state.
 ///
 /// For simplicity step 2. is handled via an observer. Note that the observer is
 /// on the Entity which owns the TweenAnim, and not on the one owning the
@@ -135,9 +136,12 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     tween_scale.into_boxed()
                 };
                 container
-                    .spawn(InitialAnimMarker)
-                    .observe(enable_interaction_after_initial_animation)
-                    .tween_component(target, tweenable);
+                    .spawn((
+                        InitialAnimMarker,
+                        TweenAnim::new(tweenable),
+                        AnimTarget::component::<Transform>(target),
+                    ))
+                    .observe(enable_interaction_after_initial_animation);
 
                 start_time_ms += 500;
             }
@@ -149,23 +153,35 @@ fn enable_interaction_after_initial_animation(
     mut commands: Commands,
     q_names: Query<&Name>,
 ) {
-    if let AnimTarget::Component(comp_target) = &trigger.target {
+    if let AnimTargetKind::Component {
+        entity: target_entity,
+    } = &trigger.target
+    {
         // Resolve the Entity to a friendly name through the Name component. This is
         // optional, just to make the message nicer.
         let name = q_names
-            .get(comp_target.entity)
+            .get(*target_entity)
             .ok()
             .map(Into::into)
-            .unwrap_or(format!("{:?}", comp_target.entity));
+            .unwrap_or(format!("{:?}", target_entity));
+
         println!("Button on entity {name} completed initial animation, activating...",);
+
+        // Spawn an Entity to hold the animation itself. We add the AnimTarget, which
+        // doesn't change, but not yet any TweenAnim since we have no animation to play.
+        let anim_entity = commands
+            .spawn(AnimTarget::component::<Transform>(*target_entity))
+            .id();
+
+        // Add the HoverAnim component which also acts as a marker
         commands
-            .entity(comp_target.entity)
-            .insert(InitTransitionDone);
+            .entity(*target_entity)
+            .insert(HoverAnim(anim_entity));
     }
 }
 
 #[derive(Component)]
-struct InitTransitionDone;
+struct HoverAnim(pub Entity);
 
 #[derive(Component, Clone, Copy)]
 enum ButtonLabel {
@@ -179,16 +195,18 @@ fn interaction(
     mut commands: Commands,
     mut interaction_query: Query<
         (
-            Entity,
             &Transform,
             &Interaction,
             &mut BackgroundColor,
             &ButtonLabel,
+            &HoverAnim,
         ),
-        (Changed<Interaction>, With<InitTransitionDone>),
+        Changed<Interaction>,
     >,
 ) {
-    for (entity, transform, interaction, mut color, button_label) in &mut interaction_query {
+    for (transform, interaction, mut color, button_label, hover_anim) in &mut interaction_query {
+        let anim_entity = hover_anim.0;
+
         match *interaction {
             Interaction::Pressed => {
                 *color = CLICK_COLOR.into();
@@ -210,27 +228,35 @@ fn interaction(
             }
             Interaction::Hovered => {
                 *color = HOVER_COLOR.into();
-                commands.entity(entity).tween(Tween::new(
+                let tween = Tween::new(
                     EaseFunction::QuadraticIn,
                     Duration::from_millis(200),
                     TransformScaleLens {
-                        start: Vec3::ONE,
+                        start: transform.scale,
                         end: Vec3::splat(1.1),
                     },
-                ));
+                );
+
+                // Set the animation by overwriting the TweenAnim component. This way we don't
+                // need to check if the previous animation was finished or not (and therefore if
+                // the TweenAnim component was deleted or not).
+                commands.entity(anim_entity).insert(TweenAnim::new(tween));
             }
             Interaction::None => {
                 *color = NORMAL_COLOR.into();
-                let start_scale = transform.scale;
-
-                commands.entity(entity).tween(Tween::new(
+                let tween = Tween::new(
                     EaseFunction::QuadraticIn,
                     Duration::from_millis(200),
                     TransformScaleLens {
-                        start: start_scale,
+                        start: transform.scale,
                         end: Vec3::ONE,
                     },
-                ));
+                );
+
+                // Set the animation by overwriting the TweenAnim component. This way we don't
+                // need to check if the previous animation was finished or not (and therefore if
+                // the TweenAnim component was deleted or not).
+                commands.entity(anim_entity).insert(TweenAnim::new(tween));
             }
         }
     }

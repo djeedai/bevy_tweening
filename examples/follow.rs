@@ -99,7 +99,7 @@ fn setup(
             // will keep being removed and re-inserted.
             .with_destroy_on_completed(false),
         // The target of the animation, here a component on the given entity
-        AnimTarget::Component(entity),
+        AnimTarget::component::<Transform>(entity),
     ));
 }
 

@@ -1831,6 +1831,8 @@ pub enum AnimTargetKind {
     Asset {
         /// The asset ID inside the [`Assets`] collection.
         asset_id: UntypedAssetId,
+        /// Type ID of the [`Assets`] collection itself.
+        assets_type_id: TypeId,
     },
 }
 
@@ -1876,6 +1878,7 @@ impl AnimTarget {
         Self {
             kind: AnimTargetKind::Asset {
                 asset_id: asset_id.into().untyped(),
+                assets_type_id: TypeId::of::<Assets<A>>(),
             },
             register_action: Some(Box::new(register_action)),
         }
@@ -2183,8 +2186,8 @@ impl TweenAnim {
                 AnimTargetKind::Resource => components
                     .get_resource_id(type_id)
                     .ok_or(TweeningError::ResourceNotRegistered(type_id))?,
-                AnimTargetKind::Asset { .. } => components
-                    .get_resource_id(type_id)
+                AnimTargetKind::Asset { assets_type_id, .. } => components
+                    .get_resource_id(*assets_type_id)
                     .ok_or(TweeningError::AssetNotRegistered(type_id))?,
             };
             Ok((component_id, target.kind))
@@ -2283,15 +2286,16 @@ impl TweenAnim {
                                         cycle_events.reborrow(),
                                         anim_events.reborrow(),
                                     ),
-                                    AnimTargetKind::Asset { asset_id } => resolver.resolve_asset(
-                                        world,
-                                        *component_id,
-                                        *asset_id,
-                                        *anim_entity,
-                                        delta_time,
-                                        cycle_events.reborrow(),
-                                        anim_events.reborrow(),
-                                    ),
+                                    AnimTargetKind::Asset { asset_id, .. } => resolver
+                                        .resolve_asset(
+                                            world,
+                                            *component_id,
+                                            *asset_id,
+                                            *anim_entity,
+                                            delta_time,
+                                            cycle_events.reborrow(),
+                                            anim_events.reborrow(),
+                                        ),
                                 };
 
                                 let retain = ret.map(|ret| ret.retain).unwrap_or(false);
@@ -2634,6 +2638,7 @@ impl TweenResolver {
 
                 let target = AnimTargetKind::Asset {
                     asset_id: asset_id.untyped(),
+                    assets_type_id: TypeId::of::<Assets<A>>(),
                 };
 
                 let (mut entities, commands) = world.entities_and_commands();

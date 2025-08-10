@@ -97,14 +97,18 @@ fn setup(mut commands: Commands) {
         .with_repeat_count(RepeatCount::Infinite)
         .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
-        commands
-            .spawn((Sprite {
+        commands.spawn((
+            Sprite {
                 color: RED.into(),
                 custom_size: Some(Vec2::new(size, size)),
                 ..default()
-            },))
-            // Automatically insert the animation via the entity command queue
-            .tween(tween);
+            },
+            // In this example we add the TweenAnim on the same Entity as the component being
+            // animated (Transform, automatically added because it's required by Sprite). Because
+            // of that, the target is implicitly a component on this Entity, and we don't need to
+            // add an AnimTarget component.
+            TweenAnim::new(tween),
+        ));
 
         x += size * spacing;
     }

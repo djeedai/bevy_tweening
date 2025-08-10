@@ -88,13 +88,13 @@ fn setup(
         .with_repeat_count(RepeatCount::Infinite)
         .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
-        commands
-            .spawn((
-                Mesh2d(quad_mesh.clone()),
-                MeshMaterial2d(unique_material.clone()),
-                Transform::from_translation(Vec3::new(x, y, 0.)).with_scale(Vec3::splat(size)),
-            ))
-            .tween_asset(&unique_material, tween);
+        commands.spawn((
+            Mesh2d(quad_mesh.clone()),
+            MeshMaterial2d(unique_material.clone()),
+            Transform::from_translation(Vec3::new(x, y, 0.)).with_scale(Vec3::splat(size)),
+            TweenAnim::new(tween),
+            AnimTarget::asset(&unique_material),
+        ));
 
         y -= size * spacing;
         if y < -screen_y {
