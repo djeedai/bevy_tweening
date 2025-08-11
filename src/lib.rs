@@ -1357,13 +1357,14 @@ impl<'a, C: TweenCommand> AnimatedEntityCommands<'a, C> {
     }
 
     /// Configure the repeat parameters of this animation.
-    /// 
+    ///
     /// This is a shortcut for:
-    /// 
+    ///
     /// ```no_run
     /// # impl<'a, C: TweenCommand> AnimatedEntityCommands<'a, C> {
     /// # fn xxx(&self) -> Self {
-    /// self.with_repeat_count(repeat_count).with_repeat_strategy(repeat_strategy)
+    /// self.with_repeat_count(repeat_count)
+    ///     .with_repeat_strategy(repeat_strategy)
     /// # }}
     /// ```
     #[inline]
@@ -2084,10 +2085,10 @@ impl TweenAnim {
         let mut targets = Vec::with_capacity(anims.len());
         for entity in anims {
             if let Ok((entity, anim, maybe_target)) = q_anims.get(world, *entity) {
-                if let Ok((component_id, target)) =
+                if let Ok((target_type_id, component_id, target)) =
                     Self::resolve_target(world.components(), maybe_target, entity, anim.tweenable())
                 {
-                    targets.push((entity, component_id, target));
+                    targets.push((entity, target_type_id, component_id, target));
                 }
             }
         }
@@ -2121,7 +2122,9 @@ impl TweenAnim {
                         entity,
                         anim.tweenable(),
                     ) {
-                        Ok((component_id, target)) => Some((entity, component_id, target)),
+                        Ok((target_type_id, component_id, target)) => {
+                            Some((entity, target_type_id, component_id, target))
+                        }
                         Err(err) => {
                             println!("err: {:?}", err);
                             None
@@ -2138,7 +2141,7 @@ impl TweenAnim {
         maybe_target: Option<&AnimTarget>,
         self_entity: Entity,
         tweenable: &dyn Tweenable,
-    ) -> Result<(ComponentId, AnimTargetKind), TweeningError> {
+    ) -> Result<(TypeId, ComponentId, AnimTargetKind), TweeningError> {
         let type_id = tweenable
             .target_type_id()
             .ok_or(TweeningError::UntypedTweenable)?;
@@ -2155,11 +2158,12 @@ impl TweenAnim {
                     .get_resource_id(*assets_type_id)
                     .ok_or(TweeningError::AssetNotRegistered(type_id))?,
             };
-            Ok((component_id, target.kind))
+            Ok((type_id, component_id, target.kind))
         } else {
             // Target implicitly self; this can only be a component target
             if let Some(component_id) = components.get_id(type_id) {
                 Ok((
+                    type_id,
                     component_id,
                     AnimTargetKind::Component {
                         entity: self_entity,
@@ -2175,16 +2179,17 @@ impl TweenAnim {
     fn step_impl(
         world: &mut World,
         delta_time: Duration,
-        anims: &[(Entity, ComponentId, AnimTargetKind)],
+        anims: &[(Entity, TypeId, ComponentId, AnimTargetKind)],
     ) {
         let mut to_remove = Vec::with_capacity(anims.len());
+        let mut to_retarget = Vec::with_capacity(8);
         world.resource_scope(|world, resolver: Mut<TweenResolver>| {
             world.resource_scope(
                 |world, mut cycle_events: Mut<Events<CycleCompletedEvent>>| {
                     world.resource_scope(
                         |world, mut anim_events: Mut<Events<AnimCompletedEvent>>| {
                             let anim_comp_id = world.component_id::<TweenAnim>().unwrap();
-                            for (anim_entity, component_id, anim_target) in anims {
+                            for (anim_entity, target_type_id, component_id, anim_target) in anims {
                                 let ret = match anim_target {
                                     AnimTargetKind::Component {
                                         entity: comp_entity,
@@ -2214,6 +2219,7 @@ impl TweenAnim {
                                                 delta_time,
                                                 anim_target,
                                                 target,
+                                                target_type_id,
                                                 cycle_events.reborrow(),
                                                 anim_events.reborrow(),
                                             )
@@ -2238,6 +2244,7 @@ impl TweenAnim {
                                                 delta_time,
                                                 anim_target,
                                                 target,
+                                                target_type_id,
                                                 cycle_events.reborrow(),
                                                 anim_events.reborrow(),
                                             )
@@ -2245,6 +2252,7 @@ impl TweenAnim {
                                     }
                                     AnimTargetKind::Resource => resolver.resolve_resource(
                                         world,
+                                        target_type_id,
                                         *component_id,
                                         *anim_entity,
                                         delta_time,
@@ -2254,6 +2262,7 @@ impl TweenAnim {
                                     AnimTargetKind::Asset { asset_id, .. } => resolver
                                         .resolve_asset(
                                             world,
+                                            target_type_id,
                                             *component_id,
                                             *asset_id,
                                             *anim_entity,
@@ -2263,7 +2272,16 @@ impl TweenAnim {
                                         ),
                                 };
 
-                                let retain = ret.map(|ret| ret.retain).unwrap_or(false);
+                                let retain = match ret {
+                                    Ok(res) => {
+                                        if res.retarget {
+                                            assert!(res.retain);
+                                            to_retarget.push(??????);
+                                        }
+                                        res.retain
+                                    }
+                                    Err(_) => false,
+                                };
                                 if !retain {
                                     to_remove.push(*anim_entity);
                                 }
@@ -2288,11 +2306,11 @@ impl TweenAnim {
         delta_time: Duration,
         target_kind: &AnimTargetKind,
         mut mut_untyped: MutUntyped,
+        target_type_id: &TypeId,
         mut cycle_events: Mut<Events<CycleCompletedEvent>>,
         mut anim_events: Mut<Events<AnimCompletedEvent>>,
     ) -> Result<StepResult, TweeningError> {
         let mut completed_events = Vec::with_capacity(8);
-        let mut sent_commands = false;
 
         // Sanity checks on fields which can be freely modified by the user
         self.speed = self.speed.max(0.);
@@ -2301,7 +2319,7 @@ impl TweenAnim {
         if self.tween_state == TweenState::Completed {
             let ret = StepResult {
                 retain: !self.destroy_on_completion,
-                sent_commands: false,
+                retarget: false,
             };
             return Ok(ret);
         }
@@ -2310,7 +2328,7 @@ impl TweenAnim {
         if self.playback_state == PlaybackState::Paused || self.speed <= 0. {
             let ret = StepResult {
                 retain: true,
-                sent_commands: false,
+                retarget: false,
             };
             return Ok(ret);
         }
@@ -2327,10 +2345,11 @@ impl TweenAnim {
                 target: *target_kind,
             });
         };
-        let state = self.tweenable.step(
+        let (state, retarget) = self.tweenable.step(
             anim_entity,
             delta_time,
             mut_untyped.reborrow(),
+            target_type_id,
             &mut notify_completed,
         );
         self.tween_state = state;
@@ -2338,8 +2357,6 @@ impl TweenAnim {
         // Send tween completed events once we reclaimed mut access to world and can get
         // a Commands.
         if !completed_events.is_empty() {
-            sent_commands = true;
-
             for event in completed_events.drain(..) {
                 // Send buffered event
                 cycle_events.send(event);
@@ -2360,13 +2377,12 @@ impl TweenAnim {
             anim_events.send(event);
 
             // Trigger all entity-scoped observers
-            sent_commands = true;
             commands.trigger_targets(event, anim_entity);
         }
 
         let ret = StepResult {
             retain: state == TweenState::Active || !self.destroy_on_completion,
-            sent_commands,
+            retarget,
         };
         Ok(ret)
     }
@@ -2461,6 +2477,7 @@ type ResourceResolver = Box<
     dyn for<'w> Fn(
             &mut World,
             Entity,
+            &TypeId,
             Duration,
             Mut<Events<CycleCompletedEvent>>,
             Mut<Events<AnimCompletedEvent>>,
@@ -2475,6 +2492,7 @@ type AssetResolver = Box<
             &mut World,
             UntypedAssetId,
             Entity,
+            &TypeId,
             Duration,
             Mut<Events<CycleCompletedEvent>>,
             Mut<Events<AnimCompletedEvent>>,
@@ -2485,6 +2503,9 @@ type AssetResolver = Box<
 >;
 
 /// Resolver for resources and assets.
+///
+/// _This resource is largely an implementation detail. You can safely ignore
+/// it._
 ///
 /// Bevy doesn't provide a suitable untyped API to access resources and assets
 /// at runtime without knowing their compile-time type.
@@ -2520,6 +2541,7 @@ impl TweenResolver {
         let resource_id = components.resource_id::<R>().unwrap();
         let resolver = |world: &mut World,
                         entity: Entity,
+                        target_type_id: &TypeId,
                         delta_time: Duration,
                         mut cycle_events: Mut<Events<CycleCompletedEvent>>,
                         mut anim_events: Mut<Events<AnimCompletedEvent>>|
@@ -2546,6 +2568,7 @@ impl TweenResolver {
                     delta_time,
                     &target,
                     resource.into(),
+                    target_type_id,
                     cycle_events.reborrow(),
                     anim_events.reborrow(),
                 )
@@ -2562,6 +2585,7 @@ impl TweenResolver {
         let resolver = |world: &mut World,
                         asset_id: UntypedAssetId,
                         entity: Entity,
+                        target_type_id: &TypeId,
                         delta_time: Duration,
                         mut cycle_events: Mut<Events<CycleCompletedEvent>>,
                         mut anim_events: Mut<Events<AnimCompletedEvent>>|
@@ -2598,6 +2622,7 @@ impl TweenResolver {
                     delta_time,
                     &target,
                     asset.into(),
+                    target_type_id,
                     cycle_events.reborrow(),
                     anim_events.reborrow(),
                 )
@@ -2612,6 +2637,7 @@ impl TweenResolver {
     pub(crate) fn resolve_resource(
         &self,
         world: &mut World,
+        target_type_id: &TypeId,
         resource_id: ComponentId,
         entity: Entity,
         delta_time: Duration,
@@ -2622,13 +2648,21 @@ impl TweenResolver {
             println!("ERROR: resource not registered {:?}", resource_id);
             return Err(TweeningError::AssetResolverNotRegistered(resource_id));
         };
-        resolver(world, entity, delta_time, cycle_events, anim_events)
+        resolver(
+            world,
+            entity,
+            target_type_id,
+            delta_time,
+            cycle_events,
+            anim_events,
+        )
     }
 
     #[inline]
     pub(crate) fn resolve_asset(
         &self,
         world: &mut World,
+        target_type_id: &TypeId,
         resource_id: ComponentId,
         untyped_asset_id: UntypedAssetId,
         entity: Entity,
@@ -2644,6 +2678,7 @@ impl TweenResolver {
             world,
             untyped_asset_id,
             entity,
+            target_type_id,
             delta_time,
             cycle_events,
             anim_events,
@@ -2652,64 +2687,14 @@ impl TweenResolver {
 }
 
 pub(crate) struct StepResult {
+    /// Whether to retain the current [`TweenAnim`]? If `false`, the
+    /// [`TweenAnim`] is destroyed unless [`TweenAnim::destroy_on_completion`]
+    /// is `false`.
     pub retain: bool,
-    #[allow(unused)]
-    pub sent_commands: bool,
+    /// Whether to recompute the new animation target and step again. This is
+    /// used by sequences when the animation target changes type in a sequence.
+    pub retarget: bool,
 }
-
-//     /// Retarget a queued animation.
-//     ///
-//     /// Attempt to change the target of a tweening animation already
-// enqueued,     /// and possibly already playing. This function performs a
-// number of checks     /// on the new target to ensure it's compatible with the
-// previous     /// target. In particular, the new target needs to have:
-//     /// - the same kind (component or asset);
-//     /// - the same type.
-//     ///
-//     /// # Returns
-//     ///
-//     /// On success, returns the previous target which has been replaced.
-//     ///
-//     /// [`add_component()`]: Self::add_component
-//     /// [`add_asset()`]: Self::add_asset
-//     /// [`set_target()`]: Self::set_target
-//     pub fn set_target(
-//         &mut self,
-//         id: Entity,
-//         target: AnimTarget,
-//     ) -> Result<AnimTarget, TweeningError> {
-//         let anim = self
-//             .anims
-//             .get_mut(id)
-//             .ok_or(TweeningError::InvalidTweenId(id))?;
-//         match (anim.target, target) {
-//             (AnimTarget::Component(old_component),
-// AnimTarget::Component(new_component)) => {                 if
-// old_component.component_id != new_component.component_id {
-// return Err(TweeningError::MismatchingComponentId(
-// old_component.component_id,
-// new_component.component_id,                     ));
-//                 }
-//             }
-//             (AnimTarget::Asset(old_asset), AnimTarget::Asset(new_asset)) => {
-//                 if old_asset.resource_id != new_asset.resource_id {
-//                     return Err(TweeningError::MismatchingAssetResourceId(
-//                         old_asset.resource_id,
-//                         new_asset.resource_id,
-//                     ));
-//                 }
-//             }
-//             _ => {
-//                 return Err(TweeningError::MismatchingTargetKind(
-//                     anim.target.is_component(),
-//                     target.is_component(),
-//                 ))
-//             }
-//         }
-//         let old_target = anim.target;
-//         anim.target = target;
-//         Ok(old_target)
-//     }
 
 /// Extension trait to interpolate between two colors.
 ///

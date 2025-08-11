@@ -503,8 +503,9 @@ pub trait Tweenable: Send + Sync {
         tween_id: Entity,
         delta: Duration,
         target: MutUntyped,
+        target_type_id: &TypeId,
         notify_cycle_completed: &mut dyn FnMut(),
-    ) -> TweenState;
+    ) -> (TweenState, bool);
 
     /// Rewind the animation to its starting state.
     ///
@@ -1025,10 +1026,13 @@ impl Tweenable for Tween {
         _tween_id: Entity,
         delta: Duration,
         target: MutUntyped,
+        target_type_id: &TypeId,
         notify_cycle_completed: &mut dyn FnMut(),
-    ) -> TweenState {
+    ) -> (TweenState, bool) {
+        debug_assert_eq!(self.type_id, *target_type_id);
+
         if self.clock.state(self.playback_direction) == TweenState::Completed {
-            return TweenState::Completed;
+            return (TweenState::Completed, false);
         }
 
         // Advance the animation clock
@@ -1049,7 +1053,7 @@ impl Tweenable for Tween {
             notify_cycle_completed();
         }
 
-        state
+        (state, false)
     }
 
     fn rewind(&mut self) {
@@ -1206,8 +1210,14 @@ impl Tweenable for Sequence {
         tween_id: Entity,
         mut delta: Duration,
         mut target: MutUntyped,
+        target_type_id: &TypeId,
         notify_completed: &mut dyn FnMut(),
-    ) -> TweenState {
+    ) -> (TweenState, bool) {
+        // Early out
+        if self.index >= self.tweens.len() {
+            return (TweenState::Completed, false);
+        }
+
         // Calculate the new elapsed time at the end of this tick
         self.elapsed = self.elapsed.saturating_add(delta);
         if let TotalDuration::Finite(total_duration) = self.total_duration {
@@ -1221,16 +1231,20 @@ impl Tweenable for Sequence {
 
             let prev_elapsed = tween.elapsed();
 
-            if tween.step(tween_id, delta, target.reborrow(), notify_completed)
-                == TweenState::Active
-            {
-                return TweenState::Active;
+            if let (TweenState::Active, retarget) = tween.step(
+                tween_id,
+                delta,
+                target.reborrow(),
+                target_type_id,
+                notify_completed,
+            ) {
+                return (TweenState::Active, retarget);
             }
 
             let TotalDuration::Finite(total_duration) = tween.total_duration() else {
                 // Note: Rust can't figure it out, but this can never happen, because infinite
                 // children will always return TweenState::Active. Just add this for safety.
-                return TweenState::Active;
+                return (TweenState::Active, false);
             };
 
             // Child tween has completed. So it was finite, and consumed all the time left
@@ -1238,9 +1252,21 @@ impl Tweenable for Sequence {
             let consumed_duration = total_duration.saturating_sub(prev_elapsed);
             delta -= consumed_duration;
             self.index += 1;
+
+            // If the target type changed, we need to ask the caller to retarget and step
+            // again.
+            if self.index < self.tweens.len() {
+                // If the tweenable it untyped, it's guaranteed to not access the target, so we
+                // can pass any target as argument.
+                if let Some(type_id) = self.tweens[self.index].target_type_id() {
+                    if type_id != *target_type_id {
+                        return (TweenState::Active, true);
+                    }
+                }
+            }
         }
 
-        TweenState::Completed
+        (TweenState::Completed, false)
     }
 
     fn rewind(&mut self) {
@@ -1338,8 +1364,9 @@ impl Tweenable for Delay {
         _tween_id: Entity,
         delta: Duration,
         _target: MutUntyped,
+        _target_type_id: &TypeId,
         _notify_completed: &mut dyn FnMut(),
-    ) -> TweenState {
+    ) -> (TweenState, bool) {
         self.timer.tick(delta);
 
         let state = self.state();
@@ -1364,7 +1391,7 @@ impl Tweenable for Delay {
         //     }
         // }
 
-        state
+        (state, false)
     }
 
     fn rewind(&mut self) {
@@ -1531,7 +1558,8 @@ mod tests {
         entity: Entity,
     ) -> TweenState {
         // Tick the given tween and apply its state to the given entity target
-        let state = world.resource_scope(
+        let target_type_id = TypeId::of::<Transform>();
+        let ret = world.resource_scope(
             |world: &mut World, mut events: Mut<Events<CycleCompletedEvent>>| {
                 let component_id = world.component_id::<Transform>().unwrap();
                 let entity_mut = &mut world.get_entity_mut([entity]).unwrap()[0];
@@ -1543,9 +1571,15 @@ mod tests {
                             target: world_target,
                         });
                     };
-                    tween.step(tween_id, duration, target.reborrow(), &mut notify_completed)
+                    tween.step(
+                        tween_id,
+                        duration,
+                        target.reborrow(),
+                        &target_type_id,
+                        &mut notify_completed,
+                    )
                 } else {
-                    TweenState::Completed
+                    (TweenState::Completed, false)
                 }
             },
         );
@@ -1556,7 +1590,7 @@ mod tests {
             events.update();
         }
 
-        state
+        ret.0
     }
 
     #[derive(Debug, Default, Clone, Copy, Component)]
