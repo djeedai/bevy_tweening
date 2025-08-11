@@ -123,6 +123,7 @@ pub struct CycleCompletedEvent {
     /// would otherwise exist as component.
     ///
     /// [`TweenAnim`]: crate::TweenAnim
+    /// [`AnimTarget`]: crate::AnimTarget
     pub target: AnimTargetKind,
 }
 
