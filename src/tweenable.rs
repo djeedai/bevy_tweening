@@ -1282,12 +1282,22 @@ impl Tweenable for Sequence {
         // Loop over all children, because we want to skip all untyped ones (Delay).
         // Otherwise the animator will panic, because we can't create an untyped
         // animation.
+        // for tween in &self.tweens {
+        //     if let Some(type_id) = tween.target_type_id() {
+        //         return Some(type_id);
+        //     }
+        // }
+        //None
+
+        // TEMP - not supporting multi-target yet, so assert here so users know
+        let mut target_type_id = None;
         for tween in &self.tweens {
             if let Some(type_id) = tween.target_type_id() {
-                return Some(type_id);
+                assert!(target_type_id.is_none(), "TODO: Cannot use tweenable animations with different targets inside the same Sequence. Create separate animations for each target.");
+                target_type_id = Some(type_id);
             }
         }
-        None
+        target_type_id
     }
 }
 
