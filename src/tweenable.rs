@@ -1293,7 +1293,7 @@ impl Tweenable for Sequence {
         let mut target_type_id = None;
         for tween in &self.tweens {
             if let Some(type_id) = tween.target_type_id() {
-                assert!(target_type_id.is_none(), "TODO: Cannot use tweenable animations with different targets inside the same Sequence. Create separate animations for each target.");
+                assert!(target_type_id.is_none() || target_type_id == Some(type_id), "TODO: Cannot use tweenable animations with different targets inside the same Sequence. Create separate animations for each target.");
                 target_type_id = Some(type_id);
             }
         }
