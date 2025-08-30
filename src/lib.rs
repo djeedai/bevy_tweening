@@ -2383,7 +2383,7 @@ impl TweenAnim {
         // Step the tweenable animation
         let mut notify_completed = || {
             completed_events.push(CycleCompletedEvent {
-                id: anim_entity,
+                anim_entity,
                 target: *target_kind,
             });
         };

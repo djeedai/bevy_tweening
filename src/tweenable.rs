@@ -108,13 +108,13 @@ pub enum TweenState {
 /// [`CycleCompletedEvent`] instead marks the end of a single cycle.
 #[derive(Copy, Clone, Event)]
 pub struct CycleCompletedEvent {
-    /// The ID of the tweenable animation which completed.
+    /// The entity owning the tweenable animation which completed.
     ///
-    /// This is the entity owning the top-level [`TweenAnim`] this tweenable is
-    /// part of.
+    /// This is the entity owning the [`TweenAnim`] component that the tweenable
+    /// which completed is part of.
     ///
     /// [`TweenAnim`]: crate::TweenAnim
-    pub id: Entity,
+    pub anim_entity: Entity,
     /// The target the tweenable which completed and the [`TweenAnim`] it's
     /// part of are mutating. Note that an actual [`AnimTarget`] component might
     /// not be spawned in the ECS world, if the target is a component on the
@@ -570,7 +570,6 @@ macro_rules! impl_boxed {
 
 impl_boxed!(Tween);
 impl_boxed!(Sequence);
-//impl_boxed!(Tracks);
 impl_boxed!(Delay);
 
 type TargetAction = dyn FnMut(MutUntyped, f32) + Send + Sync + 'static;
@@ -1561,7 +1560,7 @@ mod tests {
 
     /// Manually tick a test tweenable targeting a component.
     fn manual_tick_component(
-        tween_id: Entity,
+        anim_entity: Entity,
         duration: Duration,
         tween: &mut dyn Tweenable,
         world: &mut World,
@@ -1577,12 +1576,12 @@ mod tests {
                     let world_target = AnimTargetKind::Component { entity };
                     let mut notify_completed = || {
                         events.send(CycleCompletedEvent {
-                            id: tween_id,
+                            anim_entity,
                             target: world_target,
                         });
                     };
                     tween.step(
-                        tween_id,
+                        anim_entity,
                         duration,
                         target.reborrow(),
                         &target_type_id,
@@ -2237,106 +2236,6 @@ mod tests {
             assert_eq!(seq.cycles_completed(), u32::from(i == 4));
         }
     }
-
-    // /// Test ticking parallel tracks of tweens.
-    // #[test]
-    // fn tracks_tick() {
-    //     let tween1 = Tween::new(
-    //         EaseMethod::default(),
-    //         Duration::from_millis(1000),
-    //         TransformPositionLens {
-    //             start: Vec3::ZERO,
-    //             end: Vec3::ONE,
-    //         },
-    //     );
-    //     let tween2 = Tween::new(
-    //         EaseMethod::default(),
-    //         Duration::from_millis(800), // shorter
-    //         TransformRotationLens {
-    //             start: Quat::IDENTITY,
-    //             end: Quat::from_rotation_x(90_f32.to_radians()),
-    //         },
-    //     );
-    //     let mut tracks = Tracks::new([tween1, tween2]);
-    //     assert_eq!(tracks.duration(), Duration::from_secs(1)); // max(1.,
-    // 0.8)
-
-    //     let (mut world, entity, _system_id) = make_test_env();
-
-    //     for i in 1..=6 {
-    //         let state = manual_tick_component(
-    //             Entity::PLACEHOLDER, // unused in this test
-    //             Duration::from_millis(200),
-    //             &mut tracks,
-    //             &mut world,
-    //             entity,
-    //         );
-    //         let transform = world.entity(entity).get::<Transform>().unwrap();
-    //         if i < 5 {
-    //             assert_eq!(state, TweenState::Active);
-    //             assert_eq!(tracks.cycles_completed(), 0);
-    //             let r = i as f32 * 0.2;
-    //             assert_approx_eq!(tracks.progress(), r);
-    //             let alpha_deg = 22.5 * i as f32;
-    //             assert!(transform.translation.abs_diff_eq(Vec3::splat(r),
-    // 1e-5));             assert!(transform
-    //                 .rotation
-    //
-    // .abs_diff_eq(Quat::from_rotation_x(alpha_deg.to_radians()), 1e-5));
-    //         } else {
-    //             assert_eq!(state, TweenState::Completed);
-    //             assert_eq!(tracks.cycles_completed(), 1);
-    //             assert_approx_eq!(tracks.progress(), 1.);
-    //             assert!(transform.translation.abs_diff_eq(Vec3::ONE, 1e-5));
-    //             assert!(transform
-    //                 .rotation
-    //                 .abs_diff_eq(Quat::from_rotation_x(90_f32.to_radians()),
-    // 1e-5));         }
-    //     }
-
-    //     tracks.rewind();
-    //     assert_eq!(tracks.cycles_completed(), 0);
-    //     assert_approx_eq!(tracks.progress(), 0.);
-
-    //     tracks.set_progress(0.9);
-    //     assert_approx_eq!(tracks.progress(), 0.9);
-    //     // tick to udpate state (set_progress() does not update state)
-    //     let state = manual_tick_component(
-    //         Entity::PLACEHOLDER, // unused in this test
-    //         Duration::ZERO,
-    //         &mut tracks,
-    //         &mut world,
-    //         entity,
-    //     );
-    //     assert_eq!(state, TweenState::Active);
-    //     assert_eq!(tracks.cycles_completed(), 0);
-
-    //     tracks.set_progress(3.2);
-    //     assert_approx_eq!(tracks.progress(), 1.);
-    //     // tick to udpate state (set_progress() does not update state)
-    //     let state = manual_tick_component(
-    //         Entity::PLACEHOLDER, // unused in this test
-    //         Duration::ZERO,
-    //         &mut tracks,
-    //         &mut world,
-    //         entity,
-    //     );
-    //     assert_eq!(state, TweenState::Completed);
-    //     assert_eq!(tracks.cycles_completed(), 1); // no looping
-
-    //     tracks.set_progress(-0.5);
-    //     assert_approx_eq!(tracks.progress(), 0.);
-    //     // tick to udpate state (set_progress() does not update state)
-    //     let state = manual_tick_component(
-    //         Entity::PLACEHOLDER, // unused in this test
-    //         Duration::ZERO,
-    //         &mut tracks,
-    //         &mut world,
-    //         entity,
-    //     );
-    //     assert_eq!(state, TweenState::Active);
-    //     assert_eq!(tracks.cycles_completed(), 0); // no looping
-    // }
 
     /// Delay::then()
     #[test]
