@@ -35,11 +35,11 @@ use crate::{AnimTargetKind, EaseMethod, Lens, PlaybackDirection, RepeatCount, Re
 /// #     fn total_duration(&self) -> TotalDuration  { unimplemented!() }
 /// #     fn set_elapsed(&mut self, elapsed: Duration)  { unimplemented!() }
 /// #     fn elapsed(&self) -> Duration  { unimplemented!() }
-/// #     fn step(&mut self, _tween_id: Entity, delta: Duration, target: MutUntyped, notify_completed: &mut dyn FnMut()) -> TweenState  { unimplemented!() }
+/// #     fn step(&mut self, tween_id: Entity, delta: Duration, target: MutUntyped, target_type_id: &TypeId, notify_cycle_completed: &mut dyn FnMut(),) -> (TweenState, bool)  { unimplemented!() }
 /// #     fn rewind(&mut self) { unimplemented!() }
 /// #     fn cycles_completed(&self) -> u32 { unimplemented!() }
 /// #     fn cycle_fraction(&self) -> f32 { unimplemented!() }
-/// #     fn type_id(&self) -> Option<TypeId> { unimplemented!() }
+/// #     fn target_type_id(&self) -> Option<TypeId> { unimplemented!() }
 /// # }
 ///
 /// Sequence::new([Box::new(MyTweenable) as BoxedTweenable]);
@@ -294,9 +294,9 @@ impl AnimClock {
                 // Always clamp
                 self.elapsed = self.elapsed.min(total_duration);
 
-                if direction.is_forward() && self.elapsed >= total_duration {
-                    TweenState::Completed
-                } else if direction.is_backward() && self.elapsed == Duration::ZERO {
+                if (direction.is_forward() && self.elapsed >= total_duration)
+                    || (direction.is_backward() && self.elapsed == Duration::ZERO)
+                {
                     TweenState::Completed
                 } else {
                     TweenState::Active
@@ -318,9 +318,9 @@ impl AnimClock {
     fn state(&self, playback_direction: PlaybackDirection) -> TweenState {
         match self.total_duration {
             TotalDuration::Finite(total_duration) => {
-                if playback_direction.is_forward() && self.elapsed >= total_duration {
-                    TweenState::Completed
-                } else if playback_direction.is_backward() && self.elapsed == Duration::ZERO {
+                if (playback_direction.is_forward() && self.elapsed >= total_duration)
+                    || (playback_direction.is_backward() && self.elapsed == Duration::ZERO)
+                {
                     TweenState::Completed
                 } else {
                     TweenState::Active
@@ -400,7 +400,7 @@ impl std::iter::Sum for TotalDuration {
         let Some(mut acc) = iter.next() else {
             return TotalDuration::Finite(Duration::ZERO);
         };
-        while let Some(td) = iter.next() {
+        for td in iter {
             acc = acc + td;
         }
         acc
@@ -580,17 +580,17 @@ type TargetAction = dyn FnMut(MutUntyped, f32) + Send + Sync + 'static;
 #[doc(hidden)]
 #[derive(Default, Clone, Copy)]
 pub struct TweenConfig {
-    ///
+    /// Ease method.
     pub ease_method: EaseMethod,
-    ///
+    /// Playback direction.
     pub playback_direction: PlaybackDirection,
-    ///
+    /// Send [`CycleCompletedEvent`]?
     pub send_cycle_completed_event: bool,
-    ///
+    /// Cycle duration.
     pub cycle_duration: Duration,
-    ///
+    /// Repeat count.
     pub repeat_count: RepeatCount,
-    ///
+    /// Repeat strategy.
     pub repeat_strategy: RepeatStrategy,
 }
 
@@ -868,9 +868,8 @@ impl Tween {
     /// fn my_system(mut reader: EventReader<CycleCompletedEvent>) {
     ///     for ev in reader.read() {
     ///         println!(
-    ///             "Tween animation {:?} raised CycleCompletedEvent for target entity {:?}!",
-    ///             ev.id,
-    ///             ev.target.as_component().unwrap().entity
+    ///             "Tween animation {:?} raised CycleCompletedEvent for target {:?}!",
+    ///             ev.anim_entity, ev.target
     ///         );
     ///     }
     /// }
@@ -1724,12 +1723,10 @@ mod tests {
                                     } else {
                                         (1000i32, TweenState::Completed)
                                     }
+                                } else if i < 5 {
+                                    (1000i32 - i * 200i32, TweenState::Active)
                                 } else {
-                                    if i < 5 {
-                                        (1000i32 - i * 200i32, TweenState::Active)
-                                    } else {
-                                        (0i32, TweenState::Completed)
-                                    }
+                                    (0i32, TweenState::Completed)
                                 };
                                 let just_completed = i == 5;
                                 (

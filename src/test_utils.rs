@@ -188,7 +188,7 @@ impl<T: Component<Mutability = Mutable>> TestEnv<T> {
     }
 
     /// Get the animation.
-    pub fn anim_mut(&mut self) -> Option<Mut<TweenAnim>> {
+    pub fn anim_mut(&mut self) -> Option<Mut<'_, TweenAnim>> {
         self.world.get_mut::<TweenAnim>(self.entity)
     }
 
@@ -198,7 +198,7 @@ impl<T: Component<Mutability = Mutable>> TestEnv<T> {
     }
 
     /// Get the component.
-    pub fn component_mut(&mut self) -> Mut<T> {
+    pub fn component_mut(&mut self) -> Mut<'_, T> {
         self.world.get_mut::<T>(self.entity).unwrap()
     }
 

@@ -1270,19 +1270,21 @@ impl TweenCommand for RotateZByCommand {
 /// entity commands queue. This deferred queuing allows fluent patterns like:
 ///
 /// ```
+/// # use std::time::Duration;
 /// # use bevy::prelude::*;
 /// # use bevy_tweening::*;
 /// # fn my_system(mut commands: Commands) {
-/// commands.spawn(Transform::default())
+/// commands
+///     .spawn(Transform::default())
 ///     // Consume the EntityCommands, and wrap it into an AnimatedEntityCommands,
 ///     // which stores an animation command to move an entity.
 ///     .move_to(
 ///         Vec3::ONE,
-///         Duration::from_millis(400)
+///         Duration::from_millis(400),
 ///         EaseFunction::QuadraticIn,
 ///     )
 ///     // Tweak the stored animation to set the repeat count of the Tween.
-///     .repeat_count(2);
+///     .with_repeat_count(2);
 /// # }
 /// ```
 ///
@@ -1299,13 +1301,15 @@ impl TweenCommand for RotateZByCommand {
 /// [`EntityCommands`] by value. In that case, you need to call [`reborrow()`]:
 ///
 /// ```
+/// # use std::time::Duration;
 /// # use bevy::prelude::*;
 /// # use bevy_tweening::*;
 /// # fn my_system(mut commands: Commands) {
-/// commands.spawn(Transform::default())
+/// commands
+///     .spawn(Transform::default())
 ///     .move_to(
 ///         Vec3::ONE,
-///         Duration::from_millis(400)
+///         Duration::from_millis(400),
 ///         EaseFunction::QuadraticIn,
 ///     )
 ///     // This call invokes std::ops::DerefMut, and returns a mutable ref
@@ -1317,7 +1321,7 @@ impl TweenCommand for RotateZByCommand {
 ///     // This call requires an `EntityCommands` (by value)
 ///     .scale_to(
 ///         Vec3::splat(1.1),
-///         Duration::from_millis(400)
+///         Duration::from_millis(400),
 ///         EaseFunction::Linear,
 ///     );
 /// # }
@@ -1351,7 +1355,7 @@ impl<'a, C: TweenCommand> AnimatedEntityCommands<'a, C> {
     #[inline]
     pub fn with_repeat_strategy(mut self, repeat_strategy: RepeatStrategy) -> Self {
         if let Some(cmd) = self.cmd.as_mut() {
-            cmd.config_mut().repeat_strategy = repeat_strategy.into();
+            cmd.config_mut().repeat_strategy = repeat_strategy;
         }
         self
     }
@@ -1361,8 +1365,14 @@ impl<'a, C: TweenCommand> AnimatedEntityCommands<'a, C> {
     /// This is a shortcut for:
     ///
     /// ```no_run
-    /// # impl<'a, C: TweenCommand> AnimatedEntityCommands<'a, C> {
-    /// # fn xxx(&self) -> Self {
+    /// # use bevy_tweening::*;
+    /// # struct AnimatedEntityCommands {}
+    /// # impl AnimatedEntityCommands {
+    /// # fn with_repeat_count(self, r: RepeatCount) -> Self { unimplemented!() }
+    /// # fn with_repeat_strategy(self, r: RepeatStrategy) -> Self { unimplemented!() }
+    /// # fn xxx(self) -> Self {
+    /// # let repeat_count = RepeatCount::Infinite;
+    /// # let repeat_strategy = RepeatStrategy::Repeat;
     /// self.with_repeat_count(repeat_count)
     ///     .with_repeat_strategy(repeat_strategy)
     /// # }}
@@ -1504,14 +1514,14 @@ impl<'a, C: TweenCommand> Deref for AnimatedEntityCommands<'a, C> {
     }
 }
 
-impl<'a, C: TweenCommand> DerefMut for AnimatedEntityCommands<'a, C> {
+impl<C: TweenCommand> DerefMut for AnimatedEntityCommands<'_, C> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.flush();
         &mut self.commands
     }
 }
 
-impl<'a, C: TweenCommand> Drop for AnimatedEntityCommands<'a, C> {
+impl<C: TweenCommand> Drop for AnimatedEntityCommands<'_, C> {
     fn drop(&mut self) {
         self.flush();
     }
@@ -1973,13 +1983,16 @@ impl TweenAnim {
         }
     }
 
-    ///
+    /// Configure the playback speed.
     pub fn with_speed(mut self, speed: f64) -> Self {
         self.speed = speed;
         self
     }
 
+    /// Enable or disable destroying this component on animation completion.
     ///
+    /// If enabled, the component is automatically removed from its `Entity`
+    /// when the animation completed.
     pub fn with_destroy_on_completed(mut self, destroy_on_completed: bool) -> Self {
         self.destroy_on_completion = destroy_on_completed;
         self
@@ -2268,7 +2281,7 @@ impl TweenAnim {
                                                 anim_events.reborrow(),
                                             )
                                         };
-                                        let retain = match ret {
+                                        match ret {
                                             Ok(res) => {
                                                 if res.needs_retarget {
                                                     assert!(res.retain);
@@ -2286,8 +2299,7 @@ impl TweenAnim {
                                                 }
                                             }
                                             Err(_) => false,
-                                        };
-                                        retain
+                                        }
                                     }
                                     AnimTargetKind::Resource => resolver
                                         .resolve_resource(
@@ -2341,6 +2353,7 @@ impl TweenAnim {
         world.flush();
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn step_self(
         &mut self,
         mut commands: Commands,
@@ -2683,6 +2696,7 @@ impl TweenResolver {
             .or_insert(Box::new(resolver));
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[inline]
     pub(crate) fn resolve_resource(
         &self,
@@ -2708,6 +2722,7 @@ impl TweenResolver {
         )
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[inline]
     pub(crate) fn resolve_asset(
         &self,
@@ -2777,33 +2792,6 @@ impl ColorLerper for Color {
         let b = src.blue.lerp(dst.blue, ratio);
         let a = src.alpha.lerp(dst.alpha, ratio);
         Color::linear_rgba(r, g, b, a)
-    }
-}
-
-///
-pub trait TweeningTransform {
-    ///
-    fn move_to(
-        self,
-        end: Vec3,
-        duration: Duration,
-        ease_method: impl Into<EaseMethod>,
-    ) -> TweenAnim;
-}
-
-impl TweeningTransform for Transform {
-    fn move_to(
-        self,
-        end: Vec3,
-        duration: Duration,
-        ease_method: impl Into<EaseMethod>,
-    ) -> TweenAnim {
-        let lens = TransformPositionLens {
-            start: self.translation,
-            end,
-        };
-        let tween = Tween::new(ease_method.into(), duration, lens);
-        TweenAnim::new(tween)
     }
 }
 

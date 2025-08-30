@@ -80,7 +80,7 @@ fn setup(
         .spawn((
             Mesh2d(meshes.add(Rectangle::new(10., 10.))),
             MeshMaterial2d(materials.add(ColorMaterial {
-                color: PURPLE.into(),
+                color: WHITE.into(),
                 ..default()
             })),
             Follower,
