@@ -1,6 +1,5 @@
 use bevy::{color::palettes::css::*, prelude::*};
 use bevy_inspector_egui::{bevy_egui::EguiPlugin, prelude::*, quick::ResourceInspectorPlugin};
-
 use bevy_tweening::{lens::*, *};
 
 mod utils;
@@ -35,7 +34,7 @@ fn main() {
 #[reflect(InspectorOptions)]
 struct Options {
     #[inspector(min = 0.01, max = 100.)]
-    speed: f32,
+    speed: f64,
 }
 
 impl Default for Options {
@@ -110,7 +109,11 @@ fn setup(mut commands: Commands) {
                         custom_size: Some(Vec2::new(size, size * 0.5)),
                         ..default()
                     },
-                    Animator::new(tween),
+                    // In this example we add the TweenAnim on the same Entity as the component
+                    // being animated (Transform, automatically added because it's required by
+                    // Sprite). Because of that, the target is implicitly a component on this
+                    // Entity, and we don't need to add an AnimTarget component.
+                    TweenAnim::new(tween),
                 ));
             });
 
@@ -122,12 +125,12 @@ fn setup(mut commands: Commands) {
     }
 }
 
-fn update_animation_speed(options: Res<Options>, mut animators: Query<&mut Animator<Transform>>) {
+fn update_animation_speed(options: Res<Options>, mut q_anims: Query<&mut TweenAnim>) {
     if !options.is_changed() {
         return;
     }
 
-    for mut animator in animators.iter_mut() {
-        animator.set_speed(options.speed);
+    for mut anim in &mut q_anims {
+        anim.speed = options.speed;
     }
 }

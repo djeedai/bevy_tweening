@@ -10,7 +10,6 @@
 - `cargo test --no-default-features --features="bevy_ui"`
 - `cargo test --no-default-features --features="bevy_sprite"`
 - `cargo test --no-default-features --features="bevy_text"`
-- `cargo test --no-default-features --features="bevy_asset"`
 - `cargo test --all-features`
 - `cargo +nightly build --all-features` (for `docs.rs`)
 - `cargo +nightly doc --all-features --no-deps`

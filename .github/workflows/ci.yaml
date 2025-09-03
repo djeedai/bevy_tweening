@@ -70,11 +70,6 @@ jobs:
         env:
           CARGO_INCREMENTAL: 1
           RUSTFLAGS: "-C debuginfo=0 -D warnings"
-      - name: Build & run tests (asset)
-        run: cargo test --no-default-features --features="bevy_asset"
-        env:
-          CARGO_INCREMENTAL: 1
-          RUSTFLAGS: "-C debuginfo=0 -D warnings"
       - name: Build & run tests (all)
         run: cargo test --all-features
         env:

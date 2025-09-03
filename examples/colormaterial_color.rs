@@ -1,6 +1,7 @@
+use std::time::Duration;
+
 use bevy::{color::palettes::css::*, prelude::*};
 use bevy_tweening::{lens::*, *};
-use std::time::Duration;
 
 mod utils;
 
@@ -25,7 +26,7 @@ fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-) {
+) -> Result<(), BevyError> {
     commands.spawn(Camera2d::default());
 
     let size = 80.;
@@ -89,14 +90,18 @@ fn setup(
 
         commands.spawn((
             Mesh2d(quad_mesh.clone()),
-            MeshMaterial2d(unique_material),
+            MeshMaterial2d(unique_material.clone()),
             Transform::from_translation(Vec3::new(x, y, 0.)).with_scale(Vec3::splat(size)),
-            AssetAnimator::new(tween),
+            TweenAnim::new(tween),
+            AnimTarget::asset(&unique_material),
         ));
+
         y -= size * spacing;
         if y < -screen_y {
             x += size * spacing;
             y = screen_y;
         }
     }
+
+    Ok(())
 }

@@ -103,7 +103,10 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 justify_content: JustifyContent::Center,
                 ..default()
             },
-            Animator::new(tween),
+            // In this example we add the TweenAnim on the same Entity as the component being
+            // animated (TextColor). Because of that, the target is implicitly a component on this
+            // Entity, and we don't need to add an AnimTarget component.
+            TweenAnim::new(tween),
         ));
 
         y += delta_y;

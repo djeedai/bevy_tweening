@@ -1,6 +1,7 @@
+use std::time::Duration;
+
 use bevy::{color::palettes::css::*, prelude::*};
 use bevy_tweening::{lens::*, *};
-use std::time::Duration;
 
 mod utils;
 
@@ -29,15 +30,15 @@ struct RedProgress;
 struct BlueProgress;
 
 #[derive(Component)]
-struct RedSprite;
+struct RedAnimMarker;
 
 #[derive(Component)]
-struct BlueSprite;
+struct BlueAnimMarker;
 
 #[derive(Component)]
 struct ProgressValue;
 
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
+fn setup(mut commands: Commands, asset_server: Res<AssetServer>) -> Result<()> {
     commands.spawn(Camera2d::default());
 
     let font = asset_server.load("fonts/FiraMono-Regular.ttf");
@@ -48,7 +49,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     };
 
     let text_color_red = TextColor(RED.into());
-    let text_color_blue = TextColor(BLUE.into());
+    let text_color_blue = TextColor(AQUA.into());
 
     let justify = JustifyText::Center;
 
@@ -111,20 +112,22 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         Vec3::new(margin, screen_y - margin, 0.),
         Vec3::new(margin, margin, 0.),
     ];
-    // Build a sequence from an iterator over a Tweenable (here, a
-    // Tracks<Transform>)
-    let seq = Sequence::new(dests.windows(2).enumerate().map(|(index, pair)| {
-        Tracks::new([
-            Tween::new(
-                EaseFunction::QuadraticInOut,
-                Duration::from_millis(250),
-                TransformRotateZLens {
-                    start: 0.,
-                    end: 180_f32.to_radians(),
-                },
-            )
-            .with_repeat_count(RepeatCount::Finite(4))
-            .with_repeat_strategy(RepeatStrategy::MirroredRepeat),
+
+    // Red sprite
+    {
+        let entity = commands
+            .spawn(Sprite {
+                color: RED.into(),
+                custom_size: Some(Vec2::new(size, size)),
+                ..default()
+            })
+            // Insert a rotation animation via the commands extension, to rotate over self, forever.
+            // This will continue even after the move along path animation added below finished.
+            .rotate_z(Duration::from_secs(2))
+            .id();
+
+        // Build a sequence from an iterator over a Tweenable
+        let anim_move_along_path = Sequence::new(dests.windows(2).map(|pair| {
             Tween::new(
                 EaseFunction::QuadraticInOut,
                 Duration::from_secs(1),
@@ -133,88 +136,129 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     end: pair[1] - center,
                 },
             )
-            // Get an event after each segment
-            .with_completed_event(index as u64),
-        ])
-    }));
+        }));
+        commands.spawn((
+            RedAnimMarker,
+            TweenAnim::new(anim_move_along_path),
+            AnimTarget::component::<Transform>(entity),
+        ));
+    }
 
-    commands.spawn((
-        Sprite {
-            color: RED.into(),
-            custom_size: Some(Vec2::new(size, size)),
-            ..default()
-        },
-        RedSprite,
-        Animator::new(seq),
-    ));
+    // Blue sprite
+    {
+        let entity = commands
+            .spawn(Sprite {
+                color: AQUA.into(),
+                custom_size: Some(Vec2::new(size * 3., size)),
+                ..default()
+            })
+            .id();
 
-    // First move from left to right, then rotate around self 180 degrees while
-    // scaling size at the same time.
-    let tween_move = Tween::new(
-        EaseFunction::QuadraticInOut,
-        Duration::from_secs(1),
-        TransformPositionLens {
-            start: Vec3::new(-200., 100., 0.),
-            end: Vec3::new(200., 100., 0.),
-        },
-    )
-    .with_completed_event(99); // Get an event once move completed
-    let tween_rotate = Tween::new(
-        EaseFunction::QuadraticInOut,
-        Duration::from_secs(1),
-        TransformRotationLens {
-            start: Quat::IDENTITY,
-            end: Quat::from_rotation_z(180_f32.to_radians()),
-        },
-    );
-    let tween_scale = Tween::new(
-        EaseFunction::QuadraticInOut,
-        Duration::from_secs(1),
-        TransformScaleLens {
-            start: Vec3::ONE,
-            end: Vec3::splat(2.0),
-        },
-    );
-    // Build parallel tracks executing two tweens at the same time: rotate and
-    // scale.
-    let tracks = Tracks::new([tween_rotate, tween_scale]);
-    // Build a sequence from an heterogeneous list of tweenables by casting them
-    // manually to a BoxedTweenable: first move, then { rotate + scale }.
-    let seq2 = Sequence::new([Box::new(tween_move) as BoxedTweenable<_>, tracks.into()]);
+        // First move from left to right, then rotate around self 180 degrees while
+        // scaling size at the same time.
 
-    commands.spawn((
-        Sprite {
-            color: BLUE.into(),
-            custom_size: Some(Vec2::new(size * 3., size)),
-            ..default()
-        },
-        BlueSprite,
-        Animator::new(seq2),
-    ));
+        // In previous versions of bevy_tweening, this could be accomplished with a
+        // Tracks, which allowed to run in parallel animations of different duration.
+        // That interface was confusing and had too many corner cases, so was removed.
+        //
+        // Instead, we have 2 solutions:
+        // 1. Insert one sequence which moves then rotates, and another which waits
+        //    (Delay tweenable) then starts to scale at the same time the first sequence
+        //    starts to rotate. In most cases this is the simplest, but requires
+        //    controlling the timings of the animations.
+        // 2. Insert a single sequence which moves then {rotates+scales}, using a custom
+        //    Lens which can apply both the rotation and scale with a single Tween. This
+        //    guarantees perfect timing alignment, and doesn't require knowing the
+        //    duration of the first (move) animation. A minor drawback is that we have
+        //    to write a custom Lens.
+        //
+        // Here we show how option 1. is implemented, which is often the simplest.
+
+        let move_duration = Duration::from_secs(1);
+        let tween_move = Tween::new(
+            EaseFunction::QuadraticInOut,
+            move_duration,
+            TransformPositionLens {
+                start: Vec3::new(-200., 100., 0.),
+                end: Vec3::new(200., 100., 0.),
+            },
+        );
+
+        let tween_delay = Delay::new(move_duration);
+
+        let tween_rotate = Tween::new(
+            EaseFunction::QuadraticInOut,
+            Duration::from_secs(1),
+            TransformRotationLens {
+                start: Quat::IDENTITY,
+                end: Quat::from_rotation_z(180_f32.to_radians()),
+            },
+        );
+
+        let tween_scale = Tween::new(
+            EaseFunction::QuadraticInOut,
+            Duration::from_secs(1),
+            TransformScaleLens {
+                start: Vec3::ONE,
+                end: Vec3::splat(2.0),
+            },
+        );
+
+        // Build a sequence from an heterogeneous list of tweenables by casting them
+        // manually to a BoxedTweenable. This is only to demonstrate how it's done; in
+        // general prefer using then() as below.
+        let seq1 = Sequence::new([Box::new(tween_move) as BoxedTweenable, tween_rotate.into()]);
+        let seq2 = tween_delay.then(tween_scale);
+
+        // Because we want to monitor the progress of the animations, we need to fetch
+        // their Entity. This requires inserting them manually in the TweenAnimator
+        // resource, instead of using the extensions of EntityCommands.
+        commands.spawn((
+            BlueAnimMarker,
+            TweenAnim::new(seq1),
+            AnimTarget::component::<Transform>(entity),
+        ));
+        commands.spawn((
+            TweenAnim::new(seq2),
+            AnimTarget::component::<Transform>(entity),
+        ));
+    }
+
+    Ok(())
 }
 
 fn update_text(
     red_text_children: Single<&Children, With<RedProgress>>,
     blue_text_children: Single<&Children, With<BlueProgress>>,
-    mut text_spans: Query<&mut TextSpan, With<ProgressValue>>,
-    anim_red: Single<&Animator<Transform>, With<RedSprite>>,
-    anim_blue: Single<&Animator<Transform>, With<BlueSprite>>,
-    mut query_event: EventReader<TweenCompleted>,
+    mut q_textspans: Query<&mut TextSpan, With<ProgressValue>>,
+    q_anim_red: Single<Option<&TweenAnim>, With<RedAnimMarker>>,
+    q_anim_blue: Single<Option<&TweenAnim>, With<BlueAnimMarker>>,
+    mut q_event_completed: EventReader<AnimCompletedEvent>,
 ) {
-    let progress_red = anim_red.tweenable().progress();
+    let anim_red = *q_anim_red;
+    let progress_red = if let Some(anim) = anim_red {
+        anim.tweenable().cycle_fraction()
+    } else {
+        1.
+    };
 
-    let progress_blue = anim_blue.tweenable().progress();
+    let anim_blue = *q_anim_blue;
+    let progress_blue = if let Some(anim) = anim_blue {
+        anim.tweenable().cycle_fraction()
+    } else {
+        1.
+    };
 
-    let mut red_text = text_spans.get_mut(red_text_children[1]).unwrap();
+    let mut red_text = q_textspans.get_mut(red_text_children[1]).unwrap();
     red_text.0 = format!("{:5.1}%", progress_red * 100.);
 
-    let mut blue_text = text_spans.get_mut(blue_text_children[1]).unwrap();
+    let mut blue_text = q_textspans.get_mut(blue_text_children[1]).unwrap();
     blue_text.0 = format!("{:5.1}%", progress_blue * 100.);
 
-    for ev in query_event.read() {
+    for ev in q_event_completed.read() {
         println!(
-            "Event: TweenCompleted entity={:?} user_data={}",
-            ev.entity, ev.user_data
+            "Event: AnimCompletedEvent anim_entity={:?} target={:?}",
+            ev.anim_entity, ev.target
         );
     }
 }

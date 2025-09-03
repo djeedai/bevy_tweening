@@ -1,6 +1,5 @@
 use bevy::{color::palettes::css::*, prelude::*};
 use bevy_inspector_egui::{bevy_egui::EguiPlugin, prelude::*, quick::ResourceInspectorPlugin};
-
 use bevy_tweening::{lens::*, *};
 
 mod utils;
@@ -9,14 +8,14 @@ fn main() {
     App::default()
         .add_plugins((
             DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "UiPositionLens".to_string(),
-                resolution: (1400., 600.).into(),
-                present_mode: bevy::window::PresentMode::Fifo, // vsync
+                primary_window: Some(Window {
+                    title: "UiPositionLens".to_string(),
+                    resolution: (1400., 600.).into(),
+                    present_mode: bevy::window::PresentMode::Fifo, // vsync
+                    ..default()
+                }),
                 ..default()
             }),
-            ..default()
-        }),
             EguiPlugin {
                 enable_multipass_for_primary_context: true,
             },
@@ -35,7 +34,7 @@ fn main() {
 #[reflect(InspectorOptions)]
 struct Options {
     #[inspector(min = 0.01, max = 100.)]
-    speed: f32,
+    speed: f64,
 }
 
 impl Default for Options {
@@ -123,19 +122,22 @@ fn setup(mut commands: Commands) {
                 ..default()
             },
             BackgroundColor(RED.into()),
-            Animator::new(tween),
+            // In this example we add the TweenAnim on the same Entity as the component being
+            // animated (Node). Because of that, the target is implicitly a component on this
+            // Entity, and we don't need to add an AnimTarget component.
+            TweenAnim::new(tween),
         ));
 
         x += offset_x;
     }
 }
 
-fn update_animation_speed(mut animators: Query<&mut Animator<Node>>, options: Res<Options>) {
+fn update_animation_speed(options: Res<Options>, mut q_anims: Query<&mut TweenAnim>) {
     if !options.is_changed() {
         return;
     }
 
-    for mut animator in animators.iter_mut() {
-        animator.set_speed(options.speed);
+    for mut anim in &mut q_anims {
+        anim.speed = options.speed;
     }
 }

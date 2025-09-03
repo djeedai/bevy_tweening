@@ -5,6 +5,112 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+_This change introduces a major API redesign compared to v0.13.
+It removes the need for generics,
+and unifies all animations of all components and assets,
+executing them from a single exclusive system.
+See the [Migration Guide for v0.14](./docs/migration-guide-0.14.md) for details._
+
+### Added
+
+- Added `TweenAnim`, a representation of the runtime parameters of an active animation.
+- Added `AnimTarget`, a component describing (via its `AnimTargetKind`) the target mutated by an animation.
+- Added some extension functions on `EntityCommands` to enable simplified create-and-spawn patterns:
+
+  ```rust
+  commands
+    // Spawn an entity to animate the position of
+    .spawn(Transform::default())
+    // Create-and-spawn a new Transform::translation animation
+    .move_to(
+        Vec3::new(1., 2., -4.),
+        Duration::from_secs(1),
+        EaseFunction::QuadraticInOut,
+    );
+  ```
+
+  See `EntityCommandsTweeningExtensions` for all the possible animations.
+
+- Added `AnimCompletedEvent`, raised when the entire tweenable animation completed.
+- Added `CycleCompletedEvent`, optionally raised when a single tweenable animation
+  cycle completed. Enable it with `Tween::with_cycle_completed_event()`.
+- Added `TotalDuration::from_cycles()` to simply creating an animation duration
+  from a number of individual cycles and their duration.
+- Added `TotalDuration::is_finite()` helper to check an animation duration is finite.
+- Added `TotalDuration::as_finite()` helper to convert an animation duration into
+  a `Duration` type if it's finite.
+- Implemented various operations on `TotalDuration`: `From<Duration>`, `Add`, `Sum`,
+  `PartialOrd`, `Ord`.
+- Added `Tweenable::cycle_fraction()` to query the current position of the animation
+  inside a cycle. This is roughly equivalent to the previous `progress()`.
+- Added `Tween::cycle_fraction()` and `Tween::cycle_index()` to query the position
+  of the animation inside a cycle and the cycle number, respectively.
+- Added helper `Tween::is_cycle_mirrored()`, which returns `true` if the playback
+  of the current cycle the animation is at is mirrored.
+  This always returns `false` unless `RepeatStrategy::MirroredRepeat` is used,
+  and the animation contains more than 1 cycle.
+- Added a new example `follow` demonstrating how to achieve following-with-smoothing.
+  The example moves an entity to follow the mouse cursor on screen.
+- Added a new example `ambient_light` showing how to animate resources (here, `AmbientLight`).
+- Added new built-in lenses applying a rotation on top of the existing `Transform::rotation`:
+
+  - `TransformRotateAdditiveXLens`
+  - `TransformRotateAdditiveYLens`
+  - `TransformRotateAdditiveZLens`
+
+  Those are useful to create animations with infinitely-rotating objects.
+
+### Changed
+
+- The `bevy_asset` feature was removed; `bevy_tweening` now depends on `bevy/bevy_asset` always.
+  You can just delete that feature from your `Cargo.toml` if you were adding it explicitly.
+- `Sequence` now accepts infinite duration child animations.
+  It's your responsibility to ensure the resulting sequence makes sense,
+  which generally means only using an infinite animation as the last item.
+- The following types lost their generic parameter `<T>`:
+  - `Tweenable`
+  - `Tween`
+  - `Sequence`
+  - `Delay`
+  They still implicitly depend on a target type, but this is not encoded in the Rust type anymore.
+- The `Lens<T>` trait now takes its target as `Mut<T>` instead of `&mut dyn Targetable<T>`.
+
+  ```rust
+  fn lerp(&mut self, target: Mut<T>, ratio: f32)
+  ```
+
+  The functioning is the same, but this removes one level of indirection.
+  The use of `Mut<T>` should be familiar to most Bevy users.
+
+- `Tweenable::duration()` was renamed to `Tweenable::cycle_duration()` for clarity.
+- `Tweenable::times_completed()` was renamed to `Tweenable::cycles_completed()` for clarity.
+- `Tweenable::tick()` was renamed to `Tweenable::step()`, to insist on the fact
+  the step computes a new state, but doesn't necessarily moves any time back or forth.
+- `Tween::with_completed_event()` doesn't take `user_data` anymore, which was removed.
+  Instead it takes a `bool` indicating whether to send completion events or not.
+- Renamed `Tween<T>::set_direction()` into `Tween::set_playback_direction()` for clarity,
+  and `Tween<T>::direction()` into `Tween::playback_direction()`.
+  Note the clarified semantic of playback direction vs. mirroring repeat;
+  see the migration guide for details.
+- Renamed `AnimatorState` into `PlaybackState` for clarity.
+- Renamed `TweeningDirection` into `PlaybackDirection` to clarify the fact it only affects
+  animation playback, and is completely unrelated to cycle mirroring repeat.
+
+### Removed
+
+- Removed the `component_animator_system` and `asset_animator_system`.
+  Animations are now auto-played based on the presence of a `TweenAnim` component.
+  There's no need for you to manually register anything.
+- Removed `Tracks<T>`. Use multiple animations instead.
+- Removed `Targetable`, `ComponentTarget`, `AssetTarget`. Those were workarounds
+  for the inability to use `Mut<T>` directly. In Bevy 0.16 they're not necessary.
+- Removed all references to "progress" in all APIs, in favor of `Duration`s.
+- Removed the `user_data` value from completed events.
+- Removed callback-based completion events. Use Bevy-style events or one-shot systems instead.
+  Observers are also supported.
+
+## [0.13.0] - 2025-04-28
+
 ### Changed
 
 - Compatible with Bevy 0.16

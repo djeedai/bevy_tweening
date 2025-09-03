@@ -75,13 +75,16 @@ fn setup(mut commands: Commands) {
         .with_repeat_strategy(RepeatStrategy::MirroredRepeat);
 
         commands.spawn((
+            Transform::from_translation(Vec3::new(x, y, 0.)),
             Sprite {
                 color: Color::BLACK,
                 custom_size: Some(Vec2::new(size, size)),
                 ..default()
             },
-            Transform::from_translation(Vec3::new(x, y, 0.)),
-            Animator::new(tween),
+            // In this example we add the TweenAnim on the same Entity as the component being
+            // animated (Sprite). Because of that, the target is implicitly a component on this
+            // Entity, and we don't need to add an AnimTarget component.
+            TweenAnim::new(tween),
         ));
 
         y -= size * spacing;

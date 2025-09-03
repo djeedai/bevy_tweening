@@ -6,7 +6,7 @@ use bevy::{
     ecs::{change_detection::MaybeLocation, component::Tick},
     prelude::*,
 };
-use bevy_tweening::{lens::*, ComponentTarget};
+use bevy_tweening::lens::*;
 use criterion::{black_box, Criterion};
 
 fn text_color_lens(c: &mut Criterion) {
@@ -18,16 +18,16 @@ fn text_color_lens(c: &mut Criterion) {
     let mut added = Tick::new(0);
     let mut last_changed = Tick::new(0);
     let mut caller = MaybeLocation::caller();
-    let mut target = ComponentTarget::new(Mut::new(
+    let mut target = Mut::new(
         &mut text_color,
         &mut added,
         &mut last_changed,
         Tick::new(0),
         Tick::new(0),
         caller.as_mut(),
-    ));
+    );
     c.bench_function("TextColorLens", |b| {
-        b.iter(|| lens.lerp(&mut target, black_box(0.3)))
+        b.iter(|| lens.lerp(target.reborrow(), black_box(0.3)))
     });
 }
 
@@ -40,16 +40,16 @@ fn transform_position_lens(c: &mut Criterion) {
     let mut added = Tick::new(0);
     let mut last_changed = Tick::new(0);
     let mut caller = MaybeLocation::caller();
-    let mut target = ComponentTarget::new(Mut::new(
+    let mut target = Mut::new(
         &mut transform,
         &mut added,
         &mut last_changed,
         Tick::new(0),
         Tick::new(0),
         caller.as_mut(),
-    ));
+    );
     c.bench_function("TransformPositionLens", |b| {
-        b.iter(|| lens.lerp(&mut target, black_box(0.3)))
+        b.iter(|| lens.lerp(target.reborrow(), black_box(0.3)))
     });
 }
 
@@ -62,16 +62,16 @@ fn transform_rotation_lens(c: &mut Criterion) {
     let mut added = Tick::new(0);
     let mut last_changed = Tick::new(0);
     let mut caller = MaybeLocation::caller();
-    let mut target = ComponentTarget::new(Mut::new(
+    let mut target = Mut::new(
         &mut transform,
         &mut added,
         &mut last_changed,
         Tick::new(0),
         Tick::new(0),
         caller.as_mut(),
-    ));
+    );
     c.bench_function("TransformRotationLens", |b| {
-        b.iter(|| lens.lerp(&mut target, black_box(0.3)))
+        b.iter(|| lens.lerp(target.reborrow(), black_box(0.3)))
     });
 }
 
@@ -84,16 +84,16 @@ fn transform_scale_lens(c: &mut Criterion) {
     let mut added = Tick::new(0);
     let mut last_changed = Tick::new(0);
     let mut caller = MaybeLocation::caller();
-    let mut target = ComponentTarget::new(Mut::new(
+    let mut target = Mut::new(
         &mut transform,
         &mut added,
         &mut last_changed,
         Tick::new(0),
         Tick::new(0),
         caller.as_mut(),
-    ));
+    );
     c.bench_function("TransformScaleLens", |b| {
-        b.iter(|| lens.lerp(&mut target, black_box(0.3)))
+        b.iter(|| lens.lerp(target.reborrow(), black_box(0.3)))
     });
 }
 
