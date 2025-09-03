@@ -2094,23 +2094,37 @@ impl TweenAnim {
     ///
     /// [`step_all()`]: Self::step_all
     pub fn step_many(world: &mut World, delta_time: Duration, anims: &[Entity]) -> usize {
-        let mut q_anims = world.query::<(Entity, &TweenAnim, Option<&AnimTarget>)>();
-        let mut targets = Vec::with_capacity(anims.len());
-        for entity in anims {
-            if let Ok((entity, anim, maybe_target)) = q_anims.get(world, *entity) {
-                if let Ok((target_type_id, component_id, target, is_retargetable)) =
-                    Self::resolve_target(world.components(), maybe_target, entity, anim.tweenable())
-                {
-                    targets.push((
-                        entity,
-                        target_type_id,
-                        component_id,
-                        target,
-                        is_retargetable,
-                    ));
+        let mut targets = vec![];
+        world.resource_scope(|world, mut resolver: Mut<TweenResolver>| {
+            let mut q_anims = world.query::<(Entity, &TweenAnim, Option<&AnimTarget>)>();
+            targets.reserve(anims.len());
+            for entity in anims {
+                if let Ok((entity, anim, maybe_target)) = q_anims.get(world, *entity) {
+                    // Lazy registration with resolver if needed
+                    if let Some(anim_target) = maybe_target {
+                        anim_target.register(world.components(), &mut resolver);
+                    }
+
+                    // Actually step the tweenable and update the target
+                    if let Ok((target_type_id, component_id, target, is_retargetable)) =
+                        Self::resolve_target(
+                            world.components(),
+                            maybe_target,
+                            entity,
+                            anim.tweenable(),
+                        )
+                    {
+                        targets.push((
+                            entity,
+                            target_type_id,
+                            component_id,
+                            target,
+                            is_retargetable,
+                        ));
+                    }
                 }
             }
-        }
+        });
         Self::step_impl(world, delta_time, &targets[..]);
         targets.len()
     }
@@ -2132,9 +2146,12 @@ impl TweenAnim {
             q_anims
                 .iter(world)
                 .filter_map(|(entity, anim, maybe_target)| {
+                    // Lazy registration with resolver if needed
                     if let Some(anim_target) = maybe_target {
                         anim_target.register(world.components(), &mut resolver);
                     }
+
+                    // Actually step the tweenable and update the target
                     match Self::resolve_target(
                         world.components(),
                         maybe_target,
@@ -2149,7 +2166,11 @@ impl TweenAnim {
                             is_retargetable,
                         )),
                         Err(err) => {
-                            println!("err: {:?}", err);
+                            bevy::log::error!(
+                                "Error while stepping TweenAnim on entity {:?}: {:?}",
+                                entity,
+                                err
+                            );
                             None
                         }
                     }
@@ -2761,43 +2782,12 @@ pub(crate) struct StepResult {
     pub needs_retarget: bool,
 }
 
-/// Extension trait to interpolate between two colors.
-///
-/// This adds a [`Color::lerp()`] function which linearly interpolates the
-/// `LinearRgba` values component-wise, by converting the input color to
-/// [`LinearRgba`] space.
-///
-/// Note that this is a convenience helper with naive color interpolation. In
-/// general, to get more accurrate colors, you should create your own [`Lens`]
-/// and apply a better interpolation, for example based on luminosity. There's
-/// no "canonical" color interpolation, and the best answer varies depending on
-/// the context and the color space used. This utility does a reasonable job for
-/// simple cases where the color accuracy is less critical, like animating some
-/// colors in UI. You should probably not use it to animate in-game colors on
-/// _e.g._ materials, especially if you're using Bevy's PBR rendering engine.
-#[allow(dead_code)]
-#[cfg(any(feature = "bevy_sprite", feature = "bevy_ui", feature = "bevy_text"))]
-trait ColorLerper {
-    fn lerp(&self, target: &Self, ratio: f32) -> Self;
-}
-
-#[allow(dead_code)]
-#[cfg(any(feature = "bevy_sprite", feature = "bevy_ui", feature = "bevy_text"))]
-impl ColorLerper for Color {
-    fn lerp(&self, target: &Color, ratio: f32) -> Color {
-        let src = self.to_linear();
-        let dst = target.to_linear();
-        let r = src.red.lerp(dst.red, ratio);
-        let g = src.green.lerp(dst.green, ratio);
-        let b = src.blue.lerp(dst.blue, ratio);
-        let a = src.alpha.lerp(dst.alpha, ratio);
-        Color::linear_rgba(r, g, b, a)
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use std::marker::PhantomData;
+    use std::{
+        f32::consts::{FRAC_PI_2, TAU},
+        marker::PhantomData,
+    };
 
     use bevy::ecs::{change_detection::MaybeLocation, component::Tick};
 
@@ -2957,6 +2947,12 @@ mod tests {
         assert_eq!(
             repeat.total_duration(cycle_duration),
             TotalDuration::Finite(duration)
+        );
+
+        let repeat = RepeatCount::Infinite;
+        assert_eq!(
+            repeat.total_duration(cycle_duration),
+            TotalDuration::Infinite
         );
     }
 
@@ -3296,7 +3292,7 @@ mod tests {
         ));
         let mut env = TestEnv::<DummyComponent>::new(tween);
         let entity = env.entity;
-        env.world_mut()
+        env.world
             .entity_mut(entity)
             .insert(DummyComponent2 { value: -42 });
         TweenAnim::step_one(&mut env.world, Duration::from_millis(1100), entity).unwrap();
@@ -3391,4 +3387,549 @@ mod tests {
     //         assert_eq!(nc, false);
     //     }
     // }
+
+    #[test]
+    fn anim_target_component() {
+        let mut env = TestEnv::<Transform>::empty();
+        let entity = env.world.spawn(Transform::default()).id();
+        let tween = Tween::new::<Transform, TransformPositionLens>(
+            EaseFunction::Linear,
+            Duration::from_secs(1),
+            TransformPositionLens {
+                start: Vec3::ZERO,
+                end: Vec3::ONE,
+            },
+        );
+        let target = AnimTarget::component::<Transform>(entity);
+        let anim_entity = env
+            .world
+            .spawn((
+                TweenAnim::new(tween)
+                    .with_speed(2.)
+                    .with_destroy_on_completed(true),
+                target,
+            ))
+            .id();
+
+        // Step
+        assert!(
+            TweenAnim::step_one(&mut env.world, Duration::from_millis(100), anim_entity).is_ok()
+        );
+        let tr = env.world.entity(entity).get::<Transform>().unwrap();
+        assert_eq!(tr.translation, Vec3::ONE * 0.2);
+
+        // Complete
+        assert_eq!(
+            TweenAnim::step_many(&mut env.world, Duration::from_millis(400), &[anim_entity]),
+            1
+        );
+
+        // Destroyed on completion
+        assert!(env.world.entity(anim_entity).get::<TweenAnim>().is_none());
+    }
+
+    #[test]
+    fn anim_target_resource() {
+        let mut env = TestEnv::<Transform>::empty();
+        env.world.init_resource::<DummyResource>();
+        let tween = Tween::new::<DummyResource, DummyLens>(
+            EaseFunction::Linear,
+            Duration::from_secs(1),
+            DummyLens { start: 0., end: 1. },
+        );
+        let target = AnimTarget::resource::<DummyResource>();
+        let anim_entity = env
+            .world
+            .spawn((
+                TweenAnim::new(tween)
+                    .with_speed(2.)
+                    .with_destroy_on_completed(true),
+                target,
+            ))
+            .id();
+
+        // Step
+        assert!(
+            TweenAnim::step_one(&mut env.world, Duration::from_millis(100), anim_entity).is_ok()
+        );
+        let res = env.world.resource::<DummyResource>();
+        assert_eq!(res.value, 0.2);
+
+        // Complete
+        assert_eq!(
+            TweenAnim::step_many(&mut env.world, Duration::from_millis(400), &[anim_entity]),
+            1
+        );
+
+        // Destroyed on completion
+        assert!(env.world.entity(anim_entity).get::<TweenAnim>().is_none());
+    }
+
+    #[test]
+    fn anim_target_asset() {
+        let mut env = TestEnv::<Transform>::empty();
+        let mut assets = Assets::<DummyAsset>::default();
+        let handle = assets.add(DummyAsset::default());
+        env.world.insert_resource(assets);
+        let tween = Tween::new::<DummyAsset, DummyLens>(
+            EaseFunction::Linear,
+            Duration::from_secs(1),
+            DummyLens { start: 0., end: 1. },
+        );
+        let target = AnimTarget::asset::<DummyAsset>(&handle);
+        let anim_entity = env
+            .world
+            .spawn((
+                TweenAnim::new(tween)
+                    .with_speed(2.)
+                    .with_destroy_on_completed(true),
+                target,
+            ))
+            .id();
+
+        // Step
+        assert!(
+            TweenAnim::step_one(&mut env.world, Duration::from_millis(100), anim_entity).is_ok()
+        );
+        let assets = env.world.resource::<Assets<DummyAsset>>();
+        let asset = assets.get(&handle).unwrap();
+        assert_eq!(asset.value, 0.2);
+
+        // Complete
+        assert_eq!(
+            TweenAnim::step_many(&mut env.world, Duration::from_millis(400), &[anim_entity]),
+            1
+        );
+
+        // Destroyed on completion
+        assert!(env.world.entity(anim_entity).get::<TweenAnim>().is_none());
+    }
+
+    #[test]
+    fn animated_entity_commands_common() {
+        let dummy_tween = Tween::new::<DummyComponent, DummyLens>(
+            EaseFunction::QuadraticInOut,
+            Duration::from_secs(1),
+            DummyLens { start: 0., end: 1. },
+        );
+        let mut env = TestEnv::<DummyComponent>::new(dummy_tween);
+
+        let entity = env
+            .world
+            .commands()
+            .spawn(Transform::default())
+            .move_to(Vec3::ONE, Duration::from_secs(1), EaseFunction::Linear)
+            .with_repeat_count(4)
+            .with_repeat_strategy(RepeatStrategy::MirroredRepeat)
+            .id();
+        let entity2 = env
+            .world
+            .commands()
+            .spawn(Transform::default())
+            .move_to(Vec3::ONE, Duration::from_secs(1), EaseFunction::Linear)
+            .with_repeat(4, RepeatStrategy::MirroredRepeat)
+            .into_inner()
+            .id();
+        env.world.flush();
+
+        env.step_all(Duration::from_millis(3300));
+
+        let tr = env.world.entity(entity).get::<Transform>().unwrap();
+        assert_eq!(tr.translation, Vec3::ONE * 0.7);
+        let tr = env.world.entity(entity2).get::<Transform>().unwrap();
+        assert_eq!(tr.translation, Vec3::ONE * 0.7);
+    }
+
+    #[test]
+    fn animated_entity_commands_move_to() {
+        let dummy_tween = Tween::new::<DummyComponent, DummyLens>(
+            EaseFunction::QuadraticInOut,
+            Duration::from_secs(1),
+            DummyLens { start: 0., end: 1. },
+        );
+        let mut env = TestEnv::<DummyComponent>::new(dummy_tween);
+
+        let entity = env
+            .world
+            .commands()
+            .spawn(Transform::default())
+            .move_to(Vec3::ONE, Duration::from_secs(1), EaseFunction::Linear)
+            .id();
+        env.world.flush();
+
+        env.step_all(Duration::from_millis(300));
+
+        let tr = env.world.entity(entity).get::<Transform>().unwrap();
+        assert_eq!(tr.translation, Vec3::ONE * 0.3);
+    }
+
+    #[test]
+    fn animated_entity_commands_move_from() {
+        let dummy_tween = Tween::new::<DummyComponent, DummyLens>(
+            EaseFunction::QuadraticInOut,
+            Duration::from_secs(1),
+            DummyLens { start: 0., end: 1. },
+        );
+        let mut env = TestEnv::<DummyComponent>::new(dummy_tween);
+
+        let entity = env
+            .world
+            .commands()
+            .spawn(Transform::default())
+            .move_from(Vec3::ONE, Duration::from_secs(1), EaseFunction::Linear)
+            .id();
+        env.world.flush();
+
+        env.step_all(Duration::from_millis(300));
+
+        let tr = env.world.entity(entity).get::<Transform>().unwrap();
+        assert_eq!(tr.translation, Vec3::ONE * 0.7);
+    }
+
+    #[test]
+    fn animated_entity_commands_scale_to() {
+        let dummy_tween = Tween::new::<DummyComponent, DummyLens>(
+            EaseFunction::QuadraticInOut,
+            Duration::from_secs(1),
+            DummyLens { start: 0., end: 1. },
+        );
+        let mut env = TestEnv::<DummyComponent>::new(dummy_tween);
+
+        let entity = env
+            .world
+            .commands()
+            .spawn(Transform::default())
+            .scale_to(Vec3::ONE * 2., Duration::from_secs(1), EaseFunction::Linear)
+            .id();
+        env.world.flush();
+
+        env.step_all(Duration::from_millis(300));
+
+        let tr = env.world.entity(entity).get::<Transform>().unwrap();
+        assert_eq!(tr.scale, Vec3::ONE * 1.3);
+    }
+
+    #[test]
+    fn animated_entity_commands_scale_from() {
+        let dummy_tween = Tween::new::<DummyComponent, DummyLens>(
+            EaseFunction::QuadraticInOut,
+            Duration::from_secs(1),
+            DummyLens { start: 0., end: 1. },
+        );
+        let mut env = TestEnv::<DummyComponent>::new(dummy_tween);
+
+        let entity = env
+            .world
+            .commands()
+            .spawn(Transform::default())
+            .scale_from(Vec3::ONE * 2., Duration::from_secs(1), EaseFunction::Linear)
+            .id();
+        env.world.flush();
+
+        env.step_all(Duration::from_millis(300));
+
+        let tr = env.world.entity(entity).get::<Transform>().unwrap();
+        assert_eq!(tr.scale, Vec3::ONE * 1.7);
+    }
+
+    #[test]
+    fn animated_entity_commands_rotate_x() {
+        let dummy_tween = Tween::new::<DummyComponent, DummyLens>(
+            EaseFunction::QuadraticInOut,
+            Duration::from_secs(1),
+            DummyLens { start: 0., end: 1. },
+        );
+        let mut env = TestEnv::<DummyComponent>::new(dummy_tween);
+
+        let entity = env
+            .world
+            .commands()
+            .spawn(Transform::default())
+            .rotate_x(Duration::from_secs(1))
+            .id();
+        env.world.flush();
+
+        env.step_all(Duration::from_millis(1300));
+
+        let tr = env.world.entity(entity).get::<Transform>().unwrap();
+        assert_eq!(tr.rotation, Quat::from_rotation_x(TAU * 0.3));
+    }
+
+    #[test]
+    fn animated_entity_commands_rotate_y() {
+        let dummy_tween = Tween::new::<DummyComponent, DummyLens>(
+            EaseFunction::QuadraticInOut,
+            Duration::from_secs(1),
+            DummyLens { start: 0., end: 1. },
+        );
+        let mut env = TestEnv::<DummyComponent>::new(dummy_tween);
+
+        let entity = env
+            .world
+            .commands()
+            .spawn(Transform::default())
+            .rotate_y(Duration::from_secs(1))
+            .id();
+        env.world.flush();
+
+        env.step_all(Duration::from_millis(1300));
+
+        let tr = env.world.entity(entity).get::<Transform>().unwrap();
+        assert_eq!(tr.rotation, Quat::from_rotation_y(TAU * 0.3));
+    }
+
+    #[test]
+    fn animated_entity_commands_rotate_z() {
+        let dummy_tween = Tween::new::<DummyComponent, DummyLens>(
+            EaseFunction::QuadraticInOut,
+            Duration::from_secs(1),
+            DummyLens { start: 0., end: 1. },
+        );
+        let mut env = TestEnv::<DummyComponent>::new(dummy_tween);
+
+        let entity = env
+            .world
+            .commands()
+            .spawn(Transform::default())
+            .rotate_z(Duration::from_secs(1))
+            .id();
+        env.world.flush();
+
+        env.step_all(Duration::from_millis(1300));
+
+        let tr = env.world.entity(entity).get::<Transform>().unwrap();
+        assert_eq!(tr.rotation, Quat::from_rotation_z(TAU * 0.3));
+    }
+
+    #[test]
+    fn animated_entity_commands_rotate_x_by() {
+        let dummy_tween = Tween::new::<DummyComponent, DummyLens>(
+            EaseFunction::QuadraticInOut,
+            Duration::from_secs(1),
+            DummyLens { start: 0., end: 1. },
+        );
+        let mut env = TestEnv::<DummyComponent>::new(dummy_tween);
+
+        let entity = env
+            .world
+            .commands()
+            .spawn(Transform::default())
+            .rotate_x_by(FRAC_PI_2, Duration::from_secs(1), EaseFunction::Linear)
+            .id();
+        env.world.flush();
+
+        env.step_all(Duration::from_millis(1300)); // 130%
+
+        let tr = env.world.entity(entity).get::<Transform>().unwrap();
+        assert_eq!(tr.rotation, Quat::from_rotation_x(FRAC_PI_2)); // 100%
+    }
+
+    #[test]
+    fn animated_entity_commands_rotate_y_by() {
+        let dummy_tween = Tween::new::<DummyComponent, DummyLens>(
+            EaseFunction::QuadraticInOut,
+            Duration::from_secs(1),
+            DummyLens { start: 0., end: 1. },
+        );
+        let mut env = TestEnv::<DummyComponent>::new(dummy_tween);
+
+        let entity = env
+            .world
+            .commands()
+            .spawn(Transform::default())
+            .rotate_y_by(FRAC_PI_2, Duration::from_secs(1), EaseFunction::Linear)
+            .id();
+        env.world.flush();
+
+        env.step_all(Duration::from_millis(1300)); // 130%
+
+        let tr = env.world.entity(entity).get::<Transform>().unwrap();
+        assert_eq!(tr.rotation, Quat::from_rotation_y(FRAC_PI_2)); // 100%
+    }
+
+    #[test]
+    fn animated_entity_commands_rotate_z_by() {
+        let dummy_tween = Tween::new::<DummyComponent, DummyLens>(
+            EaseFunction::QuadraticInOut,
+            Duration::from_secs(1),
+            DummyLens { start: 0., end: 1. },
+        );
+        let mut env = TestEnv::<DummyComponent>::new(dummy_tween);
+
+        let entity = env
+            .world
+            .commands()
+            .spawn(Transform::default())
+            .rotate_z_by(FRAC_PI_2, Duration::from_secs(1), EaseFunction::Linear)
+            .id();
+        env.world.flush();
+
+        env.step_all(Duration::from_millis(1300)); // 130%
+
+        let tr = env.world.entity(entity).get::<Transform>().unwrap();
+        assert_eq!(tr.rotation, Quat::from_rotation_z(FRAC_PI_2)); // 100%
+    }
+
+    #[test]
+    fn resolver_resource() {
+        let dummy_tween = Tween::new::<DummyComponent, DummyLens>(
+            EaseFunction::QuadraticInOut,
+            Duration::from_secs(1),
+            DummyLens { start: 0., end: 1. },
+        );
+        let mut env = TestEnv::<DummyComponent>::new(dummy_tween);
+
+        // Register the resource and create a TweenAnim for it
+        env.world.init_resource::<DummyResource>();
+        let tween = Tween::new::<DummyResource, DummyLens>(
+            EaseFunction::QuadraticInOut,
+            Duration::from_secs(1),
+            DummyLens { start: 0., end: 1. },
+        );
+        let entity = env.world.commands().spawn(TweenAnim::new(tween)).id();
+
+        // Ensure all commands are applied before starting the test
+        env.world.flush();
+
+        let delta_time = Duration::from_millis(200);
+        let resource_id = env.world.resource_id::<DummyResource>().unwrap();
+
+        // Resource resolver not registered; fails
+        env.world
+            .resource_scope(|world, resolver: Mut<TweenResolver>| {
+                world.resource_scope(
+                    |world, mut cycle_events: Mut<Events<CycleCompletedEvent>>| {
+                        world.resource_scope(
+                            |world, mut anim_events: Mut<Events<AnimCompletedEvent>>| {
+                                assert!(resolver
+                                    .resolve_resource(
+                                        world,
+                                        &TypeId::of::<DummyResource>(),
+                                        resource_id,
+                                        entity,
+                                        delta_time,
+                                        cycle_events.reborrow(),
+                                        anim_events.reborrow(),
+                                    )
+                                    .is_err());
+                            },
+                        );
+                    },
+                );
+            });
+
+        // Register the resource resolver
+        env.world
+            .resource_scope(|world, mut resolver: Mut<TweenResolver>| {
+                resolver.register_resource_resolver_for::<DummyResource>(world.components());
+            });
+
+        // Resource resolver registered; succeeds
+        env.world
+            .resource_scope(|world, resolver: Mut<TweenResolver>| {
+                world.resource_scope(
+                    |world, mut cycle_events: Mut<Events<CycleCompletedEvent>>| {
+                        world.resource_scope(
+                            |world, mut anim_events: Mut<Events<AnimCompletedEvent>>| {
+                                assert!(resolver
+                                    .resolve_resource(
+                                        world,
+                                        &TypeId::of::<DummyResource>(),
+                                        resource_id,
+                                        entity,
+                                        delta_time,
+                                        cycle_events.reborrow(),
+                                        anim_events.reborrow(),
+                                    )
+                                    .unwrap());
+                            },
+                        );
+                    },
+                );
+            });
+    }
+
+    #[test]
+    fn resolver_asset() {
+        let dummy_tween = Tween::new::<DummyComponent, DummyLens>(
+            EaseFunction::QuadraticInOut,
+            Duration::from_secs(1),
+            DummyLens { start: 0., end: 1. },
+        );
+        let mut env = TestEnv::<DummyComponent>::new(dummy_tween);
+
+        // Register the asset and create a TweenAnim for it
+        let mut assets = Assets::<DummyAsset>::default();
+        let handle = assets.add(DummyAsset::default());
+        let untyped_asset_id = handle.id().untyped();
+        env.world.insert_resource(assets);
+        let tween = Tween::new::<DummyAsset, DummyLens>(
+            EaseFunction::QuadraticInOut,
+            Duration::from_secs(1),
+            DummyLens { start: 0., end: 1. },
+        );
+        let entity = env.world.commands().spawn(TweenAnim::new(tween)).id();
+
+        // Ensure all commands are applied before starting the test
+        env.world.flush();
+
+        let delta_time = Duration::from_millis(200);
+        let resource_id = env.world.resource_id::<Assets<DummyAsset>>().unwrap();
+
+        // Asset resolver not registered; fails
+        env.world
+            .resource_scope(|world, resolver: Mut<TweenResolver>| {
+                world.resource_scope(
+                    |world, mut cycle_events: Mut<Events<CycleCompletedEvent>>| {
+                        world.resource_scope(
+                            |world, mut anim_events: Mut<Events<AnimCompletedEvent>>| {
+                                assert!(resolver
+                                    .resolve_asset(
+                                        world,
+                                        &TypeId::of::<DummyAsset>(),
+                                        resource_id,
+                                        untyped_asset_id,
+                                        entity,
+                                        delta_time,
+                                        cycle_events.reborrow(),
+                                        anim_events.reborrow(),
+                                    )
+                                    .is_err());
+                            },
+                        );
+                    },
+                );
+            });
+
+        // Register the asset resolver
+        env.world
+            .resource_scope(|world, mut resolver: Mut<TweenResolver>| {
+                resolver.register_asset_resolver_for::<DummyAsset>(world.components());
+            });
+
+        // Asset resolver registered; succeeds
+        env.world
+            .resource_scope(|world, resolver: Mut<TweenResolver>| {
+                world.resource_scope(
+                    |world, mut cycle_events: Mut<Events<CycleCompletedEvent>>| {
+                        world.resource_scope(
+                            |world, mut anim_events: Mut<Events<AnimCompletedEvent>>| {
+                                assert!(resolver
+                                    .resolve_asset(
+                                        world,
+                                        &TypeId::of::<DummyAsset>(),
+                                        resource_id,
+                                        untyped_asset_id,
+                                        entity,
+                                        delta_time,
+                                        cycle_events.reborrow(),
+                                        anim_events.reborrow(),
+                                    )
+                                    .unwrap());
+                            },
+                        );
+                    },
+                );
+            });
+    }
 }

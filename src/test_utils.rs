@@ -150,15 +150,27 @@ impl<T: Component<Mutability = Mutable> + Default> TestEnv<T> {
             _phantom: PhantomData,
         }
     }
+
+    pub fn empty() -> Self {
+        let mut world = World::new();
+        world.init_resource::<Time>();
+        world.init_resource::<Events<CycleCompletedEvent>>();
+        world.init_resource::<Events<AnimCompletedEvent>>();
+        world.init_resource::<TweenResolver>();
+
+        let mut system = IntoSystem::into_system(crate::plugin::animator_system);
+        system.initialize(&mut world);
+
+        Self {
+            world,
+            entity: Entity::PLACEHOLDER,
+            system: Box::new(system),
+            _phantom: PhantomData,
+        }
+    }
 }
 
 impl<T: Component<Mutability = Mutable>> TestEnv<T> {
-    /// Get the test world.
-    #[allow(unused)]
-    pub fn world_mut(&mut self) -> &mut World {
-        &mut self.world
-    }
-
     /// Tick the test environment, updating the simulation time and executing
     /// the built-in system which calls [`TweenAnimator::step_all()`].
     pub fn step_all(&mut self, duration: Duration) {
@@ -170,7 +182,9 @@ impl<T: Component<Mutability = Mutable>> TestEnv<T> {
 
         // Reset world-related change detection
         self.world.clear_trackers();
-        assert!(!self.component_mut().is_changed());
+        if self.entity != Entity::PLACEHOLDER {
+            assert!(!self.component_mut().is_changed());
+        }
 
         // Tick system
         self.system.run((), &mut self.world);

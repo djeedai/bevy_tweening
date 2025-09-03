@@ -61,7 +61,17 @@ mod tests {
         },
     };
 
+    use bevy::time::TimePlugin;
+
     use crate::{lens::TransformPositionLens, test_utils::TestEnv, *};
+
+    #[test]
+    fn app() {
+        let mut app = App::default();
+        app.add_plugins((TimePlugin, TweeningPlugin));
+        app.finish();
+        app.update();
+    }
 
     #[test]
     fn custom_target_entity() {
