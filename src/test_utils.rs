@@ -5,7 +5,7 @@ use bevy::{
         change_detection::DetectChanges as _,
         component::{Component, Mutable},
         entity::Entity,
-        event::{Event, Events},
+        message::{Message, Messages},
         system::{IntoSystem, System},
         world::{Mut, World},
     },
@@ -134,8 +134,8 @@ impl<T: Component<Mutability = Mutable> + Default> TestEnv<T> {
     pub fn new(tweenable: impl Tweenable + 'static) -> Self {
         let mut world = World::new();
         world.init_resource::<Time>();
-        world.init_resource::<Events<CycleCompletedEvent>>();
-        world.init_resource::<Events<AnimCompletedEvent>>();
+        world.init_resource::<Messages<CycleCompletedEvent>>();
+        world.init_resource::<Messages<AnimCompletedEvent>>();
         world.init_resource::<TweenResolver>();
 
         let mut system = IntoSystem::into_system(crate::plugin::animator_system);
@@ -154,8 +154,8 @@ impl<T: Component<Mutability = Mutable> + Default> TestEnv<T> {
     pub fn empty() -> Self {
         let mut world = World::new();
         world.init_resource::<Time>();
-        world.init_resource::<Events<CycleCompletedEvent>>();
-        world.init_resource::<Events<AnimCompletedEvent>>();
+        world.init_resource::<Messages<CycleCompletedEvent>>();
+        world.init_resource::<Messages<AnimCompletedEvent>>();
         world.init_resource::<TweenResolver>();
 
         let mut system = IntoSystem::into_system(crate::plugin::animator_system);
@@ -187,12 +187,12 @@ impl<T: Component<Mutability = Mutable>> TestEnv<T> {
         }
 
         // Tick system
-        self.system.run((), &mut self.world);
+        let _ = self.system.run((), &mut self.world);
 
         // Update events after system ticked, in case system emitted some events
-        let mut events = self.world.resource_mut::<Events<CycleCompletedEvent>>();
+        let mut events = self.world.resource_mut::<Messages<CycleCompletedEvent>>();
         events.update();
-        let mut events = self.world.resource_mut::<Events<AnimCompletedEvent>>();
+        let mut events = self.world.resource_mut::<Messages<AnimCompletedEvent>>();
         events.update();
     }
 
@@ -217,8 +217,8 @@ impl<T: Component<Mutability = Mutable>> TestEnv<T> {
     }
 
     /// Get the emitted event count since last tick.
-    pub fn event_count<E: Event>(&self) -> usize {
-        let events = self.world.resource::<Events<E>>();
+    pub fn event_count<E: Message>(&self) -> usize {
+        let events = self.world.resource::<Messages<E>>();
         events.get_cursor().len(events)
     }
 }
