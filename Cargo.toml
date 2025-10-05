@@ -18,7 +18,11 @@ exclude = ["examples/*.gif", ".github", "release.md", "run_examples.bat"]
 [features]
 default = ["bevy_sprite", "bevy_ui", "bevy_text"]
 # Enable built-in lenses for Bevy sprites
-bevy_sprite = ["bevy/bevy_sprite", "bevy/bevy_render"]
+bevy_sprite = [
+    "bevy/bevy_sprite",
+    "bevy/bevy_render",
+    "bevy/bevy_sprite_render",
+]
 # Enable built-in lenses for Bevy UI
 bevy_ui = ["bevy/bevy_ui", "bevy/bevy_render"]
 # Enable built-in lenses for Bevy Text
@@ -26,23 +30,45 @@ bevy_text = ["bevy/bevy_text", "bevy/bevy_render", "bevy/bevy_sprite"]
 
 [dependencies]
 # Note: abuse 'bevy_color' to force 'bevy_math/curve' feature, which defines EaseFunction
-bevy = { version = "0.16", default-features = false, features = [ "bevy_color", "bevy_asset", "bevy_log" ]}
+bevy = { version = "0.17", default-features = false, features = [
+    "bevy_color",
+    "bevy_asset",
+    "bevy_log",
+] }
 thiserror = "2"
 
 [dev-dependencies]
-bevy-inspector-egui = { version = "0.31" }
+bevy-inspector-egui = { version = "0.34" }
 
 [[example]]
 name = "ambient_light"
-required-features = ["bevy_ui", "bevy_text", "bevy/bevy_winit", "bevy/bevy_picking", "bevy/bevy_pbr", "bevy/hdr", "bevy/tonemapping_luts"]
+required-features = [
+    "bevy_ui",
+    "bevy_text",
+    "bevy/bevy_winit",
+    "bevy/bevy_picking",
+    "bevy/bevy_pbr",
+    "bevy/hdr",
+    "bevy/tonemapping_luts",
+]
 
 [[example]]
 name = "follow"
-required-features = ["bevy_sprite", "bevy_text", "bevy/bevy_winit", "bevy/bevy_picking"]
+required-features = [
+    "bevy_sprite",
+    "bevy_text",
+    "bevy/bevy_winit",
+    "bevy/bevy_picking",
+]
 
 [[example]]
 name = "menu"
-required-features = ["bevy_ui", "bevy_text", "bevy/bevy_winit", "bevy/bevy_picking"]
+required-features = [
+    "bevy_ui",
+    "bevy_text",
+    "bevy/bevy_winit",
+    "bevy/bevy_picking",
+]
 
 [[example]]
 name = "colormaterial_color"
@@ -62,15 +88,30 @@ required-features = ["bevy_sprite", "bevy/bevy_winit", "bevy/bevy_picking"]
 
 [[example]]
 name = "ui_position"
-required-features = ["bevy_sprite", "bevy_ui", "bevy/bevy_winit", "bevy/bevy_picking"]
+required-features = [
+    "bevy_sprite",
+    "bevy_ui",
+    "bevy/bevy_winit",
+    "bevy/bevy_picking",
+]
 
 [[example]]
 name = "text_color"
-required-features = ["bevy_ui", "bevy_text", "bevy/bevy_winit", "bevy/bevy_picking"]
+required-features = [
+    "bevy_ui",
+    "bevy_text",
+    "bevy/bevy_winit",
+    "bevy/bevy_picking",
+]
 
 [[example]]
 name = "sequence"
-required-features = ["bevy_sprite", "bevy_text", "bevy/bevy_winit", "bevy/bevy_picking"]
+required-features = [
+    "bevy_sprite",
+    "bevy_text",
+    "bevy/bevy_winit",
+    "bevy/bevy_picking",
+]
 
 [workspace]
 resolver = "2"

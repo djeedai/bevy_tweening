@@ -1712,7 +1712,7 @@ impl<'a> EntityCommandsTweeningExtensions<'a> for EntityCommands<'a> {
 }
 
 /// Event raised when a [`TweenAnim`] completed.
-#[derive(Debug, Clone, Copy, Event)]
+#[derive(Debug, Clone, Copy, Event, Message)]
 pub struct AnimCompletedEvent {
     /// The entity owning the [`TweenAnim`] which completed.
     ///
@@ -2231,9 +2231,9 @@ impl TweenAnim {
         let mut to_remove = Vec::with_capacity(anims.len());
         world.resource_scope(|world, resolver: Mut<TweenResolver>| {
             world.resource_scope(
-                |world, mut cycle_events: Mut<Events<CycleCompletedEvent>>| {
+                |world, mut cycle_events: Mut<Messages<CycleCompletedEvent>>| {
                     world.resource_scope(
-                        |world, mut anim_events: Mut<Events<AnimCompletedEvent>>| {
+                        |world, mut anim_events: Mut<Messages<AnimCompletedEvent>>| {
                             let anim_comp_id = world.component_id::<TweenAnim>().unwrap();
                             for (
                                 anim_entity,
@@ -2383,8 +2383,8 @@ impl TweenAnim {
         target_kind: &AnimTargetKind,
         mut mut_untyped: MutUntyped,
         target_type_id: &TypeId,
-        mut cycle_events: Mut<Events<CycleCompletedEvent>>,
-        mut anim_events: Mut<Events<AnimCompletedEvent>>,
+        mut cycle_events: Mut<Messages<CycleCompletedEvent>>,
+        mut anim_events: Mut<Messages<AnimCompletedEvent>>,
     ) -> Result<StepResult, TweeningError> {
         let mut completed_events = Vec::with_capacity(8);
 
@@ -2435,10 +2435,13 @@ impl TweenAnim {
         if !completed_events.is_empty() {
             for event in completed_events.drain(..) {
                 // Send buffered event
-                cycle_events.send(event);
+                cycle_events.write(event);
 
                 // Trigger all entity-scoped observers
-                commands.trigger_targets(event, anim_entity);
+                commands.trigger(CycleCompletedEvent {
+                    anim_entity,
+                    ..event
+                });
             }
         }
 
@@ -2450,10 +2453,10 @@ impl TweenAnim {
             };
 
             // Send buffered event
-            anim_events.send(event);
+            anim_events.write(event);
 
             // Trigger all entity-scoped observers
-            commands.trigger_targets(event, anim_entity);
+            commands.trigger(event);
         }
 
         let ret = StepResult {
@@ -2555,8 +2558,8 @@ type ResourceResolver = Box<
             Entity,
             &TypeId,
             Duration,
-            Mut<Events<CycleCompletedEvent>>,
-            Mut<Events<AnimCompletedEvent>>,
+            Mut<Messages<CycleCompletedEvent>>,
+            Mut<Messages<AnimCompletedEvent>>,
         ) -> Result<bool, TweeningError>
         + Send
         + Sync
@@ -2570,8 +2573,8 @@ type AssetResolver = Box<
             Entity,
             &TypeId,
             Duration,
-            Mut<Events<CycleCompletedEvent>>,
-            Mut<Events<AnimCompletedEvent>>,
+            Mut<Messages<CycleCompletedEvent>>,
+            Mut<Messages<AnimCompletedEvent>>,
         ) -> Result<bool, TweeningError>
         + Send
         + Sync
@@ -2619,8 +2622,8 @@ impl TweenResolver {
                         entity: Entity,
                         target_type_id: &TypeId,
                         delta_time: Duration,
-                        mut cycle_events: Mut<Events<CycleCompletedEvent>>,
-                        mut anim_events: Mut<Events<AnimCompletedEvent>>|
+                        mut cycle_events: Mut<Messages<CycleCompletedEvent>>,
+                        mut anim_events: Mut<Messages<AnimCompletedEvent>>|
          -> Result<bool, TweeningError> {
             // First, remove the resource R from the world so we can access it mutably in
             // parallel of the TweenAnim
@@ -2667,8 +2670,8 @@ impl TweenResolver {
                         entity: Entity,
                         target_type_id: &TypeId,
                         delta_time: Duration,
-                        mut cycle_events: Mut<Events<CycleCompletedEvent>>,
-                        mut anim_events: Mut<Events<AnimCompletedEvent>>|
+                        mut cycle_events: Mut<Messages<CycleCompletedEvent>>,
+                        mut anim_events: Mut<Messages<AnimCompletedEvent>>|
          -> Result<bool, TweeningError> {
             let asset_id = asset_id.typed::<A>();
             // First, remove the Assets<A> from the world so we can access it mutably in
@@ -2726,8 +2729,8 @@ impl TweenResolver {
         resource_id: ComponentId,
         entity: Entity,
         delta_time: Duration,
-        cycle_events: Mut<Events<CycleCompletedEvent>>,
-        anim_events: Mut<Events<AnimCompletedEvent>>,
+        cycle_events: Mut<Messages<CycleCompletedEvent>>,
+        anim_events: Mut<Messages<AnimCompletedEvent>>,
     ) -> Result<bool, TweeningError> {
         let Some(resolver) = self.resource_resolver.get(&resource_id) else {
             println!("ERROR: resource not registered {:?}", resource_id);
@@ -2753,8 +2756,8 @@ impl TweenResolver {
         untyped_asset_id: UntypedAssetId,
         entity: Entity,
         delta_time: Duration,
-        cycle_events: Mut<Events<CycleCompletedEvent>>,
-        anim_events: Mut<Events<AnimCompletedEvent>>,
+        cycle_events: Mut<Messages<CycleCompletedEvent>>,
+        anim_events: Mut<Messages<AnimCompletedEvent>>,
     ) -> Result<bool, TweeningError> {
         let Some(resolver) = self.asset_resolver.get(&resource_id) else {
             println!("ERROR: asset not registered {:?}", resource_id);
@@ -3118,7 +3121,7 @@ mod tests {
         );
 
         fn observe_global(
-            _trigger: Trigger<CycleCompletedEvent>,
+            _trigger: On<CycleCompletedEvent>,
             mut count: ResMut<Count<CycleCompletedEvent, GlobalMarker>>,
         ) {
             count.count += 1;
@@ -3126,7 +3129,7 @@ mod tests {
         env.world.add_observer(observe_global);
 
         fn observe_entity(
-            _trigger: Trigger<CycleCompletedEvent>,
+            _trigger: On<CycleCompletedEvent>,
             mut count: ResMut<Count<CycleCompletedEvent>>,
         ) {
             count.count += 1;
@@ -3798,9 +3801,9 @@ mod tests {
         env.world
             .resource_scope(|world, resolver: Mut<TweenResolver>| {
                 world.resource_scope(
-                    |world, mut cycle_events: Mut<Events<CycleCompletedEvent>>| {
+                    |world, mut cycle_events: Mut<Messages<CycleCompletedEvent>>| {
                         world.resource_scope(
-                            |world, mut anim_events: Mut<Events<AnimCompletedEvent>>| {
+                            |world, mut anim_events: Mut<Messages<AnimCompletedEvent>>| {
                                 assert!(resolver
                                     .resolve_resource(
                                         world,
@@ -3828,9 +3831,9 @@ mod tests {
         env.world
             .resource_scope(|world, resolver: Mut<TweenResolver>| {
                 world.resource_scope(
-                    |world, mut cycle_events: Mut<Events<CycleCompletedEvent>>| {
+                    |world, mut cycle_events: Mut<Messages<CycleCompletedEvent>>| {
                         world.resource_scope(
-                            |world, mut anim_events: Mut<Events<AnimCompletedEvent>>| {
+                            |world, mut anim_events: Mut<Messages<AnimCompletedEvent>>| {
                                 assert!(resolver
                                     .resolve_resource(
                                         world,
@@ -3880,9 +3883,9 @@ mod tests {
         env.world
             .resource_scope(|world, resolver: Mut<TweenResolver>| {
                 world.resource_scope(
-                    |world, mut cycle_events: Mut<Events<CycleCompletedEvent>>| {
+                    |world, mut cycle_events: Mut<Messages<CycleCompletedEvent>>| {
                         world.resource_scope(
-                            |world, mut anim_events: Mut<Events<AnimCompletedEvent>>| {
+                            |world, mut anim_events: Mut<Messages<AnimCompletedEvent>>| {
                                 assert!(resolver
                                     .resolve_asset(
                                         world,
@@ -3911,9 +3914,9 @@ mod tests {
         env.world
             .resource_scope(|world, resolver: Mut<TweenResolver>| {
                 world.resource_scope(
-                    |world, mut cycle_events: Mut<Events<CycleCompletedEvent>>| {
+                    |world, mut cycle_events: Mut<Messages<CycleCompletedEvent>>| {
                         world.resource_scope(
-                            |world, mut anim_events: Mut<Events<AnimCompletedEvent>>| {
+                            |world, mut anim_events: Mut<Messages<AnimCompletedEvent>>| {
                                 assert!(resolver
                                     .resolve_asset(
                                         world,

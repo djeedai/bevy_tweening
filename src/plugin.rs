@@ -25,8 +25,8 @@ pub struct TweeningPlugin;
 impl Plugin for TweeningPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<TweenResolver>()
-            .add_event::<CycleCompletedEvent>()
-            .add_event::<AnimCompletedEvent>()
+            .add_message::<CycleCompletedEvent>()
+            .add_message::<AnimCompletedEvent>()
             .add_systems(
                 Update,
                 animator_system.in_set(AnimationSystem::AnimationUpdate),

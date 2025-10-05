@@ -106,7 +106,7 @@ pub enum TweenState {
 /// that the tweenable has finished stepping and do not need to be updated
 /// anymore, a state which is never reached for looping animation. Here the
 /// [`CycleCompletedEvent`] instead marks the end of a single cycle.
-#[derive(Copy, Clone, Event)]
+#[derive(Copy, Clone, EntityEvent, Message)]
 pub struct CycleCompletedEvent {
     /// The entity owning the tweenable animation which completed.
     ///
@@ -114,6 +114,7 @@ pub struct CycleCompletedEvent {
     /// which completed is part of.
     ///
     /// [`TweenAnim`]: crate::TweenAnim
+    #[event_target]
     pub anim_entity: Entity,
     /// The target the tweenable which completed and the [`TweenAnim`] it's
     /// part of are mutating. Note that an actual [`AnimTarget`] component might
@@ -1333,7 +1334,7 @@ impl Delay {
 
     /// Check if the delay completed.
     pub fn is_completed(&self) -> bool {
-        self.timer.finished()
+        self.timer.is_finished()
     }
 
     /// Get the current tweenable state.
@@ -1356,7 +1357,7 @@ impl Tweenable for Delay {
     }
 
     fn set_elapsed(&mut self, elapsed: Duration) {
-        // need to reset() to clear finished() unfortunately
+        // need to reset() to clear is_finished() unfortunately
         self.timer.reset();
         self.timer.set_elapsed(elapsed);
         // set_elapsed() does not update finished() etc. which we rely on
@@ -1417,9 +1418,7 @@ mod tests {
 
     use std::ops::{Deref as _, DerefMut as _};
 
-    use bevy::ecs::{
-        change_detection::MaybeLocation, component::Tick, event::Events, system::SystemState,
-    };
+    use bevy::ecs::{change_detection::MaybeLocation, component::Tick, system::SystemState};
 
     use super::*;
     use crate::{lens::*, test_utils::assert_approx_eq};
@@ -1552,7 +1551,7 @@ mod tests {
     /// Utility to create a test environment to tick a tween.
     fn make_test_env() -> (World, Entity) {
         let mut world = World::new();
-        world.init_resource::<Events<CycleCompletedEvent>>();
+        world.init_resource::<Messages<CycleCompletedEvent>>();
         let entity = world.spawn(Transform::default()).id();
         (world, entity)
     }
@@ -1568,13 +1567,13 @@ mod tests {
         // Tick the given tween and apply its state to the given entity target
         let target_type_id = TypeId::of::<Transform>();
         let ret = world.resource_scope(
-            |world: &mut World, mut events: Mut<Events<CycleCompletedEvent>>| {
+            |world: &mut World, mut events: Mut<Messages<CycleCompletedEvent>>| {
                 let component_id = world.component_id::<Transform>().unwrap();
                 let entity_mut = &mut world.get_entity_mut([entity]).unwrap()[0];
                 if let Ok(mut target) = entity_mut.get_mut_by_id(component_id) {
                     let world_target = AnimTargetKind::Component { entity };
                     let mut notify_completed = || {
-                        events.send(CycleCompletedEvent {
+                        events.write(CycleCompletedEvent {
                             anim_entity,
                             target: world_target,
                         });
@@ -1594,7 +1593,7 @@ mod tests {
 
         // Propagate events
         {
-            let mut events = world.resource_mut::<Events<CycleCompletedEvent>>();
+            let mut events = world.resource_mut::<Messages<CycleCompletedEvent>>();
             events.update();
         }
 
@@ -1705,7 +1704,7 @@ mod tests {
                 }
 
                 let (mut world, entity) = make_test_env();
-                let mut event_reader_system_state: SystemState<EventReader<CycleCompletedEvent>> =
+                let mut event_reader_system_state: SystemState<MessageReader<CycleCompletedEvent>> =
                     SystemState::new(&mut world);
 
                 // Loop over 2.2 seconds, so greater than one ping-pong loop (2 cycles in
@@ -1932,7 +1931,7 @@ mod tests {
                     assert_approx_eq!(expected_translation, transform.translation, 1e-5);
                     assert_approx_eq!(Quat::IDENTITY, transform.rotation, 1e-5);
 
-                    // Events are only sent when playing forward
+                    // Messages are only sent when playing forward
                     if playback_direction.is_forward() {
                         //let component_id = world.component_id::<Transform>().unwrap();
                         let mut event_reader = event_reader_system_state.get_mut(&mut world);
