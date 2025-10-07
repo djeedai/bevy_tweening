@@ -282,10 +282,10 @@
 //! shine for simpler animations while `bevy_animation` while offer a more
 //! extensive support for larger, more complex ones.
 //!
-//! [`Transform::translation`]: https://docs.rs/bevy/0.16.0/bevy/transform/components/struct.Transform.html#structfield.translation
-//! [`Entity`]: https://docs.rs/bevy/0.16.0/bevy/ecs/entity/struct.Entity.html
-//! [`ColorMaterial`]: https://docs.rs/bevy/0.16.0/bevy/sprite/struct.ColorMaterial.html
-//! [`Transform`]: https://docs.rs/bevy/0.16.0/bevy/transform/components/struct.Transform.html
+//! [`Transform::translation`]: https://docs.rs/bevy/0.17/bevy/transform/components/struct.Transform.html#structfield.translation
+//! [`Entity`]: https://docs.rs/bevy/0.17/bevy/ecs/entity/struct.Entity.html
+//! [`ColorMaterial`]: https://docs.rs/bevy/0.17/bevy/sprite/struct.ColorMaterial.html
+//! [`Transform`]: https://docs.rs/bevy/0.17/bevy/transform/components/struct.Transform.html
 //! [`TransformPositionLens`]: crate::lens::TransformPositionLens
 //! [`move_to()`]: crate::EntityCommandsTweeningExtensions::move_to
 
@@ -1825,6 +1825,8 @@ impl AnimTarget {
     pub fn component<C: Component<Mutability = Mutable>>(entity: Entity) -> Self {
         Self {
             kind: AnimTargetKind::Component { entity },
+            // Components have a complete typeless API, don't need any extra registration for type
+            // erasure.
             register_action: None,
         }
     }
