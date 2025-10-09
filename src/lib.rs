@@ -1712,7 +1712,7 @@ impl<'a> EntityCommandsTweeningExtensions<'a> for EntityCommands<'a> {
 }
 
 /// Event raised when a [`TweenAnim`] completed.
-#[derive(Debug, Clone, Copy, Event, Message)]
+#[derive(Debug, Clone, Copy, EntityEvent, Message)]
 pub struct AnimCompletedEvent {
     /// The entity owning the [`TweenAnim`] which completed.
     ///
@@ -1720,6 +1720,7 @@ pub struct AnimCompletedEvent {
     /// can't be queried anymore with this entity. You can prevent a completed
     /// animation from being automatically destroyed by
     /// setting [`TweenAnim::destroy_on_completion`] to `false`.
+    #[event_target]
     pub anim_entity: Entity,
     /// The animation target.
     ///
