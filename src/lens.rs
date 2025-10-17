@@ -412,6 +412,26 @@ impl Lens<Node> for UiPositionLens {
     }
 }
 
+/// A lens to manipulate the [`scale`] field of a [`UiTransform`] component.
+///
+/// [`scale`]: https://docs.rs/bevy/0.17/bevy/ui/ui_transform/struct.UiTransform.html#structfield.scale
+/// [`UiTransform`]: https://docs.rs/bevy/0.17/bevy/ui/ui_transform/struct.UiTransform.html
+#[cfg(feature = "bevy_ui")]
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct UiTransformScaleLens {
+    /// Start value of the scale.
+    pub start: Vec2,
+    /// End value of the scale.
+    pub end: Vec2,
+}
+
+#[cfg(feature = "bevy_ui")]
+impl Lens<UiTransform> for UiTransformScaleLens {
+    fn lerp(&mut self, mut target: Mut<UiTransform>, ratio: f32) {
+        target.scale = self.start.lerp(self.end, ratio);
+    }
+}
+
 /// Gamer
 #[cfg(feature = "bevy_ui")]
 #[derive(Debug, Copy, Clone, PartialEq)]

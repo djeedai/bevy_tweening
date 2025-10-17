@@ -43,7 +43,7 @@ fn main() {
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "Follow".to_string(),
-                resolution: (1200., 600.).into(),
+                resolution: bevy::window::WindowResolution::new(1200, 600),
                 present_mode: bevy::window::PresentMode::Fifo, // vsync
                 ..default()
             }),
@@ -112,12 +112,12 @@ fn change_option(keyboard: Res<ButtonInput<KeyCode>>, mut q_anim: Single<&mut An
 
 fn follow(
     mut commands: Commands,
-    mut ev: EventReader<CursorMoved>,
+    mut message_reader: MessageReader<CursorMoved>,
     q_follower: Single<&Transform, With<Follower>>,
     q_camera: Single<(&GlobalTransform, &Camera)>,
     mut q_anim: Single<(Entity, &Anim, &mut TweenAnim)>,
 ) {
-    let Some(ev) = ev.read().last() else {
+    let Some(ev) = message_reader.read().last() else {
         return;
     };
     let (camera_transform, camera) = *q_camera;

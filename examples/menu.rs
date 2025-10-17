@@ -36,15 +36,13 @@ fn main() {
             DefaultPlugins.set(WindowPlugin {
                 primary_window: Some(Window {
                     title: "Menu".to_string(),
-                    resolution: (800., 400.).into(),
+                    resolution: bevy::window::WindowResolution::new(800, 400),
                     present_mode: bevy::window::PresentMode::Fifo, // vsync
                     ..default()
                 }),
                 ..default()
             }),
-            EguiPlugin {
-                enable_multipass_for_primary_context: true,
-            },
+            EguiPlugin::default(),
             WorldInspectorPlugin::new(),
             TweeningPlugin,
         ))
@@ -55,7 +53,7 @@ fn main() {
 }
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
-    commands.spawn(Camera2d::default());
+    commands.spawn(Camera2d);
 
     let font = asset_server.load("fonts/FiraMono-Regular.ttf");
 
@@ -91,9 +89,9 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                 let tween_scale = Tween::new(
                     EaseFunction::BounceOut,
                     Duration::from_secs(2),
-                    TransformScaleLens {
-                        start: Vec3::splat(0.01),
-                        end: Vec3::ONE,
+                    UiTransformScaleLens {
+                        start: Vec2::splat(0.01),
+                        end: Vec2::ONE,
                     },
                 )
                 .with_cycle_completed_event(true);
@@ -114,7 +112,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                             ..default()
                         },
                         BackgroundColor(NORMAL_COLOR),
-                        Transform::from_scale(Vec3::splat(0.01)),
+                        UiTransform::from_scale(Vec2::splat(0.01)),
                         label,
                         children![(
                             Text::new(text.to_string()),
@@ -124,7 +122,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                                 ..default()
                             },
                             TextColor(TEXT_COLOR),
-                            TextLayout::new_with_justify(JustifyText::Center),
+                            TextLayout::new_with_justify(Justify::Center),
                         )],
                     ))
                     .id();
@@ -139,7 +137,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                     .spawn((
                         InitialAnimMarker,
                         TweenAnim::new(tweenable),
-                        AnimTarget::component::<Transform>(target),
+                        AnimTarget::component::<UiTransform>(target),
                     ))
                     .observe(enable_interaction_after_initial_animation);
 
@@ -149,7 +147,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
 }
 
 fn enable_interaction_after_initial_animation(
-    trigger: Trigger<AnimCompletedEvent>,
+    trigger: On<AnimCompletedEvent>,
     mut commands: Commands,
     q_names: Query<&Name>,
 ) {
@@ -170,7 +168,7 @@ fn enable_interaction_after_initial_animation(
         // Spawn an Entity to hold the animation itself. We add the AnimTarget, which
         // doesn't change, but not yet any TweenAnim since we have no animation to play.
         let anim_entity = commands
-            .spawn(AnimTarget::component::<Transform>(*target_entity))
+            .spawn(AnimTarget::component::<UiTransform>(*target_entity))
             .id();
 
         // Add the HoverAnim component which also acts as a marker
@@ -195,7 +193,7 @@ fn interaction(
     mut commands: Commands,
     mut interaction_query: Query<
         (
-            &Transform,
+            &UiTransform,
             &Interaction,
             &mut BackgroundColor,
             &ButtonLabel,
@@ -231,9 +229,9 @@ fn interaction(
                 let tween = Tween::new(
                     EaseFunction::QuadraticIn,
                     Duration::from_millis(200),
-                    TransformScaleLens {
+                    UiTransformScaleLens {
                         start: transform.scale,
-                        end: Vec3::splat(1.1),
+                        end: Vec2::splat(1.1),
                     },
                 );
 
@@ -247,9 +245,9 @@ fn interaction(
                 let tween = Tween::new(
                     EaseFunction::QuadraticIn,
                     Duration::from_millis(200),
-                    TransformScaleLens {
+                    UiTransformScaleLens {
                         start: transform.scale,
-                        end: Vec3::ONE,
+                        end: Vec2::ONE,
                     },
                 );
 

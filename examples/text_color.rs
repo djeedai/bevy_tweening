@@ -3,15 +3,15 @@ use bevy_tweening::{lens::*, *};
 
 mod utils;
 
-const WIDTH: f32 = 1200.;
-const HEIGHT: f32 = 600.;
+const WIDTH: u32 = 1200;
+const HEIGHT: u32 = 600;
 
 fn main() {
     App::default()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "TextColorLens".to_string(),
-                resolution: (WIDTH, HEIGHT).into(),
+                resolution: bevy::window::WindowResolution::new(WIDTH, HEIGHT),
                 present_mode: bevy::window::PresentMode::Fifo, // vsync
                 ..default()
             }),
@@ -31,8 +31,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     let size_x = 140.;
     let size_y = 40.;
 
-    let delta_x = WIDTH / 5.;
-    let delta_y = HEIGHT / 6.;
+    let delta_x = WIDTH as f32 / 5.;
+    let delta_y = HEIGHT as f32 / 6.;
 
     let mut x = 20.;
     let mut y = 20.;

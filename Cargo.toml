@@ -50,6 +50,7 @@ required-features = [
     "bevy/bevy_pbr",
     "bevy/hdr",
     "bevy/tonemapping_luts",
+    "bevy/bevy_post_process",
 ]
 
 [[example]]
@@ -68,23 +69,24 @@ required-features = [
     "bevy_text",
     "bevy/bevy_winit",
     "bevy/bevy_picking",
+    "bevy/bevy_ui_render",
 ]
 
 [[example]]
 name = "colormaterial_color"
-required-features = ["bevy_sprite", "bevy/bevy_winit", "bevy/bevy_picking"]
+required-features = ["bevy_sprite", "bevy/bevy_winit", "bevy/bevy_picking", "bevy/bevy_text"]
 
 [[example]]
 name = "sprite_color"
-required-features = ["bevy_sprite", "bevy/bevy_winit", "bevy/bevy_picking"]
+required-features = ["bevy_sprite", "bevy/bevy_winit", "bevy/bevy_picking", "bevy/bevy_text"]
 
 [[example]]
 name = "transform_translation"
-required-features = ["bevy_sprite", "bevy/bevy_winit", "bevy/bevy_picking"]
+required-features = ["bevy_sprite", "bevy/bevy_winit", "bevy/bevy_picking", "bevy/bevy_text"]
 
 [[example]]
 name = "transform_rotation"
-required-features = ["bevy_sprite", "bevy/bevy_winit", "bevy/bevy_picking"]
+required-features = ["bevy_sprite", "bevy/bevy_winit", "bevy/bevy_picking", "bevy/bevy_text"]
 
 [[example]]
 name = "ui_position"
@@ -93,6 +95,7 @@ required-features = [
     "bevy_ui",
     "bevy/bevy_winit",
     "bevy/bevy_picking",
+    "bevy/bevy_ui_render",
 ]
 
 [[example]]
@@ -102,6 +105,7 @@ required-features = [
     "bevy_text",
     "bevy/bevy_winit",
     "bevy/bevy_picking",
+    "bevy/bevy_ui_render",
 ]
 
 [[example]]
