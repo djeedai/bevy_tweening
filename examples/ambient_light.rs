@@ -11,7 +11,7 @@ use std::{
     time::Duration,
 };
 
-use bevy::{color::palettes::css::*, core_pipeline::bloom::Bloom, prelude::*};
+use bevy::{color::palettes::css::*, post_process::bloom::Bloom, prelude::*, render::view::Hdr};
 use bevy_tweening::{lens::*, *};
 
 mod utils;
@@ -34,7 +34,7 @@ fn main() {
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "AmbientLightLens".to_string(),
-                resolution: (1200., 600.).into(),
+                resolution: bevy::window::WindowResolution::new(1200, 600),
                 present_mode: bevy::window::PresentMode::Fifo, // vsync
                 ..default()
             }),
@@ -56,10 +56,10 @@ fn setup(
     // brightness.
     commands.spawn((
         Camera {
-            hdr: true,
             clear_color: Color::BLACK.into(),
             ..default()
         },
+        Hdr,
         Bloom {
             intensity: 0.2,
             ..default()

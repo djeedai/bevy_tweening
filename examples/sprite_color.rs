@@ -8,7 +8,7 @@ fn main() {
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "SpriteColorLens".to_string(),
-                resolution: (1200., 600.).into(),
+                resolution: bevy::window::WindowResolution::new(1200, 600),
                 present_mode: bevy::window::PresentMode::Fifo, // vsync
                 ..default()
             }),

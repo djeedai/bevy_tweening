@@ -10,15 +10,13 @@ fn main() {
             DefaultPlugins.set(WindowPlugin {
                 primary_window: Some(Window {
                     title: "TransformRotationLens".to_string(),
-                    resolution: (1400., 600.).into(),
+                    resolution: bevy::window::WindowResolution::new(1400, 600).into(),
                     present_mode: bevy::window::PresentMode::Fifo, // vsync
                     ..default()
                 }),
                 ..default()
             }),
-            EguiPlugin {
-                enable_multipass_for_primary_context: true,
-            },
+            EguiPlugin::default(),
             ResourceInspectorPlugin::<Options>::new(),
             TweeningPlugin,
         ))

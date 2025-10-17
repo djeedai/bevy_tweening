@@ -10,7 +10,7 @@ fn main() {
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
                 title: "Sequence".to_string(),
-                resolution: (600., 600.).into(),
+                resolution: bevy::window::WindowResolution::new(600, 600),
                 present_mode: bevy::window::PresentMode::Fifo, // vsync
                 ..default()
             }),
@@ -51,7 +51,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) -> Result<()> {
     let text_color_red = TextColor(RED.into());
     let text_color_blue = TextColor(AQUA.into());
 
-    let justify = JustifyText::Center;
+    let justify = Justify::Center;
 
     // Text with the index of the active tween in the sequence
     commands
@@ -233,7 +233,7 @@ fn update_text(
     mut q_textspans: Query<&mut TextSpan, With<ProgressValue>>,
     q_anim_red: Single<Option<&TweenAnim>, With<RedAnimMarker>>,
     q_anim_blue: Single<Option<&TweenAnim>, With<BlueAnimMarker>>,
-    mut q_event_completed: EventReader<AnimCompletedEvent>,
+    mut q_event_completed: MessageReader<AnimCompletedEvent>,
 ) {
     let anim_red = *q_anim_red;
     let progress_red = if let Some(anim) = anim_red {
