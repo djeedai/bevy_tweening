@@ -448,7 +448,7 @@ pub struct UiTransformRotationLens {
 #[cfg(feature = "bevy_ui")]
 impl Lens<UiTransform> for UiTransformRotationLens {
     fn lerp(&mut self, mut target: Mut<UiTransform>, ratio: f32) {
-        target.rotation = self.start.nlerp(self.end, ratio);
+        target.rotation = self.start.slerp(self.end, ratio);
     }
 }
 
