@@ -432,6 +432,26 @@ impl Lens<UiTransform> for UiTransformScaleLens {
     }
 }
 
+/// A lens to manipulate the [`rotation`] field of a [`UiTransform`] component.
+///
+/// [`rotation`]: https://docs.rs/bevy/0.17/bevy/ui/ui_transform/struct.UiTransform.html#structfield.rotation
+/// [`UiTransform`]: https://docs.rs/bevy/0.17/bevy/ui/ui_transform/struct.UiTransform.html
+#[cfg(feature = "bevy_ui")]
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct UiTransformRotationLens {
+    /// Start value of the rotation.
+    pub start: Rot2,
+    /// End value of the rotation.
+    pub end: Rot2,
+}
+
+#[cfg(feature = "bevy_ui")]
+impl Lens<UiTransform> for UiTransformRotationLens {
+    fn lerp(&mut self, mut target: Mut<UiTransform>, ratio: f32) {
+        target.rotation = self.start.nlerp(self.end, ratio);
+    }
+}
+
 /// Gamer
 #[cfg(feature = "bevy_ui")]
 #[derive(Debug, Copy, Clone, PartialEq)]
