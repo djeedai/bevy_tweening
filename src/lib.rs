@@ -2371,7 +2371,12 @@ impl TweenAnim {
         });
 
         for entity in to_remove.drain(..) {
-            world.entity_mut(entity).remove::<TweenAnim>();
+            world
+                .get_entity_mut(entity)
+                .map(|mut e| {
+                    e.remove::<TweenAnim>();
+                })
+                .ok();
         }
 
         world.flush();
