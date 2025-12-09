@@ -452,6 +452,27 @@ impl Lens<UiTransform> for UiTransformRotationLens {
     }
 }
 
+/// A lens to manipulate the [`translation`] field of a [`UiTransform`] component.
+///
+/// [`translation`]: https://docs.rs/bevy/0.17/bevy/ui/ui_transform/struct.UiTransform.html#structfield.translation
+/// [`UiTransform`]: https://docs.rs/bevy/0.17/bevy/ui/ui_transform/struct.UiTransform.html
+#[cfg(feature = "bevy_ui")]
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct UiTransformTranslationPxLens {
+    /// Start value of the translation.
+    pub start: Vec2,
+    /// End value of the translation.
+    pub end: Vec2,
+}
+
+#[cfg(feature = "bevy_ui")]
+impl Lens<UiTransform> for UiTransformTranslationPxLens {
+    fn lerp(&mut self, mut target: Mut<UiTransform>, ratio: f32) {
+        let p = self.start.lerp(self.end, ratio);
+        target.translation = Val2::px(p.x, p.y);
+    }
+}
+
 /// Gamer
 #[cfg(feature = "bevy_ui")]
 #[derive(Debug, Copy, Clone, PartialEq)]
