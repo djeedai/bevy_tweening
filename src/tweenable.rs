@@ -2,7 +2,10 @@ use std::{any::TypeId, cmp::Ordering, time::Duration};
 
 use bevy::{ecs::change_detection::MutUntyped, prelude::*};
 
-use crate::{AnimTargetKind, EaseMethod, Lens, PlaybackDirection, RepeatCount, RepeatStrategy};
+use crate::{
+    AnimTargetKind, EaseMethod, Lens, PlaybackDirection, RepeatCount,
+    RepeatStrategy,
+};
 
 /// The dynamic tweenable type.
 ///
@@ -141,7 +144,10 @@ impl AnimClock {
         Self {
             elapsed: Duration::ZERO,
             cycle_duration,
-            total_duration: TotalDuration::from_cycles(cycle_duration, RepeatCount::default()),
+            total_duration: TotalDuration::from_cycles(
+                cycle_duration,
+                RepeatCount::default(),
+            ),
             strategy: RepeatStrategy::default(),
         }
     }
@@ -235,7 +241,8 @@ impl AnimClock {
 
     /// Get the elapsed cycle fraction, accounting for finite clock endpoint.
     fn cycle_fraction(&self) -> f32 {
-        let factor = self.elapsed.div_duration_f64(self.cycle_duration).fract() as f32;
+        let factor =
+            self.elapsed.div_duration_f64(self.cycle_duration).fract() as f32;
         if let TotalDuration::Finite(total_duration) = self.total_duration {
             if self.elapsed >= total_duration {
                 return 1.0;
@@ -296,13 +303,14 @@ impl AnimClock {
                 self.elapsed = self.elapsed.min(total_duration);
 
                 if (direction.is_forward() && self.elapsed >= total_duration)
-                    || (direction.is_backward() && self.elapsed == Duration::ZERO)
+                    || (direction.is_backward()
+                        && self.elapsed == Duration::ZERO)
                 {
                     TweenState::Completed
                 } else {
                     TweenState::Active
                 }
-            }
+            },
             TotalDuration::Infinite => TweenState::Active,
         };
 
@@ -319,14 +327,16 @@ impl AnimClock {
     fn state(&self, playback_direction: PlaybackDirection) -> TweenState {
         match self.total_duration {
             TotalDuration::Finite(total_duration) => {
-                if (playback_direction.is_forward() && self.elapsed >= total_duration)
-                    || (playback_direction.is_backward() && self.elapsed == Duration::ZERO)
+                if (playback_direction.is_forward()
+                    && self.elapsed >= total_duration)
+                    || (playback_direction.is_backward()
+                        && self.elapsed == Duration::ZERO)
                 {
                     TweenState::Completed
                 } else {
                     TweenState::Active
                 }
-            }
+            },
             TotalDuration::Infinite => TweenState::Active,
         }
     }
@@ -334,7 +344,9 @@ impl AnimClock {
     fn rewind(&mut self, direction: PlaybackDirection) {
         self.elapsed = match direction {
             PlaybackDirection::Forward => Duration::ZERO,
-            PlaybackDirection::Backward => self.total_duration.as_finite().unwrap(),
+            PlaybackDirection::Backward => {
+                self.total_duration.as_finite().unwrap()
+            },
         };
     }
 }
@@ -353,11 +365,14 @@ pub enum TotalDuration {
 impl TotalDuration {
     /// Create a [`TotalDuration`] from single cycle duration and a
     /// [`RepeatCount`].
-    pub fn from_cycles(cycle_duration: Duration, repeat_count: RepeatCount) -> Self {
+    pub fn from_cycles(
+        cycle_duration: Duration,
+        repeat_count: RepeatCount,
+    ) -> Self {
         match repeat_count {
             RepeatCount::Finite(times) => {
                 TotalDuration::Finite(cycle_duration.saturating_mul(times))
-            }
+            },
             RepeatCount::For(duration) => TotalDuration::Finite(duration),
             RepeatCount::Infinite => TotalDuration::Infinite,
         }
@@ -390,7 +405,7 @@ impl std::ops::Add for TotalDuration {
         match (self, rhs) {
             (TotalDuration::Finite(d0), TotalDuration::Finite(d1)) => {
                 TotalDuration::Finite(d0 + d1)
-            }
+            },
             _ => TotalDuration::Infinite,
         }
     }
@@ -417,10 +432,18 @@ impl PartialOrd for TotalDuration {
 impl Ord for TotalDuration {
     fn cmp(&self, other: &Self) -> Ordering {
         match (self, other) {
-            (TotalDuration::Finite(d0), TotalDuration::Finite(d1)) => d0.cmp(d1),
-            (TotalDuration::Finite(_), TotalDuration::Infinite) => Ordering::Less,
-            (TotalDuration::Infinite, TotalDuration::Finite(_)) => Ordering::Greater,
-            (TotalDuration::Infinite, TotalDuration::Infinite) => Ordering::Equal,
+            (TotalDuration::Finite(d0), TotalDuration::Finite(d1)) => {
+                d0.cmp(d1)
+            },
+            (TotalDuration::Finite(_), TotalDuration::Infinite) => {
+                Ordering::Less
+            },
+            (TotalDuration::Infinite, TotalDuration::Finite(_)) => {
+                Ordering::Greater
+            },
+            (TotalDuration::Infinite, TotalDuration::Infinite) => {
+                Ordering::Equal
+            },
         }
     }
 }
@@ -670,7 +693,7 @@ pub struct TweenConfig {
 ///
 /// - Each time a _single_ cycle is completed, the tween can emit a
 ///   [`CycleCompletedEvent`]. The event is emitted as a buffered event, to be
-///   read by another system through an [`EventReader`]. For component targets,
+///   read by another system through an [`MessageReader`]. For component targets,
 ///   observers are also triggered. Both of these are enabled through
 ///   [`with_cycle_completed_event()`] and [`set_cycle_completed_event()`].
 ///   Per-cycle events are disabled by default.
@@ -822,7 +845,11 @@ impl Tween {
     /// [the top-level `Tween` documentation]: crate::Tween#cycles
     #[must_use]
     #[inline]
-    pub fn with_repeat(self, count: impl Into<RepeatCount>, strategy: RepeatStrategy) -> Self {
+    pub fn with_repeat(
+        self,
+        count: impl Into<RepeatCount>,
+        strategy: RepeatStrategy,
+    ) -> Self {
         self.with_repeat_count(count).with_repeat_strategy(strategy)
     }
 
@@ -834,7 +861,11 @@ impl Tween {
     ///
     /// [the top-level `Tween` documentation]: crate::Tween#cycles
     #[inline]
-    pub fn set_repeat(&mut self, count: impl Into<RepeatCount>, strategy: RepeatStrategy) {
+    pub fn set_repeat(
+        &mut self,
+        count: impl Into<RepeatCount>,
+        strategy: RepeatStrategy,
+    ) {
         self.set_repeat_count(count);
         self.set_repeat_strategy(strategy);
     }
@@ -852,7 +883,7 @@ impl Tween {
     ///
     /// ```
     /// # use bevy_tweening::{lens::*, *};
-    /// # use bevy::{ecs::event::EventReader, math::{Vec3, curve::EaseFunction}};
+    /// # use bevy::{ecs::message::MessageReader, math::{Vec3, curve::EaseFunction}};
     /// # use std::time::Duration;
     /// let tween = Tween::new(
     ///     // [...]
@@ -866,7 +897,7 @@ impl Tween {
     /// // Raise a CycleCompletedEvent each cycle
     /// .with_cycle_completed_event(true);
     ///
-    /// fn my_system(mut reader: EventReader<CycleCompletedEvent>) {
+    /// fn my_system(mut reader: MessageReader<CycleCompletedEvent>) {
     ///     for ev in reader.read() {
     ///         println!(
     ///             "Tween animation {:?} raised CycleCompletedEvent for target {:?}!",
@@ -908,7 +939,10 @@ impl Tween {
     ///
     /// [`set_playback_direction()`]: Self::set_playback_direction
     #[must_use]
-    pub fn with_playback_direction(mut self, direction: PlaybackDirection) -> Self {
+    pub fn with_playback_direction(
+        mut self,
+        direction: PlaybackDirection,
+    ) -> Self {
         self.playback_direction = direction;
         self
     }
@@ -1085,11 +1119,14 @@ impl Sequence {
     /// Panics if the input collection is empty.
     #[must_use]
     #[inline]
-    pub fn new(items: impl IntoIterator<Item = impl Into<BoxedTweenable>>) -> Self {
+    pub fn new(
+        items: impl IntoIterator<Item = impl Into<BoxedTweenable>>,
+    ) -> Self {
         let tweens: Vec<_> = items.into_iter().map(Into::into).collect();
         assert!(!tweens.is_empty());
 
-        let total_duration = tweens.iter().map(|tween| tween.total_duration()).sum();
+        let total_duration =
+            tweens.iter().map(|tween| tween.total_duration()).sum();
 
         Self {
             tweens,
@@ -1240,7 +1277,8 @@ impl Tweenable for Sequence {
                 return (TweenState::Active, retarget);
             }
 
-            let TotalDuration::Finite(total_duration) = tween.total_duration() else {
+            let TotalDuration::Finite(total_duration) = tween.total_duration()
+            else {
                 // Note: Rust can't figure it out, but this can never happen, because infinite
                 // children will always return TweenState::Active. Just add this for safety.
                 return (TweenState::Active, false);
@@ -1257,7 +1295,8 @@ impl Tweenable for Sequence {
             if self.index < self.tweens.len() {
                 // If the tweenable it untyped, it's guaranteed to not access the target, so we
                 // can pass any target as argument.
-                if let Some(type_id) = self.tweens[self.index].target_type_id() {
+                if let Some(type_id) = self.tweens[self.index].target_type_id()
+                {
                     if type_id != *target_type_id {
                         return (TweenState::Active, true);
                     }
@@ -1418,7 +1457,10 @@ mod tests {
 
     use std::ops::{Deref as _, DerefMut as _};
 
-    use bevy::ecs::{change_detection::MaybeLocation, component::Tick, system::SystemState};
+    use bevy::ecs::{
+        change_detection::MaybeLocation, change_detection::Tick,
+        system::SystemState,
+    };
 
     use super::*;
     use crate::{lens::*, test_utils::assert_approx_eq};
@@ -1567,9 +1609,11 @@ mod tests {
         // Tick the given tween and apply its state to the given entity target
         let target_type_id = TypeId::of::<Transform>();
         let ret = world.resource_scope(
-            |world: &mut World, mut events: Mut<Messages<CycleCompletedEvent>>| {
+            |world: &mut World,
+             mut events: Mut<Messages<CycleCompletedEvent>>| {
                 let component_id = world.component_id::<Transform>().unwrap();
-                let entity_mut = &mut world.get_entity_mut([entity]).unwrap()[0];
+                let entity_mut =
+                    &mut world.get_entity_mut([entity]).unwrap()[0];
                 if let Ok(mut target) = entity_mut.get_mut_by_id(component_id) {
                     let world_target = AnimTargetKind::Component { entity };
                     let mut notify_completed = || {
@@ -1593,7 +1637,8 @@ mod tests {
 
         // Propagate events
         {
-            let mut events = world.resource_mut::<Messages<CycleCompletedEvent>>();
+            let mut events =
+                world.resource_mut::<Messages<CycleCompletedEvent>>();
             events.update();
         }
 
@@ -1669,7 +1714,9 @@ mod tests {
     /// Test ticking of a single tween in isolation.
     #[test]
     fn tween_tick() {
-        for playback_direction in [PlaybackDirection::Forward, PlaybackDirection::Backward] {
+        for playback_direction in
+            [PlaybackDirection::Forward, PlaybackDirection::Backward]
+        {
             for (count, strategy) in [
                 (RepeatCount::Finite(1), RepeatStrategy::default()),
                 (RepeatCount::Infinite, RepeatStrategy::Repeat),
@@ -1704,8 +1751,9 @@ mod tests {
                 }
 
                 let (mut world, entity) = make_test_env();
-                let mut event_reader_system_state: SystemState<MessageReader<CycleCompletedEvent>> =
-                    SystemState::new(&mut world);
+                let mut event_reader_system_state: SystemState<
+                    MessageReader<CycleCompletedEvent>,
+                > = SystemState::new(&mut world);
 
                 // Loop over 2.2 seconds, so greater than one ping-pong loop (2 cycles in
                 // MirroredRepeat)
@@ -1713,10 +1761,16 @@ mod tests {
                 let tween_duration = Duration::from_secs(1);
                 for i in 1..=11 {
                     // Calculate expected values
-                    let (elapsed_ms, factor, mut direction, expected_state, just_completed) =
-                        match count {
-                            RepeatCount::Finite(1) => {
-                                let (elapsed_ms, state) = if playback_direction.is_forward() {
+                    let (
+                        elapsed_ms,
+                        factor,
+                        mut direction,
+                        expected_state,
+                        just_completed,
+                    ) = match count {
+                        RepeatCount::Finite(1) => {
+                            let (elapsed_ms, state) =
+                                if playback_direction.is_forward() {
                                     if i < 5 {
                                         (i * 200i32, TweenState::Active)
                                     } else {
@@ -1727,61 +1781,66 @@ mod tests {
                                 } else {
                                     (0i32, TweenState::Completed)
                                 };
-                                let just_completed = i == 5;
-                                (
-                                    elapsed_ms,
-                                    elapsed_ms as f32 / 1000.0,
-                                    PlaybackDirection::Forward,
-                                    state,
-                                    just_completed,
-                                )
-                            }
-                            RepeatCount::Finite(count) => {
-                                if strategy == RepeatStrategy::Repeat {
-                                    let just_completed = i % 5 == 0;
-                                    let elapsed_ms = if playback_direction.is_forward() {
-                                        // 0.2, 0.4, 0.6, 0.8, 0.0, 0.2, 0.4, ... (x count)
-                                        (i * 200) % 1000
+                            let just_completed = i == 5;
+                            (
+                                elapsed_ms,
+                                elapsed_ms as f32 / 1000.0,
+                                PlaybackDirection::Forward,
+                                state,
+                                just_completed,
+                            )
+                        },
+                        RepeatCount::Finite(count) => {
+                            if strategy == RepeatStrategy::Repeat {
+                                let just_completed = i % 5 == 0;
+                                let elapsed_ms = if playback_direction
+                                    .is_forward()
+                                {
+                                    // 0.2, 0.4, 0.6, 0.8, 0.0, 0.2, 0.4, ... (x count)
+                                    (i * 200) % 1000
+                                } else {
+                                    // 0.8, 0.6, 0.4, 0.2, 0.0, 0.8, 0.6, ... (x count)
+                                    800 - (((i - 1) * 200 - 1000) % 1000 + 1000)
+                                        % 1000
+                                };
+                                let factor = if i >= 10 {
+                                    if playback_direction.is_forward() {
+                                        1.0
                                     } else {
-                                        // 0.8, 0.6, 0.4, 0.2, 0.0, 0.8, 0.6, ... (x count)
-                                        800 - (((i - 1) * 200 - 1000) % 1000 + 1000) % 1000
-                                    };
-                                    let factor = if i >= 10 {
-                                        if playback_direction.is_forward() {
-                                            1.0
-                                        } else {
-                                            0.0
-                                        }
-                                    } else {
-                                        elapsed_ms as f32 / 1000.0
-                                    };
-                                    let total_duration_ms = count as i32 * 1000;
-                                    let elapsed_ms = if playback_direction.is_forward() {
+                                        0.0
+                                    }
+                                } else {
+                                    elapsed_ms as f32 / 1000.0
+                                };
+                                let total_duration_ms = count as i32 * 1000;
+                                let elapsed_ms =
+                                    if playback_direction.is_forward() {
                                         (i * 200).min(total_duration_ms)
                                     } else {
                                         (total_duration_ms - i * 200).max(0)
                                     };
-                                    // The test is calibrates such that at i==10 the forward tick
-                                    // reaches the total duration, and the backward tick reaches
-                                    // t=0, both of which yield a Completed state
-                                    let state = if i >= 10 {
-                                        TweenState::Completed
-                                    } else {
-                                        TweenState::Active
-                                    };
-                                    (
-                                        elapsed_ms,
-                                        factor,
-                                        PlaybackDirection::Forward,
-                                        state,
-                                        just_completed,
-                                    )
+                                // The test is calibrates such that at i==10 the forward tick
+                                // reaches the total duration, and the backward tick reaches
+                                // t=0, both of which yield a Completed state
+                                let state = if i >= 10 {
+                                    TweenState::Completed
                                 } else {
-                                    let i5 = i % 5;
-                                    let just_completed = i5 == 0;
+                                    TweenState::Active
+                                };
+                                (
+                                    elapsed_ms,
+                                    factor,
+                                    PlaybackDirection::Forward,
+                                    state,
+                                    just_completed,
+                                )
+                            } else {
+                                let i5 = i % 5;
+                                let just_completed = i5 == 0;
 
-                                    // Inifinite-repeat unclamped value
-                                    let elapsed_ms = if playback_direction.is_forward() {
+                                // Inifinite-repeat unclamped value
+                                let elapsed_ms =
+                                    if playback_direction.is_forward() {
                                         // i    | 1    2    3    4    5    6    7    8    9    10
                                         // t(s) | 0.2  0.4  0.6  0.8  1.0  0.8  0.6  0.4  0.2  0.0
                                         ((i - 5) * 200).rem_euclid(2000) - 1000
@@ -1792,23 +1851,25 @@ mod tests {
                                     }
                                     .abs();
 
-                                    // Now clamp to 'count' repeats
-                                    let (elapsed_ms, state) = if i < 10 {
-                                        (elapsed_ms, TweenState::Active)
-                                    } else {
-                                        (0, TweenState::Completed)
-                                    };
-                                    let ratio = elapsed_ms as f32 / 1000.;
+                                // Now clamp to 'count' repeats
+                                let (elapsed_ms, state) = if i < 10 {
+                                    (elapsed_ms, TweenState::Active)
+                                } else {
+                                    (0, TweenState::Completed)
+                                };
+                                let ratio = elapsed_ms as f32 / 1000.;
 
-                                    let total_duration_ms = count as i32 * 1000;
-                                    let elapsed_ms = if playback_direction.is_forward() {
+                                let total_duration_ms = count as i32 * 1000;
+                                let elapsed_ms =
+                                    if playback_direction.is_forward() {
                                         (i * 200).min(total_duration_ms)
                                     } else {
                                         (total_duration_ms - i * 200).max(0)
                                     };
 
-                                    // Once Completed, the direction doesn't change
-                                    let direction = if playback_direction.is_forward() {
+                                // Once Completed, the direction doesn't change
+                                let direction =
+                                    if playback_direction.is_forward() {
                                         //           v [completion]
                                         // 2468X 86420 00
                                         // ffffb bbbbb bb
@@ -1828,28 +1889,38 @@ mod tests {
                                         }
                                     };
 
-                                    (elapsed_ms, ratio, direction, state, just_completed)
-                                }
+                                (
+                                    elapsed_ms,
+                                    ratio,
+                                    direction,
+                                    state,
+                                    just_completed,
+                                )
                             }
-                            RepeatCount::Infinite => {
-                                if strategy == RepeatStrategy::Repeat {
-                                    let just_completed = i % 5 == 0;
-                                    let elapsed_ms = if playback_direction.is_forward() {
-                                        // 0.2, 0.4, 0.6, 0.8, 0.0, 0.2, 0.4, ...
-                                        (i * 200) % 1000
-                                    } else {
-                                        // 0.8, 0.6, 0.4, 0.2, 0.0, 0.8, 0.6, ...
-                                        800 - (((i - 1) * 200 - 1000) % 1000 + 1000) % 1000
-                                    };
-                                    (
-                                        elapsed_ms,
-                                        elapsed_ms as f32 / 1000.0,
-                                        PlaybackDirection::Forward,
-                                        TweenState::Active,
-                                        just_completed,
-                                    )
+                        },
+                        RepeatCount::Infinite => {
+                            if strategy == RepeatStrategy::Repeat {
+                                let just_completed = i % 5 == 0;
+                                let elapsed_ms = if playback_direction
+                                    .is_forward()
+                                {
+                                    // 0.2, 0.4, 0.6, 0.8, 0.0, 0.2, 0.4, ...
+                                    (i * 200) % 1000
                                 } else {
-                                    let elapsed_ms = if playback_direction.is_forward() {
+                                    // 0.8, 0.6, 0.4, 0.2, 0.0, 0.8, 0.6, ...
+                                    800 - (((i - 1) * 200 - 1000) % 1000 + 1000)
+                                        % 1000
+                                };
+                                (
+                                    elapsed_ms,
+                                    elapsed_ms as f32 / 1000.0,
+                                    PlaybackDirection::Forward,
+                                    TweenState::Active,
+                                    just_completed,
+                                )
+                            } else {
+                                let elapsed_ms =
+                                    if playback_direction.is_forward() {
                                         // 0.2, 0.4, 0.6, 0.8, 1.0, 0.8, 0.6, 0.4, 0.2, 0.0, 0.2,
                                         // 0.4, ...
                                         ((i - 5) * 200).rem_euclid(2000) - 1000
@@ -1859,15 +1930,18 @@ mod tests {
                                         (i * 200).rem_euclid(2000) - 1000
                                     }
                                     .abs();
-                                    let factor = elapsed_ms as f32 / 1000.0;
-                                    let elapsed_ms = if playback_direction.is_forward() {
-                                        // 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, ... (seconds)
-                                        (i * 200).rem_euclid(2000)
-                                    } else {
-                                        // 0.8, 0.6, 0.4, 0.2, 0.0, 1.8, 1.6, 1.4, ... (seconds)
-                                        (2000i32 - (i - 5) * 200).rem_euclid(2000)
-                                    };
-                                    let direction = if playback_direction.is_forward() {
+                                let factor = elapsed_ms as f32 / 1000.0;
+                                let elapsed_ms = if playback_direction
+                                    .is_forward()
+                                {
+                                    // 0.2, 0.4, 0.6, 0.8, 1.0, 1.2, 1.4, 1.6, ... (seconds)
+                                    (i * 200).rem_euclid(2000)
+                                } else {
+                                    // 0.8, 0.6, 0.4, 0.2, 0.0, 1.8, 1.6, 1.4, ... (seconds)
+                                    (2000i32 - (i - 5) * 200).rem_euclid(2000)
+                                };
+                                let direction =
+                                    if playback_direction.is_forward() {
                                         // 2468X 86420 24
                                         // ffffb bbbbf ff
                                         if (i % 10) >= 5 {
@@ -1884,18 +1958,18 @@ mod tests {
                                             PlaybackDirection::Forward
                                         }
                                     };
-                                    let just_completed = (i % 5) == 0;
-                                    (
-                                        elapsed_ms,
-                                        factor,
-                                        direction,
-                                        TweenState::Active,
-                                        just_completed,
-                                    )
-                                }
+                                let just_completed = (i % 5) == 0;
+                                (
+                                    elapsed_ms,
+                                    factor,
+                                    direction,
+                                    TweenState::Active,
+                                    just_completed,
+                                )
                             }
-                            RepeatCount::For(_) => panic!("Untested"),
-                        };
+                        },
+                        RepeatCount::For(_) => panic!("Untested"),
+                    };
                     if playback_direction.is_backward() {
                         direction = !direction;
                     }
@@ -1903,7 +1977,9 @@ mod tests {
                     let elapsed = Duration::from_millis(elapsed_ms as u64);
                     let cycles_completed = match count {
                         RepeatCount::Infinite => elapsed,
-                        RepeatCount::Finite(count) => elapsed.min(tween_duration * count),
+                        RepeatCount::Finite(count) => {
+                            elapsed.min(tween_duration * count)
+                        },
                         RepeatCount::For(time) => elapsed.min(time),
                     }
                     .div_duration_f64(tween_duration)
@@ -1923,18 +1999,27 @@ mod tests {
                     );
 
                     // Check actual values
-                    assert_eq!(tween.is_cycle_mirrored(), direction != playback_direction);
+                    assert_eq!(
+                        tween.is_cycle_mirrored(),
+                        direction != playback_direction
+                    );
                     assert_eq!(actual_state, expected_state);
                     assert_eq!(tween.elapsed(), elapsed);
                     assert_eq!(tween.cycles_completed(), cycles_completed);
-                    let transform = world.entity(entity).get::<Transform>().unwrap();
-                    assert_approx_eq!(expected_translation, transform.translation, 1e-5);
+                    let transform =
+                        world.entity(entity).get::<Transform>().unwrap();
+                    assert_approx_eq!(
+                        expected_translation,
+                        transform.translation,
+                        1e-5
+                    );
                     assert_approx_eq!(Quat::IDENTITY, transform.rotation, 1e-5);
 
                     // Messages are only sent when playing forward
                     if playback_direction.is_forward() {
                         //let component_id = world.component_id::<Transform>().unwrap();
-                        let mut event_reader = event_reader_system_state.get_mut(&mut world);
+                        let mut event_reader =
+                            event_reader_system_state.get_mut(&mut world);
                         let event = event_reader.read().next();
                         if just_completed {
                             assert!(event.is_some());
@@ -1943,7 +2028,9 @@ mod tests {
                                     entity: comp_target,
                                 } = &event.target
                                 else {
-                                    panic!("Expected AnimTargetKind::Component");
+                                    panic!(
+                                        "Expected AnimTargetKind::Component"
+                                    );
                                 };
                                 assert_eq!(*comp_target, entity);
                             }
@@ -1970,8 +2057,10 @@ mod tests {
                             RepeatCount::Infinite => backward_start_time,
                             RepeatCount::Finite(count) => {
                                 backward_start_time.min(tween_duration * count)
-                            }
-                            RepeatCount::For(time) => backward_start_time.min(time),
+                            },
+                            RepeatCount::For(time) => {
+                                backward_start_time.min(time)
+                            },
                         }
                         .div_duration_f64(tween_duration)
                             as u32;
@@ -1987,15 +2076,21 @@ mod tests {
                         entity,
                     );
                     assert_eq!(TweenState::Active, actual_state);
-                    let expected_translation = if playback_direction.is_backward()
+                    let expected_translation = if playback_direction
+                        .is_backward()
                         && strategy != RepeatStrategy::MirroredRepeat
                     {
                         Vec3::ONE
                     } else {
                         Vec3::ZERO
                     };
-                    let transform = world.entity(entity).get::<Transform>().unwrap();
-                    assert_approx_eq!(expected_translation, transform.translation, 1e-5);
+                    let transform =
+                        world.entity(entity).get::<Transform>().unwrap();
+                    assert_approx_eq!(
+                        expected_translation,
+                        transform.translation,
+                        1e-5
+                    );
                     assert_approx_eq!(Quat::IDENTITY, transform.rotation, 1e-5);
                 }
 
@@ -2104,7 +2199,10 @@ mod tests {
             if i < 5 {
                 assert_eq!(state, TweenState::Active);
                 let r = i as f32 * 0.2;
-                assert_approx_eq!(Transform::from_translation(Vec3::splat(r)), *transform);
+                assert_approx_eq!(
+                    Transform::from_translation(Vec3::splat(r)),
+                    *transform
+                );
             } else if i < 10 {
                 assert_eq!(state, TweenState::Active);
                 let alpha_deg = (18 * (i - 5)) as f32;
@@ -2258,7 +2356,10 @@ mod tests {
         {
             let tweenable: &dyn Tweenable = &delay;
             assert_eq!(total_dt, tweenable.cycle_duration());
-            assert_eq!(TotalDuration::Finite(total_dt), tweenable.total_duration());
+            assert_eq!(
+                TotalDuration::Finite(total_dt),
+                tweenable.total_duration()
+            );
             assert_eq!(Duration::ZERO, tweenable.elapsed());
         }
 

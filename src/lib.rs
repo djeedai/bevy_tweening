@@ -306,13 +306,14 @@ use bevy::{
 };
 pub use lens::Lens;
 use lens::{
-    TransformRotateAdditiveXLens, TransformRotateAdditiveYLens, TransformRotateAdditiveZLens,
+    TransformRotateAdditiveXLens, TransformRotateAdditiveYLens,
+    TransformRotateAdditiveZLens,
 };
 pub use plugin::{AnimationSystem, TweeningPlugin};
 use thiserror::Error;
 pub use tweenable::{
-    BoxedTweenable, CycleCompletedEvent, Delay, IntoBoxedTweenable, Sequence, TotalDuration, Tween,
-    TweenState, Tweenable,
+    BoxedTweenable, CycleCompletedEvent, Delay, IntoBoxedTweenable, Sequence,
+    TotalDuration, Tween, TweenState, Tweenable,
 };
 
 use crate::{
@@ -371,7 +372,9 @@ impl RepeatCount {
     /// Calculate the total duration for this repeat count.
     pub fn total_duration(&self, cycle_duration: Duration) -> TotalDuration {
         match self {
-            RepeatCount::Finite(count) => TotalDuration::Finite(cycle_duration * *count),
+            RepeatCount::Finite(count) => {
+                TotalDuration::Finite(cycle_duration * *count)
+            },
             RepeatCount::For(duration) => TotalDuration::Finite(*duration),
             RepeatCount::Infinite => TotalDuration::Infinite,
         }
@@ -461,14 +464,16 @@ impl EaseMethod {
     #[must_use]
     fn sample(self, x: f32) -> f32 {
         match self {
-            Self::EaseFunction(function) => EasingCurve::new(0.0, 1.0, function).sample(x).unwrap(),
+            Self::EaseFunction(function) => {
+                EasingCurve::new(0.0, 1.0, function).sample(x).unwrap()
+            },
             Self::Discrete(limit) => {
                 if x > limit {
                     1.
                 } else {
                     0.
                 }
-            }
+            },
             Self::CustomFunction(function) => function(x),
         }
     }
@@ -736,7 +741,10 @@ pub trait EntityCommandsTweeningExtensions<'a> {
     ///     .spawn(Transform::default())
     ///     .rotate_x(Duration::from_secs(1));
     /// ```
-    fn rotate_x(self, cycle_duration: Duration) -> AnimatedEntityCommands<'a, impl TweenCommand>;
+    fn rotate_x(
+        self,
+        cycle_duration: Duration,
+    ) -> AnimatedEntityCommands<'a, impl TweenCommand>;
 
     /// Queue a new tween animation to rotate the current entity around its Y
     /// axis continuously (repeats forever, linearly).
@@ -761,7 +769,10 @@ pub trait EntityCommandsTweeningExtensions<'a> {
     ///     .spawn(Transform::default())
     ///     .rotate_y(Duration::from_secs(1));
     /// ```
-    fn rotate_y(self, cycle_duration: Duration) -> AnimatedEntityCommands<'a, impl TweenCommand>;
+    fn rotate_y(
+        self,
+        cycle_duration: Duration,
+    ) -> AnimatedEntityCommands<'a, impl TweenCommand>;
 
     /// Queue a new tween animation to rotate the current entity around its Z
     /// axis continuously (repeats forever, linearly).
@@ -786,7 +797,10 @@ pub trait EntityCommandsTweeningExtensions<'a> {
     ///     .spawn(Transform::default())
     ///     .rotate_z(Duration::from_secs(1));
     /// ```
-    fn rotate_z(self, cycle_duration: Duration) -> AnimatedEntityCommands<'a, impl TweenCommand>;
+    fn rotate_z(
+        self,
+        cycle_duration: Duration,
+    ) -> AnimatedEntityCommands<'a, impl TweenCommand>;
 
     /// Queue a new tween animation to rotate the current entity around its X
     /// axis by a given angle.
@@ -915,7 +929,8 @@ pub(crate) struct MoveToCommand {
 
 impl EntityCommand for MoveToCommand {
     fn apply(self, mut entity: EntityWorldMut) {
-        if let Some(start) = entity.get::<Transform>().map(|tr| tr.translation) {
+        if let Some(start) = entity.get::<Transform>().map(|tr| tr.translation)
+        {
             let lens = TransformPositionLens {
                 start,
                 end: self.end,
@@ -1054,7 +1069,9 @@ pub(crate) struct RotateXCommand {
 
 impl EntityCommand for RotateXCommand {
     fn apply(self, mut entity: EntityWorldMut) {
-        if let Some(base_rotation) = entity.get::<Transform>().map(|tr| tr.rotation) {
+        if let Some(base_rotation) =
+            entity.get::<Transform>().map(|tr| tr.rotation)
+        {
             let lens = TransformRotateAdditiveXLens {
                 base_rotation,
                 start: 0.,
@@ -1090,7 +1107,9 @@ pub(crate) struct RotateYCommand {
 
 impl EntityCommand for RotateYCommand {
     fn apply(self, mut entity: EntityWorldMut) {
-        if let Some(base_rotation) = entity.get::<Transform>().map(|tr| tr.rotation) {
+        if let Some(base_rotation) =
+            entity.get::<Transform>().map(|tr| tr.rotation)
+        {
             let lens = TransformRotateAdditiveYLens {
                 base_rotation,
                 start: 0.,
@@ -1126,7 +1145,9 @@ pub(crate) struct RotateZCommand {
 
 impl EntityCommand for RotateZCommand {
     fn apply(self, mut entity: EntityWorldMut) {
-        if let Some(base_rotation) = entity.get::<Transform>().map(|tr| tr.rotation) {
+        if let Some(base_rotation) =
+            entity.get::<Transform>().map(|tr| tr.rotation)
+        {
             let lens = TransformRotateAdditiveZLens {
                 base_rotation,
                 start: 0.,
@@ -1163,7 +1184,9 @@ pub(crate) struct RotateXByCommand {
 
 impl EntityCommand for RotateXByCommand {
     fn apply(self, mut entity: EntityWorldMut) {
-        if let Some(base_rotation) = entity.get::<Transform>().map(|tr| tr.rotation) {
+        if let Some(base_rotation) =
+            entity.get::<Transform>().map(|tr| tr.rotation)
+        {
             let lens = TransformRotateAdditiveXLens {
                 base_rotation,
                 start: 0.,
@@ -1199,7 +1222,9 @@ pub(crate) struct RotateYByCommand {
 
 impl EntityCommand for RotateYByCommand {
     fn apply(self, mut entity: EntityWorldMut) {
-        if let Some(base_rotation) = entity.get::<Transform>().map(|tr| tr.rotation) {
+        if let Some(base_rotation) =
+            entity.get::<Transform>().map(|tr| tr.rotation)
+        {
             let lens = TransformRotateAdditiveYLens {
                 base_rotation,
                 start: 0.,
@@ -1235,7 +1260,9 @@ pub(crate) struct RotateZByCommand {
 
 impl EntityCommand for RotateZByCommand {
     fn apply(self, mut entity: EntityWorldMut) {
-        if let Some(base_rotation) = entity.get::<Transform>().map(|tr| tr.rotation) {
+        if let Some(base_rotation) =
+            entity.get::<Transform>().map(|tr| tr.rotation)
+        {
             let lens = TransformRotateAdditiveZLens {
                 base_rotation,
                 start: 0.,
@@ -1344,7 +1371,10 @@ impl<'a, C: TweenCommand> AnimatedEntityCommands<'a, C> {
 
     /// Set the repeat count of this animation.
     #[inline]
-    pub fn with_repeat_count(mut self, repeat_count: impl Into<RepeatCount>) -> Self {
+    pub fn with_repeat_count(
+        mut self,
+        repeat_count: impl Into<RepeatCount>,
+    ) -> Self {
         if let Some(cmd) = self.cmd.as_mut() {
             cmd.config_mut().repeat_count = repeat_count.into();
         }
@@ -1353,7 +1383,10 @@ impl<'a, C: TweenCommand> AnimatedEntityCommands<'a, C> {
 
     /// Set the repeat strategy of this animation.
     #[inline]
-    pub fn with_repeat_strategy(mut self, repeat_strategy: RepeatStrategy) -> Self {
+    pub fn with_repeat_strategy(
+        mut self,
+        repeat_strategy: RepeatStrategy,
+    ) -> Self {
         if let Some(cmd) = self.cmd.as_mut() {
             cmd.config_mut().repeat_strategy = repeat_strategy;
         }
@@ -1419,7 +1452,9 @@ impl<'a, C: TweenCommand> AnimatedEntityCommands<'a, C> {
     }
 }
 
-impl<'a, C: TweenCommand> EntityCommandsTweeningExtensions<'a> for AnimatedEntityCommands<'a, C> {
+impl<'a, C: TweenCommand> EntityCommandsTweeningExtensions<'a>
+    for AnimatedEntityCommands<'a, C>
+{
     #[inline]
     fn move_to(
         self,
@@ -1461,17 +1496,26 @@ impl<'a, C: TweenCommand> EntityCommandsTweeningExtensions<'a> for AnimatedEntit
     }
 
     #[inline]
-    fn rotate_x(self, cycle_duration: Duration) -> AnimatedEntityCommands<'a, impl TweenCommand> {
+    fn rotate_x(
+        self,
+        cycle_duration: Duration,
+    ) -> AnimatedEntityCommands<'a, impl TweenCommand> {
         self.into_inner().rotate_x(cycle_duration)
     }
 
     #[inline]
-    fn rotate_y(self, cycle_duration: Duration) -> AnimatedEntityCommands<'a, impl TweenCommand> {
+    fn rotate_y(
+        self,
+        cycle_duration: Duration,
+    ) -> AnimatedEntityCommands<'a, impl TweenCommand> {
         self.into_inner().rotate_y(cycle_duration)
     }
 
     #[inline]
-    fn rotate_z(self, cycle_duration: Duration) -> AnimatedEntityCommands<'a, impl TweenCommand> {
+    fn rotate_z(
+        self,
+        cycle_duration: Duration,
+    ) -> AnimatedEntityCommands<'a, impl TweenCommand> {
         self.into_inner().rotate_z(cycle_duration)
     }
 
@@ -1609,7 +1653,10 @@ impl<'a> EntityCommandsTweeningExtensions<'a> for EntityCommands<'a> {
     }
 
     #[inline]
-    fn rotate_x(self, cycle_duration: Duration) -> AnimatedEntityCommands<'a, impl TweenCommand> {
+    fn rotate_x(
+        self,
+        cycle_duration: Duration,
+    ) -> AnimatedEntityCommands<'a, impl TweenCommand> {
         AnimatedEntityCommands::new(
             self,
             RotateXCommand {
@@ -1623,7 +1670,10 @@ impl<'a> EntityCommandsTweeningExtensions<'a> for EntityCommands<'a> {
     }
 
     #[inline]
-    fn rotate_y(self, cycle_duration: Duration) -> AnimatedEntityCommands<'a, impl TweenCommand> {
+    fn rotate_y(
+        self,
+        cycle_duration: Duration,
+    ) -> AnimatedEntityCommands<'a, impl TweenCommand> {
         AnimatedEntityCommands::new(
             self,
             RotateYCommand {
@@ -1637,7 +1687,10 @@ impl<'a> EntityCommandsTweeningExtensions<'a> for EntityCommands<'a> {
     }
 
     #[inline]
-    fn rotate_z(self, cycle_duration: Duration) -> AnimatedEntityCommands<'a, impl TweenCommand> {
+    fn rotate_z(
+        self,
+        cycle_duration: Duration,
+    ) -> AnimatedEntityCommands<'a, impl TweenCommand> {
         AnimatedEntityCommands::new(
             self,
             RotateZCommand {
@@ -1735,7 +1788,9 @@ pub struct AnimCompletedEvent {
 #[derive(Debug, Error, Clone, Copy)]
 pub enum TweeningError {
     /// The asset resolver for the given asset is not registered.
-    #[error("Asset resolver for asset with resource ID {0:?} is not registered.")]
+    #[error(
+        "Asset resolver for asset with resource ID {0:?} is not registered."
+    )]
     AssetResolverNotRegistered(ComponentId),
     /// The entity was not found in the World.
     #[error("Entity {0:?} not found in the World.")]
@@ -1784,7 +1839,8 @@ pub enum TweeningError {
     MismatchingAssetResourceId(ComponentId, ComponentId),
 }
 
-type RegisterAction = dyn Fn(&Components, &mut TweenResolver) + Send + Sync + 'static;
+type RegisterAction =
+    dyn Fn(&Components, &mut TweenResolver) + Send + Sync + 'static;
 
 /// Enumeration of the types of animation targets.
 ///
@@ -1823,7 +1879,9 @@ pub struct AnimTarget {
 
 impl AnimTarget {
     /// Create a target mutating a component on the given entity.
-    pub fn component<C: Component<Mutability = Mutable>>(entity: Entity) -> Self {
+    pub fn component<C: Component<Mutability = Mutable>>(
+        entity: Entity,
+    ) -> Self {
         Self {
             kind: AnimTargetKind::Component { entity },
             // Components have a complete typeless API, don't need any extra registration for type
@@ -1834,9 +1892,10 @@ impl AnimTarget {
 
     /// Create a target mutating the given resource.
     pub fn resource<R: Resource>() -> Self {
-        let register_action = |components: &Components, resolver: &mut TweenResolver| {
-            resolver.register_resource_resolver_for::<R>(components);
-        };
+        let register_action =
+            |components: &Components, resolver: &mut TweenResolver| {
+                resolver.register_resource_resolver_for::<R>(components);
+            };
         Self {
             kind: AnimTargetKind::Resource,
             register_action: Some(Box::new(register_action)),
@@ -1847,9 +1906,10 @@ impl AnimTarget {
     ///
     /// The asset is identified by its type, and its [`AssetId`].
     pub fn asset<A: Asset>(asset_id: impl Into<AssetId<A>>) -> Self {
-        let register_action = |components: &Components, resolver: &mut TweenResolver| {
-            resolver.register_asset_resolver_for::<A>(components);
-        };
+        let register_action =
+            |components: &Components, resolver: &mut TweenResolver| {
+                resolver.register_asset_resolver_for::<A>(components);
+            };
         Self {
             kind: AnimTargetKind::Asset {
                 asset_id: asset_id.into().untyped(),
@@ -1860,7 +1920,11 @@ impl AnimTarget {
     }
 
     /// Register any resolver for this target.
-    pub(crate) fn register(&self, components: &Components, resolver: &mut TweenResolver) {
+    pub(crate) fn register(
+        &self,
+        components: &Components,
+        resolver: &mut TweenResolver,
+    ) {
         if let Some(register_action) = self.register_action.as_ref() {
             register_action(components, resolver);
         }
@@ -1996,7 +2060,10 @@ impl TweenAnim {
     ///
     /// If enabled, the component is automatically removed from its `Entity`
     /// when the animation completed.
-    pub fn with_destroy_on_completed(mut self, destroy_on_completed: bool) -> Self {
+    pub fn with_destroy_on_completed(
+        mut self,
+        destroy_on_completed: bool,
+    ) -> Self {
         self.destroy_on_completion = destroy_on_completed;
         self
     }
@@ -2096,27 +2163,37 @@ impl TweenAnim {
     /// is always less than or equal to the input `anims` slice length.
     ///
     /// [`step_all()`]: Self::step_all
-    pub fn step_many(world: &mut World, delta_time: Duration, anims: &[Entity]) -> usize {
+    pub fn step_many(
+        world: &mut World,
+        delta_time: Duration,
+        anims: &[Entity],
+    ) -> usize {
         let mut targets = vec![];
         world.resource_scope(|world, mut resolver: Mut<TweenResolver>| {
-            let mut q_anims = world.query::<(Entity, &TweenAnim, Option<&AnimTarget>)>();
+            let mut q_anims =
+                world.query::<(Entity, &TweenAnim, Option<&AnimTarget>)>();
             targets.reserve(anims.len());
             for entity in anims {
-                if let Ok((entity, anim, maybe_target)) = q_anims.get(world, *entity) {
+                if let Ok((entity, anim, maybe_target)) =
+                    q_anims.get(world, *entity)
+                {
                     // Lazy registration with resolver if needed
                     if let Some(anim_target) = maybe_target {
                         anim_target.register(world.components(), &mut resolver);
                     }
 
                     // Actually step the tweenable and update the target
-                    if let Ok((target_type_id, component_id, target, is_retargetable)) =
-                        Self::resolve_target(
-                            world.components(),
-                            maybe_target,
-                            entity,
-                            anim.tweenable(),
-                        )
-                    {
+                    if let Ok((
+                        target_type_id,
+                        component_id,
+                        target,
+                        is_retargetable,
+                    )) = Self::resolve_target(
+                        world.components(),
+                        maybe_target,
+                        entity,
+                        anim.tweenable(),
+                    ) {
                         targets.push((
                             entity,
                             target_type_id,
@@ -2188,7 +2265,8 @@ impl TweenAnim {
         maybe_target: Option<&AnimTarget>,
         anim_entity: Entity,
         tweenable: &dyn Tweenable,
-    ) -> Result<(TypeId, ComponentId, AnimTargetKind, bool), TweeningError> {
+    ) -> Result<(TypeId, ComponentId, AnimTargetKind, bool), TweeningError>
+    {
         let type_id = tweenable
             .target_type_id()
             .ok_or(TweeningError::UntypedTweenable)?;
@@ -2532,7 +2610,10 @@ impl TweenAnim {
     /// [`set_elapsed()`]: crate::Tweenable::set_elapsed
     /// [`elapsed()`]: crate::Tweenable::elapsed
     /// [`step_one()`]: Self::step_one
-    pub fn set_tweenable<T>(&mut self, tweenable: T) -> Result<BoxedTweenable, TweeningError>
+    pub fn set_tweenable<T>(
+        &mut self,
+        tweenable: T,
+    ) -> Result<BoxedTweenable, TweeningError>
     where
         T: Tweenable + 'static,
     {
@@ -2619,13 +2700,18 @@ pub struct TweenResolver {
 
 impl TweenResolver {
     /// Register a resolver for the given resource type.
-    pub(crate) fn register_resource_resolver_for<R: Resource>(&mut self, components: &Components) {
+    pub(crate) fn register_resource_resolver_for<R: Resource>(
+        &mut self,
+        components: &Components,
+    ) {
         let resource_id = components.resource_id::<R>().unwrap();
         let resolver = |world: &mut World,
                         entity: Entity,
                         target_type_id: &TypeId,
                         delta_time: Duration,
-                        mut cycle_events: Mut<Messages<CycleCompletedEvent>>,
+                        mut cycle_events: Mut<
+            Messages<CycleCompletedEvent>,
+        >,
                         mut anim_events: Mut<Messages<AnimCompletedEvent>>|
          -> Result<bool, TweeningError> {
             // First, remove the resource R from the world so we can access it mutably in
@@ -2666,14 +2752,19 @@ impl TweenResolver {
     }
 
     /// Register a resolver for the given asset type.
-    pub(crate) fn register_asset_resolver_for<A: Asset>(&mut self, components: &Components) {
+    pub(crate) fn register_asset_resolver_for<A: Asset>(
+        &mut self,
+        components: &Components,
+    ) {
         let resource_id = components.resource_id::<Assets<A>>().unwrap();
         let resolver = |world: &mut World,
                         asset_id: UntypedAssetId,
                         entity: Entity,
                         target_type_id: &TypeId,
                         delta_time: Duration,
-                        mut cycle_events: Mut<Messages<CycleCompletedEvent>>,
+                        mut cycle_events: Mut<
+            Messages<CycleCompletedEvent>,
+        >,
                         mut anim_events: Mut<Messages<AnimCompletedEvent>>|
          -> Result<bool, TweeningError> {
             let asset_id = asset_id.typed::<A>();
@@ -2795,7 +2886,7 @@ mod tests {
         marker::PhantomData,
     };
 
-    use bevy::ecs::{change_detection::MaybeLocation, component::Tick};
+    use bevy::ecs::{change_detection::MaybeLocation, change_detection::Tick};
 
     use super::*;
     use crate::test_utils::*;
@@ -2838,7 +2929,8 @@ mod tests {
 
     impl Lens<DummyComponent2> for DummyLens2 {
         fn lerp(&mut self, mut target: Mut<DummyComponent2>, ratio: f32) {
-            target.value = ((self.start as f32) * (1. - ratio) + (self.end as f32) * ratio) as i32;
+            target.value = ((self.start as f32) * (1. - ratio)
+                + (self.end as f32) * ratio) as i32;
         }
     }
 
@@ -3046,8 +3138,14 @@ mod tests {
 
             // Even after completion, the playback state is untouched
             env.step_all(Duration::from_secs(10) - elapsed);
-            assert_eq!(env.anim().unwrap().tween_state(), TweenState::Completed);
-            assert_eq!(env.anim().unwrap().playback_state, PlaybackState::Playing);
+            assert_eq!(
+                env.anim().unwrap().tween_state(),
+                TweenState::Completed
+            );
+            assert_eq!(
+                env.anim().unwrap().playback_state,
+                PlaybackState::Playing
+            );
         }
     }
 
@@ -3263,7 +3361,8 @@ mod tests {
         assert_eq!(env.anim().unwrap().tween_state(), TweenState::Completed);
 
         // Swap tweens
-        let old_tweenable = env.anim_mut().unwrap().set_tweenable(tween2).unwrap();
+        let old_tweenable =
+            env.anim_mut().unwrap().set_tweenable(tween2).unwrap();
 
         assert_eq!(env.anim().unwrap().tween_state(), TweenState::Active);
         // The elapsed is stored inside the tweenable
@@ -3301,7 +3400,12 @@ mod tests {
         env.world
             .entity_mut(entity)
             .insert(DummyComponent2 { value: -42 });
-        TweenAnim::step_one(&mut env.world, Duration::from_millis(1100), entity).unwrap();
+        TweenAnim::step_one(
+            &mut env.world,
+            Duration::from_millis(1100),
+            entity,
+        )
+        .unwrap();
     }
 
     // #[test]
@@ -3418,15 +3522,22 @@ mod tests {
             .id();
 
         // Step
-        assert!(
-            TweenAnim::step_one(&mut env.world, Duration::from_millis(100), anim_entity).is_ok()
-        );
+        assert!(TweenAnim::step_one(
+            &mut env.world,
+            Duration::from_millis(100),
+            anim_entity
+        )
+        .is_ok());
         let tr = env.world.entity(entity).get::<Transform>().unwrap();
         assert_eq!(tr.translation, Vec3::ONE * 0.2);
 
         // Complete
         assert_eq!(
-            TweenAnim::step_many(&mut env.world, Duration::from_millis(400), &[anim_entity]),
+            TweenAnim::step_many(
+                &mut env.world,
+                Duration::from_millis(400),
+                &[anim_entity]
+            ),
             1
         );
 
@@ -3455,15 +3566,22 @@ mod tests {
             .id();
 
         // Step
-        assert!(
-            TweenAnim::step_one(&mut env.world, Duration::from_millis(100), anim_entity).is_ok()
-        );
+        assert!(TweenAnim::step_one(
+            &mut env.world,
+            Duration::from_millis(100),
+            anim_entity
+        )
+        .is_ok());
         let res = env.world.resource::<DummyResource>();
         assert_eq!(res.value, 0.2);
 
         // Complete
         assert_eq!(
-            TweenAnim::step_many(&mut env.world, Duration::from_millis(400), &[anim_entity]),
+            TweenAnim::step_many(
+                &mut env.world,
+                Duration::from_millis(400),
+                &[anim_entity]
+            ),
             1
         );
 
@@ -3494,16 +3612,23 @@ mod tests {
             .id();
 
         // Step
-        assert!(
-            TweenAnim::step_one(&mut env.world, Duration::from_millis(100), anim_entity).is_ok()
-        );
+        assert!(TweenAnim::step_one(
+            &mut env.world,
+            Duration::from_millis(100),
+            anim_entity
+        )
+        .is_ok());
         let assets = env.world.resource::<Assets<DummyAsset>>();
         let asset = assets.get(&handle).unwrap();
         assert_eq!(asset.value, 0.2);
 
         // Complete
         assert_eq!(
-            TweenAnim::step_many(&mut env.world, Duration::from_millis(400), &[anim_entity]),
+            TweenAnim::step_many(
+                &mut env.world,
+                Duration::from_millis(400),
+                &[anim_entity]
+            ),
             1
         );
 
@@ -3605,7 +3730,11 @@ mod tests {
             .world
             .commands()
             .spawn(Transform::default())
-            .scale_to(Vec3::ONE * 2., Duration::from_secs(1), EaseFunction::Linear)
+            .scale_to(
+                Vec3::ONE * 2.,
+                Duration::from_secs(1),
+                EaseFunction::Linear,
+            )
             .id();
         env.world.flush();
 
@@ -3628,7 +3757,11 @@ mod tests {
             .world
             .commands()
             .spawn(Transform::default())
-            .scale_from(Vec3::ONE * 2., Duration::from_secs(1), EaseFunction::Linear)
+            .scale_from(
+                Vec3::ONE * 2.,
+                Duration::from_secs(1),
+                EaseFunction::Linear,
+            )
             .id();
         env.world.flush();
 
@@ -3720,7 +3853,11 @@ mod tests {
             .world
             .commands()
             .spawn(Transform::default())
-            .rotate_x_by(FRAC_PI_2, Duration::from_secs(1), EaseFunction::Linear)
+            .rotate_x_by(
+                FRAC_PI_2,
+                Duration::from_secs(1),
+                EaseFunction::Linear,
+            )
             .id();
         env.world.flush();
 
@@ -3743,7 +3880,11 @@ mod tests {
             .world
             .commands()
             .spawn(Transform::default())
-            .rotate_y_by(FRAC_PI_2, Duration::from_secs(1), EaseFunction::Linear)
+            .rotate_y_by(
+                FRAC_PI_2,
+                Duration::from_secs(1),
+                EaseFunction::Linear,
+            )
             .id();
         env.world.flush();
 
@@ -3766,7 +3907,11 @@ mod tests {
             .world
             .commands()
             .spawn(Transform::default())
-            .rotate_z_by(FRAC_PI_2, Duration::from_secs(1), EaseFunction::Linear)
+            .rotate_z_by(
+                FRAC_PI_2,
+                Duration::from_secs(1),
+                EaseFunction::Linear,
+            )
             .id();
         env.world.flush();
 
@@ -3827,7 +3972,9 @@ mod tests {
         // Register the resource resolver
         env.world
             .resource_scope(|world, mut resolver: Mut<TweenResolver>| {
-                resolver.register_resource_resolver_for::<DummyResource>(world.components());
+                resolver.register_resource_resolver_for::<DummyResource>(
+                    world.components(),
+                );
             });
 
         // Resource resolver registered; succeeds
@@ -3880,7 +4027,8 @@ mod tests {
         env.world.flush();
 
         let delta_time = Duration::from_millis(200);
-        let resource_id = env.world.resource_id::<Assets<DummyAsset>>().unwrap();
+        let resource_id =
+            env.world.resource_id::<Assets<DummyAsset>>().unwrap();
 
         // Asset resolver not registered; fails
         env.world
@@ -3910,7 +4058,9 @@ mod tests {
         // Register the asset resolver
         env.world
             .resource_scope(|world, mut resolver: Mut<TweenResolver>| {
-                resolver.register_asset_resolver_for::<DummyAsset>(world.components());
+                resolver.register_asset_resolver_for::<DummyAsset>(
+                    world.components(),
+                );
             });
 
         // Asset resolver registered; succeeds
