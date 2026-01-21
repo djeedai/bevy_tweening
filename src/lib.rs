@@ -2370,8 +2370,9 @@ impl TweenAnim {
             );
         });
 
+        let mut cmds = world.commands();
         for entity in to_remove.drain(..) {
-            world.entity_mut(entity).remove::<TweenAnim>();
+            cmds.entity(entity).try_remove::<TweenAnim>();
         }
 
         world.flush();
