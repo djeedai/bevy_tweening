@@ -138,7 +138,7 @@ impl<T: Component<Mutability = Mutable> + Default> TestEnv<T> {
         world.init_resource::<Messages<AnimCompletedEvent>>();
         world.init_resource::<TweenResolver>();
 
-        let mut system = IntoSystem::into_system(crate::plugin::animator_system);
+        let mut system = IntoSystem::into_system(crate::plugin::animator_system::<()>);
         system.initialize(&mut world);
 
         let entity = world.spawn((T::default(), TweenAnim::new(tweenable))).id();
@@ -158,7 +158,7 @@ impl<T: Component<Mutability = Mutable> + Default> TestEnv<T> {
         world.init_resource::<Messages<AnimCompletedEvent>>();
         world.init_resource::<TweenResolver>();
 
-        let mut system = IntoSystem::into_system(crate::plugin::animator_system);
+        let mut system = IntoSystem::into_system(crate::plugin::animator_system::<()>);
         system.initialize(&mut world);
 
         Self {
