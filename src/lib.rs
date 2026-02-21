@@ -44,7 +44,7 @@
 //!
 //! App::default()
 //!     .add_plugins(DefaultPlugins)
-//!     .add_plugins(TweeningPlugin)
+//!     .add_plugins(TweeningPlugin::<()>::default())
 //!     .run();
 //! ```
 //!

@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use bevy::prelude::*;
 
 use crate::{AnimCompletedEvent, CycleCompletedEvent, TweenAnim, TweenResolver};
@@ -10,26 +12,75 @@ use crate::{AnimCompletedEvent, CycleCompletedEvent, TweenAnim, TweenResolver};
 /// [`AnimationSystem::AnimationUpdate`] system set, during the [`Update`]
 /// schedule.
 ///
+/// The type parameter `T` selects which Bevy [`Time`] context drives
+/// animations:
+///
+/// | `T`       | Time source          | Affected by `Time<Virtual>::pause()`? |
+/// |-----------|----------------------|---------------------------------------|
+/// | `()`      | `Time<()>` (virtual) | **Yes** — animations freeze on pause  |
+/// | `Real`    | `Time<Real>`         | **No**  — animations run at wall-clock speed |
+///
+/// The default (`T = ()`) preserves the original behaviour.
+///
+/// # Examples
+///
 /// ```no_run
 /// use bevy::prelude::*;
 /// use bevy_tweening::*;
 ///
+/// // Virtual time (default) — animations pause when the game pauses.
 /// App::default()
 ///     .add_plugins(DefaultPlugins)
-///     .add_plugins(TweeningPlugin)
+///     .add_plugins(TweeningPlugin::<()>::default())
 ///     .run();
 /// ```
-#[derive(Debug, Clone, Copy)]
-pub struct TweeningPlugin;
+///
+/// ```no_run
+/// use bevy::prelude::*;
+/// use bevy::time::Real;
+/// use bevy_tweening::*;
+///
+/// // Real time — animations keep running even when virtual time is paused.
+/// App::default()
+///     .add_plugins(DefaultPlugins)
+///     .add_plugins(TweeningPlugin::<Real>::default())
+///     .run();
+/// ```
+pub struct TweeningPlugin<T: Default + Send + Sync + 'static = ()> {
+    _marker: PhantomData<T>,
+}
 
-impl Plugin for TweeningPlugin {
+impl<T: Default + Send + Sync + 'static> Default for TweeningPlugin<T> {
+    fn default() -> Self {
+        Self {
+            _marker: PhantomData,
+        }
+    }
+}
+
+// Manual impls because the derive macros would add unnecessary `T: Trait` bounds.
+impl<T: Default + Send + Sync + 'static> std::fmt::Debug for TweeningPlugin<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("TweeningPlugin").finish()
+    }
+}
+
+impl<T: Default + Send + Sync + 'static> Clone for TweeningPlugin<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T: Default + Send + Sync + 'static> Copy for TweeningPlugin<T> {}
+
+impl<T: Default + Send + Sync + 'static> Plugin for TweeningPlugin<T> {
     fn build(&self, app: &mut App) {
         app.init_resource::<TweenResolver>()
             .add_message::<CycleCompletedEvent>()
             .add_message::<AnimCompletedEvent>()
             .add_systems(
                 Update,
-                animator_system.in_set(AnimationSystem::AnimationUpdate),
+                animator_system::<T>.in_set(AnimationSystem::AnimationUpdate),
             );
     }
 }
@@ -44,10 +95,11 @@ pub enum AnimationSystem {
 
 /// Core animation system ticking all queued animations.
 ///
-/// This calls [`TweenAnim::step_all()`] using a value of the animation timestep
-/// `delta_time` equal to [`Time::delta()`].
-pub(crate) fn animator_system(world: &mut World) {
-    let delta_time = world.resource::<Time>().delta();
+/// This calls [`TweenAnim::step_all()`] using the delta from [`Time<T>`].
+/// With the default `T = ()` this reads virtual time; with `T = Real` it
+/// reads wall-clock time.
+pub(crate) fn animator_system<T: Default + Send + Sync + 'static>(world: &mut World) {
+    let delta_time = world.resource::<Time<T>>().delta();
     TweenAnim::step_all(world, delta_time);
 }
 
@@ -68,7 +120,7 @@ mod tests {
     #[test]
     fn app() {
         let mut app = App::default();
-        app.add_plugins((TimePlugin, TweeningPlugin));
+        app.add_plugins((TimePlugin, TweeningPlugin::<()>::default()));
         app.finish();
         app.update();
     }
