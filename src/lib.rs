@@ -915,6 +915,7 @@ pub(crate) struct MoveToCommand {
 }
 
 impl EntityCommand for MoveToCommand {
+    type Out = ();
     fn apply(self, mut entity: EntityWorldMut) {
         if let Some(start) = entity.get::<Transform>().map(|tr| tr.translation) {
             let lens = TransformPositionLens {
@@ -950,6 +951,7 @@ pub(crate) struct MoveFromCommand {
 }
 
 impl EntityCommand for MoveFromCommand {
+    type Out = ();
     fn apply(self, mut entity: EntityWorldMut) {
         if let Some(end) = entity.get::<Transform>().map(|tr| tr.translation) {
             let lens = TransformPositionLens {
@@ -985,6 +987,7 @@ pub(crate) struct ScaleToCommand {
 }
 
 impl EntityCommand for ScaleToCommand {
+    type Out = ();
     fn apply(self, mut entity: EntityWorldMut) {
         if let Some(start) = entity.get::<Transform>().map(|tr| tr.scale) {
             let lens = TransformScaleLens {
@@ -1020,6 +1023,7 @@ pub(crate) struct ScaleFromCommand {
 }
 
 impl EntityCommand for ScaleFromCommand {
+    type Out = ();
     fn apply(self, mut entity: EntityWorldMut) {
         if let Some(end) = entity.get::<Transform>().map(|tr| tr.scale) {
             let lens = TransformScaleLens {
@@ -1054,6 +1058,7 @@ pub(crate) struct RotateXCommand {
 }
 
 impl EntityCommand for RotateXCommand {
+    type Out = ();
     fn apply(self, mut entity: EntityWorldMut) {
         if let Some(base_rotation) = entity.get::<Transform>().map(|tr| tr.rotation) {
             let lens = TransformRotateAdditiveXLens {
@@ -1090,6 +1095,7 @@ pub(crate) struct RotateYCommand {
 }
 
 impl EntityCommand for RotateYCommand {
+    type Out = ();
     fn apply(self, mut entity: EntityWorldMut) {
         if let Some(base_rotation) = entity.get::<Transform>().map(|tr| tr.rotation) {
             let lens = TransformRotateAdditiveYLens {
@@ -1126,6 +1132,7 @@ pub(crate) struct RotateZCommand {
 }
 
 impl EntityCommand for RotateZCommand {
+    type Out = ();
     fn apply(self, mut entity: EntityWorldMut) {
         if let Some(base_rotation) = entity.get::<Transform>().map(|tr| tr.rotation) {
             let lens = TransformRotateAdditiveZLens {
@@ -1163,6 +1170,7 @@ pub(crate) struct RotateXByCommand {
 }
 
 impl EntityCommand for RotateXByCommand {
+    type Out = ();
     fn apply(self, mut entity: EntityWorldMut) {
         if let Some(base_rotation) = entity.get::<Transform>().map(|tr| tr.rotation) {
             let lens = TransformRotateAdditiveXLens {
@@ -1199,6 +1207,7 @@ pub(crate) struct RotateYByCommand {
 }
 
 impl EntityCommand for RotateYByCommand {
+    type Out = ();
     fn apply(self, mut entity: EntityWorldMut) {
         if let Some(base_rotation) = entity.get::<Transform>().map(|tr| tr.rotation) {
             let lens = TransformRotateAdditiveYLens {
@@ -1235,6 +1244,7 @@ pub(crate) struct RotateZByCommand {
 }
 
 impl EntityCommand for RotateZByCommand {
+    type Out = ();
     fn apply(self, mut entity: EntityWorldMut) {
         if let Some(base_rotation) = entity.get::<Transform>().map(|tr| tr.rotation) {
             let lens = TransformRotateAdditiveZLens {
@@ -2200,10 +2210,10 @@ impl TweenAnim {
                     .get_id(type_id)
                     .ok_or(TweeningError::ComponentNotRegistered(type_id))?,
                 AnimTargetKind::Resource => components
-                    .get_resource_id(type_id)
+                    .get_id(type_id)
                     .ok_or(TweeningError::ResourceNotRegistered(type_id))?,
                 AnimTargetKind::Asset { assets_type_id, .. } => components
-                    .get_resource_id(*assets_type_id)
+                    .get_id(*assets_type_id)
                     .ok_or(TweeningError::AssetNotRegistered(type_id))?,
             };
             let is_retargetable = false; // explicit target
@@ -2622,7 +2632,7 @@ pub struct TweenResolver {
 impl TweenResolver {
     /// Register a resolver for the given resource type.
     pub(crate) fn register_resource_resolver_for<R: Resource>(&mut self, components: &Components) {
-        let resource_id = components.resource_id::<R>().unwrap();
+        let resource_id = components.component_id::<R>().unwrap();
         let resolver = |world: &mut World,
                         entity: Entity,
                         target_type_id: &TypeId,
@@ -2669,7 +2679,7 @@ impl TweenResolver {
 
     /// Register a resolver for the given asset type.
     pub(crate) fn register_asset_resolver_for<A: Asset>(&mut self, components: &Components) {
-        let resource_id = components.resource_id::<Assets<A>>().unwrap();
+        let resource_id = components.component_id::<Assets<A>>().unwrap();
         let resolver = |world: &mut World,
                         asset_id: UntypedAssetId,
                         entity: Entity,
@@ -2683,7 +2693,7 @@ impl TweenResolver {
             // parallel of the TweenAnim
             world.resource_scope(|world, assets: Mut<Assets<A>>| {
                 // Next, fetch the asset A itself from its Assets<A> based on its asset ID
-                let Some(asset) = assets.filter_map_unchanged(|assets| assets.get_mut(asset_id))
+                let Some(asset) = assets.filter_map_unchanged(|assets| assets.get_mut_untracked(asset_id))
                 else {
                     return Err(TweeningError::InvalidAssetId(asset_id.into()));
                 };
@@ -2916,7 +2926,7 @@ mod tests {
                 let mut added = Tick::new(0);
                 let mut last_changed = Tick::new(0);
                 let mut caller = MaybeLocation::caller();
-                let asset = assets.get_mut(handle.id()).unwrap();
+                let asset = assets.get_mut_untracked(handle.id()).unwrap();
                 let target = Mut::new(
                     asset,
                     &mut added,
@@ -3800,7 +3810,7 @@ mod tests {
         env.world.flush();
 
         let delta_time = Duration::from_millis(200);
-        let resource_id = env.world.resource_id::<DummyResource>().unwrap();
+        let resource_id = env.world.component_id::<DummyResource>().unwrap();
 
         // Resource resolver not registered; fails
         env.world
@@ -3882,7 +3892,7 @@ mod tests {
         env.world.flush();
 
         let delta_time = Duration::from_millis(200);
-        let resource_id = env.world.resource_id::<Assets<DummyAsset>>().unwrap();
+        let resource_id = env.world.component_id::<Assets<DummyAsset>>().unwrap();
 
         // Asset resolver not registered; fails
         env.world

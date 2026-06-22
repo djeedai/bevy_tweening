@@ -84,8 +84,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         commands.spawn((
             Text::new(*ease_name),
             TextFont {
-                font: font.clone(),
-                font_size: 24.0,
+                font: font.clone().into(),
+                font_size: 24.0.into(),
                 ..default()
             },
             TextColor(Color::WHITE),
