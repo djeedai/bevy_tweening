@@ -1934,7 +1934,10 @@ mod tests {
                     // Messages are only sent when playing forward
                     if playback_direction.is_forward() {
                         //let component_id = world.component_id::<Transform>().unwrap();
-                        let mut event_reader = event_reader_system_state.get_mut(&mut world);
+                        let Ok(mut event_reader) = event_reader_system_state.get_mut(&mut world)
+                        else {
+                            panic!("Expected MessageReader");
+                        };
                         let event = event_reader.read().next();
                         if just_completed {
                             assert!(event.is_some());

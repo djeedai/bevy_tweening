@@ -43,8 +43,8 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) -> Result<()> {
 
     let font = asset_server.load("fonts/FiraMono-Regular.ttf");
     let text_font = TextFont {
-        font,
-        font_size: 50.0,
+        font: FontSource::Handle(font),
+        font_size: FontSize::Px(50.0),
         ..default()
     };
 
@@ -57,7 +57,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) -> Result<()> {
     commands
         .spawn((
             Text2d::default(),
-            TextLayout::new_with_justify(justify),
+            TextLayout::justify(justify),
             Transform::from_translation(Vec3::new(0., 40., 0.)),
             RedProgress,
         ))
@@ -79,7 +79,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) -> Result<()> {
     commands
         .spawn((
             Text2d::default(),
-            TextLayout::new_with_justify(justify),
+            TextLayout::justify(justify),
             Transform::from_translation(Vec3::new(0., -40., 0.)),
             BlueProgress,
         ))

@@ -11,7 +11,7 @@ use std::{
     time::Duration,
 };
 
-use bevy::{color::palettes::css::*, post_process::bloom::Bloom, prelude::*, render::view::Hdr};
+use bevy::{camera::Hdr, color::palettes::css::*, post_process::bloom::Bloom, prelude::*};
 use bevy_tweening::{lens::*, *};
 
 mod utils;
@@ -23,8 +23,8 @@ struct AmbientLightBrightnessLens {
 }
 
 // Implement the `Lens` trait.
-impl Lens<AmbientLight> for AmbientLightBrightnessLens {
-    fn lerp(&mut self, mut target: Mut<AmbientLight>, ratio: f32) {
+impl Lens<GlobalAmbientLight> for AmbientLightBrightnessLens {
+    fn lerp(&mut self, mut target: Mut<GlobalAmbientLight>, ratio: f32) {
         target.brightness = self.start.lerp(self.end, ratio);
     }
 }
@@ -50,7 +50,7 @@ fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut ambient_light: ResMut<AmbientLight>,
+    mut ambient_light: ResMut<GlobalAmbientLight>,
 ) -> Result<(), BevyError> {
     // Some fancy 3D camera with HDR and bloom, to emphasize the change of ambient
     // brightness.
@@ -97,7 +97,7 @@ fn setup(
     .with_repeat(RepeatCount::Infinite, RepeatStrategy::MirroredRepeat);
     commands.spawn((
         TweenAnim::new(tween),
-        AnimTarget::resource::<AmbientLight>(),
+        AnimTarget::resource::<GlobalAmbientLight>(),
     ));
 
     // Spawn some animated character-like capsule...
