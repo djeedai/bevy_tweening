@@ -299,7 +299,7 @@ use std::{
 use bevy::{
     asset::UntypedAssetId,
     ecs::{
-        change_detection::MutUntyped,
+        change_detection::{MaybeLocation, MutUntyped, Tick},
         component::{ComponentId, Components, Mutable},
     },
     platform::collections::HashMap,
@@ -2692,18 +2692,12 @@ impl TweenResolver {
             // First, remove the Assets<A> from the world so we can access it mutably in
             // parallel of the TweenAnim
             world.resource_scope(|world, mut assets: Mut<Assets<A>>| {
-                // Make a copy of the Mut<Assets<A>> so we can use it later to mark the
-                // asset as modified if needed. This doesn't copy the asset, only the
-                // Mut<> itself.
-                let assets_mut = assets.reborrow();
+                // We abuse the fact that Assets<A> is changed every single frame by the asset_events()
+                // system, and assume that the current tick is therefore equal to the last time
+                // Assets<A> was changed.
+                let this_tick = assets.last_changed().get();
 
-                // Next, fetch the asset A itself from its Assets<A> based on its asset ID.
-                // This is a bit convoluted because we want to keep a Mut<A>, and not the
-                // new AssetMut<A>, which unfortunately has nothing to do with Mut<A>.
-                // We also don't want to trigger any change detection (ECS) or asset mutation
-                // (Assets<A>) yet, as we only do that lazily when we detected the animation
-                // actually modified the asset.
-                let Some(asset_mut) = assets_mut.filter_map_unchanged(|assets| assets.get_mut_untracked(asset_id))
+                let Some(mut asset_mut) = assets.get_mut(asset_id)
                 else {
                     return Err(TweeningError::InvalidAssetId(asset_id.into()));
                 };
@@ -2723,8 +2717,20 @@ impl TweenResolver {
                     return Err(TweeningError::MissingTweenAnim(ent.id()));
                 };
 
+                // Create a fake Mut<A> which is always unchanged before the anim steps.
+                // Its sole purpose is to know if the Lens::lerp() changed the asset.
+                // Ideally we'd directly use AssetMut<> but the interface doesn't match.
+                let mut added = Tick::MAX;  // hopefully unused...
+                let last_tick = this_tick.saturating_sub(1);
+                let mut last_changed = Tick::new(last_tick);
+                let last_run = last_changed;
+                let this_run = Tick::new(this_tick);
+                let mut caller = MaybeLocation::caller();
+                let typed_mut = Mut::new(asset_mut.bypass_change_detection(), &mut added, &mut last_changed, last_run, this_run, caller.as_mut());
+                assert!(!typed_mut.is_changed());
+                let mut mut_untyped: MutUntyped = typed_mut.into();
+
                 // Finally, step the TweenAnim and mutate the target
-                let mut mut_untyped: MutUntyped<'_> = asset_mut.into();
                 let ret = anim.step_self(
                     commands,
                     entity,
@@ -2737,15 +2743,11 @@ impl TweenResolver {
                 );
 
                 // If the asset actually changed (as reported by Mut<>), mark it as such
-                // through Assets<A> (which will send the AssetModified message). This works
-                // because all Mut<> from reborrow() share the same internal tracking fields,
-                // so even if we passed a Mut<>::reborrow() copy, the source Mut<> "sees" the
-                // same change. However that change detection only marks Assets<A> as changed,
-                // and doesn't trigger the regular flow for a modified asset.
+                // through Assets<A> (which will send the asset modified message).
                 if mut_untyped.is_changed() {
                     // into_inner() marks the asset as changed, which triggers the regular
-                    // asset modified flow (as if we had used AssetMut<A>).
-                    let _ = assets.get_mut(asset_id).unwrap().into_inner();
+                    // asset modified flow (emits AssetEvents::Modified).
+                    let _ = asset_mut.into_inner();
                 }
 
                 ret.map(|result| {

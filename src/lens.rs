@@ -507,7 +507,10 @@ pub struct ColorMaterialColorLens {
 #[cfg(feature = "bevy_sprite")]
 impl Lens<ColorMaterial> for ColorMaterialColorLens {
     fn lerp(&mut self, mut target: Mut<ColorMaterial>, ratio: f32) {
-        target.color = self.start.mix(&self.end, ratio);
+        let color = self.start.mix(&self.end, ratio);
+        if target.color != color {
+            target.color = color;
+        }
     }
 }
 
