@@ -2691,9 +2691,19 @@ impl TweenResolver {
             let asset_id = asset_id.typed::<A>();
             // First, remove the Assets<A> from the world so we can access it mutably in
             // parallel of the TweenAnim
-            world.resource_scope(|world, assets: Mut<Assets<A>>| {
-                // Next, fetch the asset A itself from its Assets<A> based on its asset ID
-                let Some(asset) = assets.filter_map_unchanged(|assets| assets.get_mut_untracked(asset_id))
+            world.resource_scope(|world, mut assets: Mut<Assets<A>>| {
+                // Make a copy of the Mut<Assets<A>> so we can use it later to mark the
+                // asset as modified if needed. This doesn't copy the asset, only the
+                // Mut<> itself.
+                let assets_mut = assets.reborrow();
+
+                // Next, fetch the asset A itself from its Assets<A> based on its asset ID.
+                // This is a bit convoluted because we want to keep a Mut<A>, and not the
+                // new AssetMut<A>, which unfortunately has nothing to do with Mut<A>.
+                // We also don't want to trigger any change detection (ECS) or asset mutation
+                // (Assets<A>) yet, as we only do that lazily when we detected the animation
+                // actually modified the asset.
+                let Some(asset_mut) = assets_mut.filter_map_unchanged(|assets| assets.get_mut_untracked(asset_id))
                 else {
                     return Err(TweeningError::InvalidAssetId(asset_id.into()));
                 };
@@ -2714,16 +2724,30 @@ impl TweenResolver {
                 };
 
                 // Finally, step the TweenAnim and mutate the target
+                let mut mut_untyped: MutUntyped<'_> = asset_mut.into();
                 let ret = anim.step_self(
                     commands,
                     entity,
                     delta_time,
                     &target,
-                    asset.into(),
+                    mut_untyped.reborrow(),
                     target_type_id,
                     cycle_events.reborrow(),
                     anim_events.reborrow(),
                 );
+
+                // If the asset actually changed (as reported by Mut<>), mark it as such
+                // through Assets<A> (which will send the AssetModified message). This works
+                // because all Mut<> from reborrow() share the same internal tracking fields,
+                // so even if we passed a Mut<>::reborrow() copy, the source Mut<> "sees" the
+                // same change. However that change detection only marks Assets<A> as changed,
+                // and doesn't trigger the regular flow for a modified asset.
+                if mut_untyped.is_changed() {
+                    // into_inner() marks the asset as changed, which triggers the regular
+                    // asset modified flow (as if we had used AssetMut<A>).
+                    let _ = assets.get_mut(asset_id).unwrap().into_inner();
+                }
+
                 ret.map(|result| {
                     assert!(!result.needs_retarget, "Cannot use a multi-target sequence of tweenable animations with an asset target.");
                     result.retain

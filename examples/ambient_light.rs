@@ -1,10 +1,11 @@
 //! Example demonstrating resource animation and various transform shortcuts.
 //!
-//! The example animates the `GlobalAmbientLight` resource of Bevy's PBR renderer.
-//! This is mostly for example purpose; you probably want to animate some other
-//! (custom) resource. It also moves a capsule object back and forth with the
-//! `move_to()` command extension, and make it "resonate" by quickly scaling it
-//! between 100% and 110% size with the `scale_to()` command extension.
+//! The example animates the `GlobalAmbientLight` resource of Bevy's PBR
+//! renderer. This is mostly for example purpose; you probably want to animate
+//! some other (custom) resource. It also moves a capsule object back and forth
+//! with the `move_to()` command extension, and make it "resonate" by quickly
+//! scaling it between 100% and 110% size with the `scale_to()` command
+//! extension.
 
 use std::{
     f32::consts::{FRAC_PI_2, FRAC_PI_4},
