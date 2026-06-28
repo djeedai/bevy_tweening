@@ -54,7 +54,6 @@ required-features = [
     "bevy/hdr",
     "bevy/tonemapping_luts",
     "bevy/bevy_post_process",
-	"bevy/zstd_rust",
 ]
 
 [[example]]
