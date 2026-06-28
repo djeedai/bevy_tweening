@@ -1,6 +1,6 @@
 [package]
 name = "bevy_tweening"
-version = "0.15.0"
+version = "0.16.0"
 authors = [
     "François Mockers <mockersf@gmail.com>",
     "Jerome Humbert <djeedai@gmail.com>",
@@ -54,6 +54,7 @@ required-features = [
     "bevy/hdr",
     "bevy/tonemapping_luts",
     "bevy/bevy_post_process",
+	"bevy/zstd_rust",
 ]
 
 [[example]]

@@ -118,14 +118,11 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
                             Text::new(text.to_string()),
                             TextFont {
                                 font: font.clone().into(),
-                                font_size: 48.0.into(),
+                                font_size: FontSize::Px(48.0),
                                 ..default()
                             },
                             TextColor(TEXT_COLOR),
-                            TextLayout {
-                                justify: Justify::Center,
-                                ..default()
-                            },
+                            TextLayout::justify(Justify::Center),
                         )],
                     ))
                     .id();
