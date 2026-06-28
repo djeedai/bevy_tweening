@@ -507,7 +507,10 @@ pub struct ColorMaterialColorLens {
 #[cfg(feature = "bevy_sprite")]
 impl Lens<ColorMaterial> for ColorMaterialColorLens {
     fn lerp(&mut self, mut target: Mut<ColorMaterial>, ratio: f32) {
-        target.color = self.start.mix(&self.end, ratio);
+        let color = self.start.mix(&self.end, ratio);
+        if target.color != color {
+            target.color = color;
+        }
     }
 }
 
@@ -1150,7 +1153,7 @@ mod tests {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
             let mut caller = MaybeLocation::caller();
-            let asset = assets.get_mut(handle.id()).unwrap();
+            let asset = assets.get_mut_untracked(handle.id()).unwrap();
             let target = Mut::new(
                 asset,
                 &mut added,
@@ -1167,7 +1170,7 @@ mod tests {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
             let mut caller = MaybeLocation::caller();
-            let asset = assets.get_mut(handle.id()).unwrap();
+            let asset = assets.get_mut_untracked(handle.id()).unwrap();
             let target = Mut::new(
                 asset,
                 &mut added,
@@ -1184,7 +1187,7 @@ mod tests {
             let mut added = Tick::new(0);
             let mut last_changed = Tick::new(0);
             let mut caller = MaybeLocation::caller();
-            let asset = assets.get_mut(handle.id()).unwrap();
+            let asset = assets.get_mut_untracked(handle.id()).unwrap();
             let target = Mut::new(
                 asset,
                 &mut added,

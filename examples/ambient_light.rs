@@ -1,30 +1,31 @@
 //! Example demonstrating resource animation and various transform shortcuts.
 //!
-//! The example animates the `AmbientLight` resource of Bevy's PBR renderer.
-//! This is mostly for example purpose; you probably want to animate some other
-//! (custom) resource. It also moves a capsule object back and forth with the
-//! `move_to()` command extension, and make it "resonate" by quickly scaling it
-//! between 100% and 110% size with the `scale_to()` command extension.
+//! The example animates the `GlobalAmbientLight` resource of Bevy's PBR
+//! renderer. This is mostly for example purpose; you probably want to animate
+//! some other (custom) resource. It also moves a capsule object back and forth
+//! with the `move_to()` command extension, and make it "resonate" by quickly
+//! scaling it between 100% and 110% size with the `scale_to()` command
+//! extension.
 
 use std::{
     f32::consts::{FRAC_PI_2, FRAC_PI_4},
     time::Duration,
 };
 
-use bevy::{color::palettes::css::*, post_process::bloom::Bloom, prelude::*, render::view::Hdr};
+use bevy::{camera::Hdr, color::palettes::css::*, post_process::bloom::Bloom, prelude::*};
 use bevy_tweening::{lens::*, *};
 
 mod utils;
 
-// Define our own `Lens` to animate the `AmbientLight` resource.
+// Define our own `Lens` to animate the `GlobalAmbientLight` resource.
 struct AmbientLightBrightnessLens {
     pub start: f32,
     pub end: f32,
 }
 
 // Implement the `Lens` trait.
-impl Lens<AmbientLight> for AmbientLightBrightnessLens {
-    fn lerp(&mut self, mut target: Mut<AmbientLight>, ratio: f32) {
+impl Lens<GlobalAmbientLight> for AmbientLightBrightnessLens {
+    fn lerp(&mut self, mut target: Mut<GlobalAmbientLight>, ratio: f32) {
         target.brightness = self.start.lerp(self.end, ratio);
     }
 }
@@ -50,7 +51,7 @@ fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    mut ambient_light: ResMut<AmbientLight>,
+    mut ambient_light: ResMut<GlobalAmbientLight>,
 ) -> Result<(), BevyError> {
     // Some fancy 3D camera with HDR and bloom, to emphasize the change of ambient
     // brightness.
@@ -97,7 +98,7 @@ fn setup(
     .with_repeat(RepeatCount::Infinite, RepeatStrategy::MirroredRepeat);
     commands.spawn((
         TweenAnim::new(tween),
-        AnimTarget::resource::<AmbientLight>(),
+        AnimTarget::resource::<GlobalAmbientLight>(),
     ));
 
     // Spawn some animated character-like capsule...

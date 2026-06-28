@@ -299,7 +299,7 @@ use std::{
 use bevy::{
     asset::UntypedAssetId,
     ecs::{
-        change_detection::MutUntyped,
+        change_detection::{MaybeLocation, MutUntyped, Tick},
         component::{ComponentId, Components, Mutable},
     },
     platform::collections::HashMap,
@@ -915,6 +915,7 @@ pub(crate) struct MoveToCommand {
 }
 
 impl EntityCommand for MoveToCommand {
+    type Out = ();
     fn apply(self, mut entity: EntityWorldMut) {
         if let Some(start) = entity.get::<Transform>().map(|tr| tr.translation) {
             let lens = TransformPositionLens {
@@ -950,6 +951,7 @@ pub(crate) struct MoveFromCommand {
 }
 
 impl EntityCommand for MoveFromCommand {
+    type Out = ();
     fn apply(self, mut entity: EntityWorldMut) {
         if let Some(end) = entity.get::<Transform>().map(|tr| tr.translation) {
             let lens = TransformPositionLens {
@@ -985,6 +987,7 @@ pub(crate) struct ScaleToCommand {
 }
 
 impl EntityCommand for ScaleToCommand {
+    type Out = ();
     fn apply(self, mut entity: EntityWorldMut) {
         if let Some(start) = entity.get::<Transform>().map(|tr| tr.scale) {
             let lens = TransformScaleLens {
@@ -1020,6 +1023,7 @@ pub(crate) struct ScaleFromCommand {
 }
 
 impl EntityCommand for ScaleFromCommand {
+    type Out = ();
     fn apply(self, mut entity: EntityWorldMut) {
         if let Some(end) = entity.get::<Transform>().map(|tr| tr.scale) {
             let lens = TransformScaleLens {
@@ -1054,6 +1058,7 @@ pub(crate) struct RotateXCommand {
 }
 
 impl EntityCommand for RotateXCommand {
+    type Out = ();
     fn apply(self, mut entity: EntityWorldMut) {
         if let Some(base_rotation) = entity.get::<Transform>().map(|tr| tr.rotation) {
             let lens = TransformRotateAdditiveXLens {
@@ -1090,6 +1095,7 @@ pub(crate) struct RotateYCommand {
 }
 
 impl EntityCommand for RotateYCommand {
+    type Out = ();
     fn apply(self, mut entity: EntityWorldMut) {
         if let Some(base_rotation) = entity.get::<Transform>().map(|tr| tr.rotation) {
             let lens = TransformRotateAdditiveYLens {
@@ -1126,6 +1132,7 @@ pub(crate) struct RotateZCommand {
 }
 
 impl EntityCommand for RotateZCommand {
+    type Out = ();
     fn apply(self, mut entity: EntityWorldMut) {
         if let Some(base_rotation) = entity.get::<Transform>().map(|tr| tr.rotation) {
             let lens = TransformRotateAdditiveZLens {
@@ -1163,6 +1170,7 @@ pub(crate) struct RotateXByCommand {
 }
 
 impl EntityCommand for RotateXByCommand {
+    type Out = ();
     fn apply(self, mut entity: EntityWorldMut) {
         if let Some(base_rotation) = entity.get::<Transform>().map(|tr| tr.rotation) {
             let lens = TransformRotateAdditiveXLens {
@@ -1199,6 +1207,7 @@ pub(crate) struct RotateYByCommand {
 }
 
 impl EntityCommand for RotateYByCommand {
+    type Out = ();
     fn apply(self, mut entity: EntityWorldMut) {
         if let Some(base_rotation) = entity.get::<Transform>().map(|tr| tr.rotation) {
             let lens = TransformRotateAdditiveYLens {
@@ -1235,6 +1244,7 @@ pub(crate) struct RotateZByCommand {
 }
 
 impl EntityCommand for RotateZByCommand {
+    type Out = ();
     fn apply(self, mut entity: EntityWorldMut) {
         if let Some(base_rotation) = entity.get::<Transform>().map(|tr| tr.rotation) {
             let lens = TransformRotateAdditiveZLens {
@@ -2200,10 +2210,10 @@ impl TweenAnim {
                     .get_id(type_id)
                     .ok_or(TweeningError::ComponentNotRegistered(type_id))?,
                 AnimTargetKind::Resource => components
-                    .get_resource_id(type_id)
+                    .get_id(type_id)
                     .ok_or(TweeningError::ResourceNotRegistered(type_id))?,
                 AnimTargetKind::Asset { assets_type_id, .. } => components
-                    .get_resource_id(*assets_type_id)
+                    .get_id(*assets_type_id)
                     .ok_or(TweeningError::AssetNotRegistered(type_id))?,
             };
             let is_retargetable = false; // explicit target
@@ -2622,7 +2632,7 @@ pub struct TweenResolver {
 impl TweenResolver {
     /// Register a resolver for the given resource type.
     pub(crate) fn register_resource_resolver_for<R: Resource>(&mut self, components: &Components) {
-        let resource_id = components.resource_id::<R>().unwrap();
+        let resource_id = components.component_id::<R>().unwrap();
         let resolver = |world: &mut World,
                         entity: Entity,
                         target_type_id: &TypeId,
@@ -2669,7 +2679,7 @@ impl TweenResolver {
 
     /// Register a resolver for the given asset type.
     pub(crate) fn register_asset_resolver_for<A: Asset>(&mut self, components: &Components) {
-        let resource_id = components.resource_id::<Assets<A>>().unwrap();
+        let resource_id = components.component_id::<Assets<A>>().unwrap();
         let resolver = |world: &mut World,
                         asset_id: UntypedAssetId,
                         entity: Entity,
@@ -2681,9 +2691,13 @@ impl TweenResolver {
             let asset_id = asset_id.typed::<A>();
             // First, remove the Assets<A> from the world so we can access it mutably in
             // parallel of the TweenAnim
-            world.resource_scope(|world, assets: Mut<Assets<A>>| {
-                // Next, fetch the asset A itself from its Assets<A> based on its asset ID
-                let Some(asset) = assets.filter_map_unchanged(|assets| assets.get_mut(asset_id))
+            world.resource_scope(|world, mut assets: Mut<Assets<A>>| {
+                // We abuse the fact that Assets<A> is changed every single frame by the asset_events()
+                // system, and assume that the current tick is therefore equal to the last time
+                // Assets<A> was changed.
+                let this_tick = assets.last_changed().get();
+
+                let Some(mut asset_mut) = assets.get_mut(asset_id)
                 else {
                     return Err(TweeningError::InvalidAssetId(asset_id.into()));
                 };
@@ -2703,17 +2717,39 @@ impl TweenResolver {
                     return Err(TweeningError::MissingTweenAnim(ent.id()));
                 };
 
+                // Create a fake Mut<A> which is always unchanged before the anim steps.
+                // Its sole purpose is to know if the Lens::lerp() changed the asset.
+                // Ideally we'd directly use AssetMut<> but the interface doesn't match.
+                let mut added = Tick::MAX;  // hopefully unused...
+                let last_tick = this_tick.saturating_sub(1);
+                let mut last_changed = Tick::new(last_tick);
+                let last_run = last_changed;
+                let this_run = Tick::new(this_tick);
+                let mut caller = MaybeLocation::caller();
+                let typed_mut = Mut::new(asset_mut.bypass_change_detection(), &mut added, &mut last_changed, last_run, this_run, caller.as_mut());
+                assert!(!typed_mut.is_changed());
+                let mut mut_untyped: MutUntyped = typed_mut.into();
+
                 // Finally, step the TweenAnim and mutate the target
                 let ret = anim.step_self(
                     commands,
                     entity,
                     delta_time,
                     &target,
-                    asset.into(),
+                    mut_untyped.reborrow(),
                     target_type_id,
                     cycle_events.reborrow(),
                     anim_events.reborrow(),
                 );
+
+                // If the asset actually changed (as reported by Mut<>), mark it as such
+                // through Assets<A> (which will send the asset modified message).
+                if mut_untyped.is_changed() {
+                    // into_inner() marks the asset as changed, which triggers the regular
+                    // asset modified flow (emits AssetEvents::Modified).
+                    let _ = asset_mut.into_inner();
+                }
+
                 ret.map(|result| {
                     assert!(!result.needs_retarget, "Cannot use a multi-target sequence of tweenable animations with an asset target.");
                     result.retain
@@ -2916,7 +2952,7 @@ mod tests {
                 let mut added = Tick::new(0);
                 let mut last_changed = Tick::new(0);
                 let mut caller = MaybeLocation::caller();
-                let asset = assets.get_mut(handle.id()).unwrap();
+                let asset = assets.get_mut_untracked(handle.id()).unwrap();
                 let target = Mut::new(
                     asset,
                     &mut added,
@@ -3800,7 +3836,7 @@ mod tests {
         env.world.flush();
 
         let delta_time = Duration::from_millis(200);
-        let resource_id = env.world.resource_id::<DummyResource>().unwrap();
+        let resource_id = env.world.component_id::<DummyResource>().unwrap();
 
         // Resource resolver not registered; fails
         env.world
@@ -3882,7 +3918,7 @@ mod tests {
         env.world.flush();
 
         let delta_time = Duration::from_millis(200);
-        let resource_id = env.world.resource_id::<Assets<DummyAsset>>().unwrap();
+        let resource_id = env.world.component_id::<Assets<DummyAsset>>().unwrap();
 
         // Asset resolver not registered; fails
         env.world

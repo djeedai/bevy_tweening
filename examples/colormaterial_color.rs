@@ -1,25 +1,46 @@
 use std::time::Duration;
 
 use bevy::{color::palettes::css::*, prelude::*};
+use bevy_inspector_egui::{bevy_egui::EguiPlugin, prelude::*, quick::ResourceInspectorPlugin};
 use bevy_tweening::{lens::*, *};
 
 mod utils;
 
 fn main() {
     App::default()
-        .add_plugins(DefaultPlugins.set(WindowPlugin {
-            primary_window: Some(Window {
-                title: "ColorMaterialColorLens".to_string(),
-                resolution: bevy::window::WindowResolution::new(1200, 600),
-                present_mode: bevy::window::PresentMode::Fifo, // vsync
+        .add_plugins((
+            DefaultPlugins.set(WindowPlugin {
+                primary_window: Some(Window {
+                    title: "ColorMaterialColorLens".to_string(),
+                    resolution: bevy::window::WindowResolution::new(1200, 600),
+                    present_mode: bevy::window::PresentMode::Fifo, // vsync
+                    ..default()
+                }),
                 ..default()
             }),
-            ..default()
-        }))
+            EguiPlugin::default(),
+            ResourceInspectorPlugin::<Options>::new(),
+        ))
+        .init_resource::<Options>()
+        .register_type::<Options>()
         .add_systems(Update, utils::close_on_esc)
         .add_plugins(TweeningPlugin)
         .add_systems(Startup, setup)
+        .add_systems(Update, update_animation_speed)
         .run();
+}
+
+#[derive(Resource, Reflect, InspectorOptions)]
+#[reflect(InspectorOptions)]
+struct Options {
+    #[inspector(min = 0., max = 100.)]
+    speed: f64,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Self { speed: 1. }
+    }
 }
 
 fn setup(
@@ -104,4 +125,14 @@ fn setup(
     }
 
     Ok(())
+}
+
+fn update_animation_speed(options: Res<Options>, mut q_anims: Query<&mut TweenAnim>) {
+    if !options.is_changed() {
+        return;
+    }
+
+    for mut anim in &mut q_anims {
+        anim.speed = options.speed;
+    }
 }
