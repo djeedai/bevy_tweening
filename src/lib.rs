@@ -283,10 +283,10 @@
 //! shine for simpler animations while `bevy_animation` while offer a more
 //! extensive support for larger, more complex ones.
 //!
-//! [`Transform::translation`]: https://docs.rs/bevy/0.18/bevy/transform/components/struct.Transform.html#structfield.translation
-//! [`Entity`]: https://docs.rs/bevy/0.18/bevy/ecs/entity/struct.Entity.html
-//! [`ColorMaterial`]: https://docs.rs/bevy/0.18/bevy/sprite/struct.ColorMaterial.html
-//! [`Transform`]: https://docs.rs/bevy/0.18/bevy/transform/components/struct.Transform.html
+//! [`Transform::translation`]: https://docs.rs/bevy/0.19/bevy/transform/components/struct.Transform.html#structfield.translation
+//! [`Entity`]: https://docs.rs/bevy/0.19/bevy/ecs/entity/struct.Entity.html
+//! [`ColorMaterial`]: https://docs.rs/bevy/0.19/bevy/sprite/struct.ColorMaterial.html
+//! [`Transform`]: https://docs.rs/bevy/0.19/bevy/transform/components/struct.Transform.html
 //! [`TransformPositionLens`]: crate::lens::TransformPositionLens
 //! [`move_to()`]: crate::EntityCommandsTweeningExtensions::move_to
 
