@@ -285,7 +285,7 @@
 //!
 //! [`Transform::translation`]: https://docs.rs/bevy/0.19/bevy/transform/components/struct.Transform.html#structfield.translation
 //! [`Entity`]: https://docs.rs/bevy/0.19/bevy/ecs/entity/struct.Entity.html
-//! [`ColorMaterial`]: https://docs.rs/bevy/0.19/bevy/sprite/struct.ColorMaterial.html
+//! [`ColorMaterial`]: https://docs.rs/bevy/0.19/bevy/sprite_render/struct.ColorMaterial.html
 //! [`Transform`]: https://docs.rs/bevy/0.19/bevy/transform/components/struct.Transform.html
 //! [`TransformPositionLens`]: crate::lens::TransformPositionLens
 //! [`move_to()`]: crate::EntityCommandsTweeningExtensions::move_to
