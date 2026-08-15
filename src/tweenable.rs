@@ -106,7 +106,7 @@ pub enum TweenState {
 /// that the tweenable has finished stepping and do not need to be updated
 /// anymore, a state which is never reached for looping animation. Here the
 /// [`CycleCompletedEvent`] instead marks the end of a single cycle.
-#[derive(Copy, Clone, EntityEvent, Message)]
+#[derive(Debug, Copy, Clone, EntityEvent, Message)]
 pub struct CycleCompletedEvent {
     /// The entity owning the tweenable animation which completed.
     ///
