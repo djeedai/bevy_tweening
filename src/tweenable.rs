@@ -1615,6 +1615,7 @@ mod tests {
             &mut c,
             &mut added,
             &mut last_changed,
+            None,
             Tick::new(0),
             Tick::new(1),
             caller.as_mut(),
