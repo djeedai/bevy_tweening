@@ -1,13 +1,15 @@
 #[macro_use]
 extern crate criterion;
 
+use std::hint::black_box;
+
 use bevy::{
     color::palettes::css::{BLUE, RED},
     ecs::{change_detection::MaybeLocation, change_detection::Tick},
     prelude::*,
 };
 use bevy_tweening::lens::*;
-use criterion::{black_box, Criterion};
+use criterion::Criterion;
 
 fn text_color_lens(c: &mut Criterion) {
     let mut lens = TextColorLens {
