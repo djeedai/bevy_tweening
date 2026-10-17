@@ -37,7 +37,7 @@ bevy = { version = "0.20", default-features = false, features = [
 thiserror = "2"
 
 [dev-dependencies]
-bevy-inspector-egui = { git = "https://github.com/taboky-dev/bevy-inspector-egui.git", rev = "9a5b086", default-features = false, features = [
+bevy-inspector-egui = { version = "0.38", default-features = false, features = [
     "bevy_render",
     "bevy_pbr",
 ] }
