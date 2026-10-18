@@ -1,6 +1,6 @@
 use bevy::prelude::*;
 
-use crate::{AnimCompletedEvent, CycleCompletedEvent, TweenAnim, TweenResolver};
+use crate::{AnimCompletedEvent, CycleCompletedEvent, TweenAnim, TweenResolver, time::{TweenTime, TweenTimePluginExt}};
 
 /// Plugin to register the 🍃 Bevy Tweening animation framework.
 ///
@@ -25,6 +25,10 @@ pub struct TweeningPlugin;
 impl Plugin for TweeningPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<TweenResolver>()
+            .init_resource::<TweenTime>()
+            .add_tween_clock::<Virtual>()
+            .add_tween_clock::<Fixed>()
+            .add_tween_clock::<Real>()
             .add_message::<CycleCompletedEvent>()
             .add_message::<AnimCompletedEvent>()
             .add_systems(
@@ -44,10 +48,11 @@ pub enum AnimationSystem {
 
 /// Core animation system ticking all queued animations.
 ///
-/// This calls [`TweenAnim::step_all()`] using a value of the animation timestep
-/// `delta_time` equal to [`Time::delta()`].
+/// This calls [`TweenAnim::step_all()`] using the delta time of all registered clocks.
+/// Each tweenable animation will be stepped using the delta time of the clock it was
+/// created with (which is `Virtual` by default)
 pub(crate) fn animator_system(world: &mut World) {
-    let delta_time = world.resource::<Time>().delta();
+    let delta_time = TweenTime::get_all(world);
     TweenAnim::step_all(world, delta_time);
 }
 
