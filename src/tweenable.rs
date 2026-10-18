@@ -705,7 +705,7 @@ impl Tween {
     ///
     /// ```
     /// # use bevy_tweening::{lens::*, *};
-    /// # use bevy::math::{Vec3, curve::EaseFunction};
+    /// # use bevy::{math::Vec3, curve::EaseFunction};
     /// # use std::time::Duration;
     /// let tween = Tween::new(
     ///     EaseFunction::QuadraticInOut,
@@ -852,7 +852,7 @@ impl Tween {
     ///
     /// ```
     /// # use bevy_tweening::{lens::*, *};
-    /// # use bevy::{ecs::message::MessageReader, math::{Vec3, curve::EaseFunction}};
+    /// # use bevy::{ecs::message::MessageReader, math::Vec3, curve::EaseFunction};
     /// # use std::time::Duration;
     /// let tween = Tween::new(
     ///     // [...]
@@ -934,7 +934,7 @@ impl Tween {
     /// # Example
     /// ```
     /// # use bevy_tweening::{lens::*, *};
-    /// # use bevy::math::{*,curve::EaseFunction};
+    /// # use bevy::{math::*, curve::EaseFunction};
     /// # use std::time::Duration;
     /// let tween1 = Tween::new(
     ///     EaseFunction::QuadraticInOut,
@@ -1615,6 +1615,7 @@ mod tests {
             &mut c,
             &mut added,
             &mut last_changed,
+            None,
             Tick::new(0),
             Tick::new(1),
             caller.as_mut(),

@@ -2569,7 +2569,7 @@ impl TweenAnim {
 
 type ResourceResolver = Box<
     dyn for<'w> Fn(
-            &mut World,
+            &'w mut World,
             Entity,
             &TypeId,
             Duration,
@@ -2583,7 +2583,7 @@ type ResourceResolver = Box<
 
 type AssetResolver = Box<
     dyn for<'w> Fn(
-            &mut World,
+            &'w mut World,
             UntypedAssetId,
             Entity,
             &TypeId,
@@ -2726,7 +2726,7 @@ impl TweenResolver {
                 let last_run = last_changed;
                 let this_run = Tick::new(this_tick);
                 let mut caller = MaybeLocation::caller();
-                let typed_mut = Mut::new(asset_mut.bypass_change_detection(), &mut added, &mut last_changed, last_run, this_run, caller.as_mut());
+                let typed_mut = Mut::new(asset_mut.bypass_change_detection(), &mut added, &mut last_changed, None, last_run, this_run, caller.as_mut());
                 assert!(!typed_mut.is_changed());
                 let mut mut_untyped: MutUntyped = typed_mut.into();
 
@@ -2893,6 +2893,7 @@ mod tests {
                     &mut c,
                     &mut added,
                     &mut last_changed,
+                    None,
                     Tick::new(0),
                     Tick::new(1),
                     caller.as_mut(),
@@ -2925,6 +2926,7 @@ mod tests {
                     &mut res,
                     &mut added,
                     &mut last_changed,
+                    None,
                     Tick::new(0),
                     Tick::new(0),
                     caller.as_mut(),
@@ -2957,6 +2959,7 @@ mod tests {
                     asset,
                     &mut added,
                     &mut last_changed,
+                    None,
                     Tick::new(0),
                     Tick::new(0),
                     caller.as_mut(),

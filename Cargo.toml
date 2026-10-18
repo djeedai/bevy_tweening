@@ -29,16 +29,15 @@ bevy_ui = ["bevy/bevy_ui", "bevy/bevy_render"]
 bevy_text = ["bevy/bevy_text", "bevy/bevy_render", "bevy/bevy_sprite"]
 
 [dependencies]
-# Note: abuse 'bevy_color' to force 'bevy_math/curve' feature, which defines EaseFunction
-bevy = { version = "0.19", default-features = false, features = [
-    "bevy_color",
+bevy = { version = "0.20", default-features = false, features = [
+    "bevy_curve",
     "bevy_asset",
     "bevy_log",
 ] }
 thiserror = "2"
 
 [dev-dependencies]
-bevy-inspector-egui = { version = "0.37", default-features = false, features = [
+bevy-inspector-egui = { version = "0.38", default-features = false, features = [
     "bevy_render",
     "bevy_pbr",
 ] }
@@ -77,19 +76,39 @@ required-features = [
 
 [[example]]
 name = "colormaterial_color"
-required-features = ["bevy_sprite", "bevy/bevy_winit", "bevy/bevy_picking", "bevy/bevy_text"]
+required-features = [
+    "bevy_sprite",
+    "bevy/bevy_winit",
+    "bevy/bevy_picking",
+    "bevy/bevy_text",
+]
 
 [[example]]
 name = "sprite_color"
-required-features = ["bevy_sprite", "bevy/bevy_winit", "bevy/bevy_picking", "bevy/bevy_text"]
+required-features = [
+    "bevy_sprite",
+    "bevy/bevy_winit",
+    "bevy/bevy_picking",
+    "bevy/bevy_text",
+]
 
 [[example]]
 name = "transform_translation"
-required-features = ["bevy_sprite", "bevy/bevy_winit", "bevy/bevy_picking", "bevy/bevy_text"]
+required-features = [
+    "bevy_sprite",
+    "bevy/bevy_winit",
+    "bevy/bevy_picking",
+    "bevy/bevy_text",
+]
 
 [[example]]
 name = "transform_rotation"
-required-features = ["bevy_sprite", "bevy/bevy_winit", "bevy/bevy_picking", "bevy/bevy_text"]
+required-features = [
+    "bevy_sprite",
+    "bevy/bevy_winit",
+    "bevy/bevy_picking",
+    "bevy/bevy_text",
+]
 
 [[example]]
 name = "ui_position"
