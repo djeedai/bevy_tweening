@@ -493,8 +493,8 @@ impl Lens<BackgroundColor> for UiBackgroundColorLens {
 
 /// A lens to manipulate the [`color`] field of a [`ColorMaterial`] asset.
 ///
-/// [`color`]: https://docs.rs/bevy/0.19/bevy/sprite/struct.ColorMaterial.html#structfield.color
-/// [`ColorMaterial`]: https://docs.rs/bevy/0.19/bevy/sprite/struct.ColorMaterial.html
+/// [`color`]: https://docs.rs/bevy/0.19/bevy/sprite_render/struct.ColorMaterial.html#structfield.color
+/// [`ColorMaterial`]: https://docs.rs/bevy/0.19/bevy/sprite_render/struct.ColorMaterial.html
 #[cfg(feature = "bevy_sprite")]
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct ColorMaterialColorLens {
